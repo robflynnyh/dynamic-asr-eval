@@ -30,13 +30,14 @@ DATA = {
 }
 
 
+def trim_spec(spec:torch.Tensor, start_w:float, end_w:float): # spec: (B, F, T)
+    '''Trim the spectrogram to the start of the first word and the end of the last word.'''
+    start_frame, end_frame = list(map(audio_tools.total_frames, [start_w, end_w]))
+    return spec[:, :, start_frame:end_frame]
 
 
 def combine_and_load_audio(audio_files:list, stime:float, etime:float) -> torch.Tensor:
-    '''
-    There are several particpants in each meeting, and each participant has several channels and their own audio file.
-    So we want to combine all the channels for each participant and then combine all the participants.
-    '''
+    '''Here we take all the channels for the first microphone array (U01) and combine them via averaging the spectrograms and normalizing the result'''
     # load all audio files
     audios = []
     for audio_file in audio_files:
@@ -48,15 +49,11 @@ def combine_and_load_audio(audio_files:list, stime:float, etime:float) -> torch.
     # pad from the right
     audios = [torch.nn.functional.pad(audio, (0, max_len - audio.shape[-1]))[None] for audio in audios]
    
-    #audio = torch.stack(audios, dim=0).mean(dim=0)[None]
-    
     specs = [audio_tools.to_spectogram(waveform=audio, global_normalisation=False) for audio in audios]
     # get duration in seconds
     spec_duration = audio_tools.total_seconds(specs[0].shape[-1])
  
-    remove_start, remove_end = {'start':0.0, 'end':stime}, {'start':etime, 'end':spec_duration+10}
-    remove_timings = [remove_start, remove_end]
-    specs = [zero_out_spectogram(spec, remove_timings, buffer=0.0) for spec in specs]
+    specs = [trim_spec(spec, stime, etime) for spec in specs]
     spec = torch.stack(specs, dim=0).mean(dim=0)
     # renormalize
     spec = (spec - spec.mean(-1, keepdim=True)) / spec.std(-1, keepdim=True)
@@ -126,6 +123,17 @@ def main(args):
     audio_files, text_files, stimes, etimes = fetch_data(data=data_path)
     meetings_keys = list(audio_files.keys())
     
+    # spec_augment_config={ Default
+    #     'n_time_masks': 2,
+    #     'n_freq_masks': 3,
+    #     'freq_mask_param': 42,
+    #     'time_mask_param': -1,
+    #     'min_p': 0.05,
+    #     'zero_masking': True,
+    # }
+
+
+
     all_texts = []
     all_golds = []
     for rec in tqdm(range(len(meetings_keys)), total=len(audio_files)):
@@ -139,7 +147,7 @@ def main(args):
         
         audio_spec = combine_and_load_audio(cur_audio_files, stimes[cur_meeting], etimes[cur_meeting])
         
-        logits = dynamic_eval(args, model, audio_spec, args.seq_len, args.overlap, tokenizer)
+        logits = dynamic_eval(args, model, audio_spec, args.seq_len, args.overlap, tokenizer)#, spec_augment_config=spec_augment_config)
 
         ds_factor = audio_spec.shape[-1] / logits.shape[0]
         decoded, bo = decode_beams_lm([logits], decoder, beam_width=args.beam_width, ds_factor=ds_factor)
