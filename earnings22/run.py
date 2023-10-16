@@ -10,6 +10,12 @@ from lcasr.eval.dynamic_eval import dynamic_eval
 from whisper.normalizers import EnglishTextNormalizer
 normalize = EnglishTextNormalizer()
 
+import sys
+import os.path
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))) # for importing from parent dir
+import lib
+
 TEST_PATH = '/mnt/parscratch/users/acp21rjf/earnings22/test_original'
 DEV_PATH = '/mnt/parscratch/users/acp21rjf/earnings22/dev_original'
 ALL_TEXT_PATH = '/mnt/parscratch/users/acp21rjf/earnings22/full_transcripts.json'
@@ -97,14 +103,14 @@ def main(args):
         logits = dynamic_eval(args, model, audio_spec, args.seq_len, args.overlap, tokenizer)
 
         ds_factor = audio_spec.shape[-1] / logits.shape[0]
-        decoded, bo = decode_beams_lm([logits], decoder, beam_width=args.beam_width, ds_factor=ds_factor)
+        decoded, bo = decode_beams_lm([logits], decoder, beam_width=1, ds_factor=ds_factor)
         out = normalize(decoded[0]['text']).lower()
         
         print(cur_text, '\n', out, '\n\n')
         
         all_texts.append(out)
         all_golds.append(cur_text)
-        #break
+        
     
     wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=all_texts, references=all_golds)
 
@@ -117,14 +123,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--checkpoint', type=str, default='../../exp/model.pt', help='path to checkpoint')
-    parser.add_argument('-split', '--split', type=str, default='test', help='test or dev split')
-    parser.add_argument('-seq', '--seq_len', type=int, default=-1, help='-1 to use setting from config in checkpoint file')
-    parser.add_argument('-overlap', '--overlap', type=int, default=0, help='-1 to use setting from config in checkpoint file')
-    parser.add_argument('-beams', '--beam_width', type=int, default=1, help='beam width for decoding')
-    parser.add_argument('-cache_len', '--cache_len', type=int, default=-1, help='cache length for decoding')
-    parser.add_argument('-log', '--log', type=str, default='')
-
+    parser = lib.apply_args(parser)
     args = parser.parse_args()
     main(args)
     

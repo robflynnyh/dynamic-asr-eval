@@ -10,6 +10,12 @@ from lcasr.eval.wer import word_error_rate_detail
 from pyctcdecode import build_ctcdecoder
 import time
 
+import sys
+import os.path
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))) # for importing from parent dir
+import lib
+
 TEST_PATH = '/mnt/parscratch/users/acp21rjf/TEDLIUM_release1/test/'
 DEV_PATH = '/mnt/parscratch/users/acp21rjf/TEDLIUM_release1/dev/'
 
@@ -138,8 +144,6 @@ def main(args):
         print(all_text) if args.verbose else None
         all_texts.append(all_text)
         all_golds.append(gold_text)
-        #break
-
 
         
     wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=all_texts, references=all_golds)
@@ -153,16 +157,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--checkpoint', type=str, default='../../exp/model.pt', help='path to checkpoint')
-    parser.add_argument('-split', '--split', type=str, default='test', help='test or dev split')
-    parser.add_argument('-seq', '--seq_len', type=int, default=-1, help='-1 to use setting from config in checkpoint file')
-    parser.add_argument('-overlap', '--overlap', type=int, default=0, help='-1 to use setting from config in checkpoint file')
-    parser.add_argument('-cache_len', '--cache_len', type=int, default=-1, help='cache length for decoding')
-
-    parser.add_argument('-nv', '--not_verbose', action='store_true', help='verbose')
-
-    parser.add_argument('-log', '--log', type=str, default='')
-
+    parser = lib.apply_args(parser)
     args = parser.parse_args()
     args.verbose = not args.not_verbose
 
