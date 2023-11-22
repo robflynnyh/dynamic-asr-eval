@@ -1,0 +1,12 @@
+datasets:
+  tedlium:
+    test:
+    dev:
+  earnings:
+    test:
+    dev:
+    text:
+
+checkpoint:
+  lcasr:
+  nvidia_ctc:

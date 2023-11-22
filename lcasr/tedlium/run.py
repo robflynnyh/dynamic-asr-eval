@@ -16,8 +16,8 @@ sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))) # for importing from parent dir
 import lib
 
-TEST_PATH = '/mnt/parscratch/users/acp21rjf/TEDLIUM_release1/test/'
-DEV_PATH = '/mnt/parscratch/users/acp21rjf/TEDLIUM_release1/dev/'
+TEST_PATH = lib.paths.datasets.tedlium.test
+DEV_PATH = lib.paths.datasets.tedlium.dev
 
 from whisper.normalizers import EnglishTextNormalizer
 normalize = EnglishTextNormalizer()
@@ -98,6 +98,8 @@ def main(args):
     checkpoint = torch.load(args.checkpoint, map_location='cpu')
     model_config = checkpoint['config']
     args.config = model_config
+    if args.disable_flash_attention:
+        args.config.model.flash_attn = False
     
 
     tokenizer = lcasr.utils.audio_tools.load_tokenizer()
@@ -157,10 +159,6 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser = lib.apply_args(parser)
-    args = parser.parse_args()
-    args.verbose = not args.not_verbose
-
-
+    args = lib.apply_args(parser)
     main(args)
     

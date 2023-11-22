@@ -4,6 +4,7 @@
 *.log
 .fuse*
 *.pkl
+paths.yaml
 
 wandb/
 
