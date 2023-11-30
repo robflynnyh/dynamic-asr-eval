@@ -10,3 +10,4 @@ datasets:
 checkpoint:
   lcasr:
   nvidia_ctc:
+  wav2vec2:

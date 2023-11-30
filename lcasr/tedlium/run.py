@@ -5,7 +5,7 @@ from typing import List
 from lcasr.utils.audio_tools import processing_chain, total_frames
 from lcasr.utils.general import load_model
 from lcasr.eval.utils import zero_out_spectogram, decode_beams_lm, fetch_logits
-from lcasr.eval.dynamic_eval import dynamic_eval
+#from lcasr.eval.dynamic_eval import dynamic_eval
 from lcasr.eval.wer import word_error_rate_detail 
 from pyctcdecode import build_ctcdecoder
 import time
@@ -15,6 +15,7 @@ import os.path
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))) # for importing from parent dir
 import lib
+from lib import dynamic_eval
 
 TEST_PATH = lib.paths.datasets.tedlium.test
 DEV_PATH = lib.paths.datasets.tedlium.dev
@@ -133,7 +134,7 @@ def main(args):
         audio_spec = zero_out_spectogram(spec = audio_spec, remove_timings = remove_timings)
         
         stime = time.time()
-        logits = dynamic_eval(args, model, audio_spec, args.seq_len, args.overlap, tokenizer)
+        logits = dynamic_eval(args, model, audio_spec, args.seq_len, args.overlap, tokenizer)#, optimizer_state=checkpoint['optimizer'])
         etime = time.time()
         print(f'Inference time: {etime-stime}')
         ds_factor = audio_spec.shape[-1] / logits.shape[0]
@@ -146,6 +147,7 @@ def main(args):
         print(all_text) if args.verbose else None
         all_texts.append(all_text)
         all_golds.append(gold_text)
+        break
 
         
     wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=all_texts, references=all_golds)

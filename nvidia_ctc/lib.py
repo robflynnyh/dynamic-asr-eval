@@ -27,6 +27,10 @@ def preprocess(audio_path, model):
     spec = get_spectrogram(audio_signal, model, 'cpu')
     return spec
 
+def disable_dropout(model):
+    for module in model.modules():
+        if isinstance(module, nn.Dropout):
+            module.p = 0
 
 def dynamic_eval_ctc_loss(
         args, 
@@ -36,18 +40,20 @@ def dynamic_eval_ctc_loss(
         overlap:int, 
         tokenizer, 
         use_tqdm=True,
-        optim:optim.Optimizer=madgrad.MADGRAD,
-        num_negatives:int=2,
-        lr_args:dict={'lr':1e-10},
+        optim:optim.Optimizer=optim.Adam,
+        num_negatives:int=4,
+        lr_args:dict={'lr':1e-8},
         spec_augment_config={
-            'n_time_masks': 2,
-            'n_freq_masks': 2,
-            'freq_mask_param': 42,
+            'n_time_masks': 3,
+            'n_freq_masks': 3,
+            'freq_mask_param': 40,
             'time_mask_param': -1,
             'min_p': 0.05,
             'zero_masking': False,
         }
     ):
+    model.spec_augmentation = None
+    disable_dropout(model)
 
     spec_n = spec.shape[-1]
     downsampling_factor = 8
@@ -58,30 +64,45 @@ def dynamic_eval_ctc_loss(
     original_model_params = [p.clone().detach() for p in original_model_params]
 
     ctc_loss_fn = torch.nn.CTCLoss(blank=tokenizer.vocab_size, reduction='sum')
-    model.eval()
-    model.encoder.pre_encode.eval()
-    model.encoder.pos_enc.eval()
-    model.decoder.eval()
-    model.spec_augmentation.eval()
-    print(model)
-    exit()
-    optimizer = optim(model.parameters(), **lr_args)
+
+    # print(model)
+    #exit()
+    
     decoder = GreedyCTCDecoder(tokenizer = SentencePieceAdapter(tokenizer), blank_id = tokenizer.vocab_size)
     augmentation = SpecAugment(**spec_augment_config)
 
-  
-    print(model)
+    model.train()
+
+    # model.eval()
+    # model.encoder.pre_encode.eval()
+    # model.encoder.pos_enc.eval()
+    # model.decoder.eval()
+    #freeze above layers
+    for param in model.encoder.pre_encode.parameters():
+        param.requires_grad = False
+    for param in model.encoder.pos_enc.parameters():
+        param.requires_grad = False
+    for param in model.decoder.parameters():
+        param.requires_grad = False
+        
+    # print(model)
     for layer in model.encoder.layers:
+        # for param in layer.conv.parameters():
+        #     param.requires_grad = False
         layer.conv.eval()
-        # shape = bn.weight.shape[-1]
-        # brn = BatchRenorm1d(shape, momentum=0.001, eps=1e-5)
-        # brn.num_batches_tracked = torch.tensor(1000000, dtype=torch.long)
-        # brn.weight.data = bn.weight.data
-        # brn.bias.data = bn.bias.data
-        # brn.running_mean.data = bn.running_mean.data
-        # brn.running_std.data = bn.running_var.data.sqrt()
-        # layer.conv.batch_norm = brn.to(bn.weight.device)
+        layer.conv.batch_norm.eval()
+        bn = layer.conv.batch_norm
+        shape = bn.weight.shape[-1]
+        brn = BatchRenorm1d(shape, momentum=0.001, eps=1e-5)
+        brn.num_batches_tracked = torch.tensor(1000000, dtype=torch.long)
+        brn.weight.data = bn.weight.data
+        brn.bias.data = bn.bias.data
+        brn.running_mean.data = bn.running_mean.data
+        brn.running_std.data = bn.running_var.data.sqrt()
+        layer.conv.batch_norm = brn.to(bn.weight.device)
     #model.encoder.layers[0].conv.batch_norm.eval()
+
+    optimizer = optim(model.parameters(), **lr_args)
 
     if seq_len > spec_n:
         seq_len, overlap = spec_n, 0
@@ -102,7 +123,6 @@ def dynamic_eval_ctc_loss(
             kill_next = True
         last_ulen = u_len
         training_data[i] = audio_chunk
-
 
     for epoch in range(args.__dict__.get('epochs', 1)):
         print(f'Epoch {epoch + 1} / {args.__dict__.get("epochs", 1)}')
@@ -134,10 +154,13 @@ def dynamic_eval_ctc_loss(
 
             optimizer.zero_grad()
             loss.backward()
+            # clip grad norm to 1.0
+            #torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            
             optimizer.step()
 
             
-            print(model.encoder.layers[0].conv.batch_norm.running_mean) # check that batch norm is frozen
+            #print(model.encoder.layers[0].conv.batch_norm.running_mean) # check that batch norm is frozen
         
             logits = log_p[-1].detach().cpu()
             logits = torch.exp(logits) # convert to prob
@@ -184,7 +207,7 @@ def apply_args(parser):
     parser.add_argument('-c', '--checkpoint', type=str, default='', help='path to checkpoint')
     parser.add_argument('-split', '--split', type=str, default='test', help='test or dev split')
     parser.add_argument('-seq', '--seq_len', type=int, default=2048)
-    parser.add_argument('-overlap', '--overlap', type=int, default=1792)
+    parser.add_argument('-overlap', '--overlap', type=int, default=0)
     parser.add_argument('-nv', '--not_verbose', action='store_true', help='verbose')
     parser.add_argument('-log', '--log', type=str, default='')
     parser.add_argument('-shuffle', '--shuffle', action='store_true', help='shuffle')
