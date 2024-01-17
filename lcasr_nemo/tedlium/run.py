@@ -1,29 +1,28 @@
-import torch, argparse, lcasr, os, re, json
+import torch, lcasr, os, re
+import argparse
 from tqdm import tqdm
-from typing import Tuple
-from lcasr.eval.utils import fetch_logits, decode_beams_lm
-
-from lcasr.eval.wer import word_error_rate_detail 
-from whisper.normalizers import EnglishTextNormalizer
-from lcasr.decoding.greedy import GreedyCTCDecoder
-normalize = EnglishTextNormalizer()
-from typing import List, Dict
+from typing import List
 from lcasr.utils.audio_tools import processing_chain, total_frames
 from lcasr.utils.general import load_model
 from lcasr.eval.utils import zero_out_spectogram, decode_beams_lm, fetch_logits
-
+#from lcasr.eval.dynamic_eval import dynamic_eval
+from lcasr.eval.wer import word_error_rate_detail 
 from pyctcdecode import build_ctcdecoder
+import torchaudio
+import time
 
 import sys
 import os.path
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))) # for importing from parent dir
 import lib
+from lib import dynamic_eval
 
 TEST_PATH = lib.paths.datasets.tedlium.test
 DEV_PATH = lib.paths.datasets.tedlium.dev
 
-
+from whisper.normalizers import EnglishTextNormalizer
+normalize = EnglishTextNormalizer()
 
 def open_stm(path:str) -> List[str]:
     with open(path, 'r') as f:
@@ -82,7 +81,6 @@ def fetch_utterances(stm_path:str, waveform:torch.Tensor, sr:int = 16000):
         
     return utterances, all_text
 
-
 def fetch_data(path:str = TEST_PATH):
     audio_path = os.path.join(path, 'sph')
     audio_files = [os.path.join(audio_path, el) for el in os.listdir(audio_path) if el.endswith('.sph')]
@@ -94,71 +92,72 @@ def fetch_data(path:str = TEST_PATH):
     return audio_files, text_files
 
 
-def get_vocab(processor):
-    vocab_dict = processor.tokenizer.get_vocab()
-    sort_vocab = sorted((value, key) for (key,value) in vocab_dict.items())
-    vocab = []
-    for _, key in sort_vocab:
-        vocab.append(key.lower())
-    vocab[vocab.index(processor.tokenizer.word_delimiter_token)] = ' '
-    return vocab
+
 
 def main(args):
     assert args.split in ['test', 'dev'], f'Split must be either test or dev (got {args.split})'
     data_path = TEST_PATH if args.split == 'test' else DEV_PATH
 
     
-    model, processor = lib.load_pretrained_model(args.checkpoint)
-    print(f'Loaded model from {args.checkpoint}')
-    # print total number of parameters (M)
-    print(f'Total number of parameters: {sum(p.numel() for p in model.parameters()) / 1e6:.2f}M')
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+    tokenizer = lib.load_tokenizer(path = args.tokenizer_path)
+
+    model = lib.load_model(path = args.checkpoint)
+ 
+    print(f'Loaded model from {args.checkpoint}')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model.device = device
     model = model.to(device)
     model.eval()
-    tokenizer = processor.tokenizer
-    vocab = [el[0] for el in tokenizer.vocab.items()] 
-    space_id = vocab.index("|")
-    vocab[space_id] = " "
-    tokenizer.blank_id = 0
-    tokenizer.vocab_list = vocab
-    decoder = GreedyCTCDecoder(tokenizer = tokenizer, blank_id = tokenizer.blank_id)
 
-    # ngram_decoder = build_ctcdecoder(
-    #     labels = get_vocab(processor),
-    #     kenlm_model_path = '../4gram_big.arpa.gz',
-    #     alpha = 0.3,
-    #     beta = 0.8,
-    # )
-    ngram_decoder = None
+    #vocab = [tokenizer.ids_to_text(id) for id in range(tokenizer.vocab_size)] + [""]
+    decoder = build_ctcdecoder(tokenizer.vocab, kenlm_model_path=None, alpha=None, beta=None)
 
-    print(tokenizer.vocab)
+
     audio_files, text_files = fetch_data(path=data_path)
     paired = dict(zip(audio_files, text_files))
     
     all_texts = []
     all_golds = []
 
+    beamsearch = None
+    if args.beamsearch:
+        beamsearch = lib.load_beamsearch(path = lib.paths.checkpoints.lm)
+
     for rec in tqdm(range(len(audio_files)), total=len(audio_files)):
         print(f'Processing {rec+1}/{len(audio_files)}') if args.verbose else None   
 
-    
+        audio_wav,_= torchaudio.load(audio_files[rec])
         print('\n\n'+paired[audio_files[rec]]+'\n\n') if args.verbose else None
         stm_path = paired[audio_files[rec]]
         gold_text, timings, remove_timings = proc_stm_and_timings(stm_path=stm_path)
 
-        audio_spec = lib.preprocess(audio_files[rec])
-        utterances, gold_text = fetch_utterances(stm_path=stm_path, waveform=audio_spec)
-        #audio_spec = zero_out_spectogram(spec = audio_spec, remove_timings = remove_timings)
+        utterances, gold_text = fetch_utterances(stm_path=stm_path, waveform=audio_wav)
         
- 
-        utterances_out = lib.dynamic_eval_su(args, model, utterances, args.seq_len, args.overlap, tokenizer, processor, ngram_decoder=ngram_decoder)
+        stime = time.time()
+        utterances_out = dynamic_eval(
+            args,
+            model,
+            utterances,
+            args.seq_len, 
+            args.overlap, 
+            tokenizer,
+        )
+        
+        etime = time.time()
+        print(f'Inference time: {etime-stime}')
+      
         for i, utt in enumerate(utterances_out):
-            txt = decoder(utt['probs']).lower()
-            utterances_out[i]['text'] = txt
+            decoded, bo = decode_beams_lm([utt['probs']], decoder, beam_width=1, ds_factor=None)
+            print(bo.text)
+            utterances_out[i]['text'] = bo.text
+
+      
+
         text = ' '.join([el['text'].strip() for el in utterances_out])
         out = normalize(text).lower()
-        
+
+        gold_text = normalize(gold_text).lower()    
         print(gold_text) if args.verbose else None
         print(out) if args.verbose else None
         all_texts.append(out)

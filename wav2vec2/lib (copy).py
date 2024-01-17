@@ -262,34 +262,6 @@ def wav_fourier_top_k(waveform:torch.Tensor, k:int=10000):
 
     return torch.fft.irfft(fourier, dim=-1, n=waveform.shape[-1])
 
-@torch.no_grad()
-def noise_hook(module, input, output):
-    o = output[0][:-1]
-    fourier = torch.fft.rfft(o, dim=-1)
-    fourier_abs = torch.abs(fourier)
-    k = min(2, fourier_abs.shape[-1])
-    top_k = torch.topk(fourier_abs, k=k, dim=-1, largest=True)
-    # print(fourier.shape, top_k.indices.shape)
-    fourier.scatter_(dim=-1, index=top_k.indices, src=torch.zeros_like(top_k.indices, dtype=torch.complex64))
-    o = torch.fft.irfft(fourier, dim=-1, n=o.shape[-1])
-    output[0][:-1] = o
-    return [output[0]]
-
-@torch.no_grad()
-def mask_hook(module, input, output):
-    o = output[0][:-1]
-    # print(o.shape)
-    d = o.shape[-1]
-    num_masks = 1
-    max_mask_width = 10
-    mask_lens = torch.randint(1, max_mask_width, (num_masks,))
-    mean = o.mean()
-    for i in range(num_masks):
-        start = torch.randint(0, d - mask_lens[i], (1,))
-        o[:, :, start:start+mask_lens[i]] = mean
-    output[0][:-1] = o
-    return [output[0]]
-
 def dynamic_eval_ctc_loss_su(
         args, 
         model:nn.Module, 
@@ -301,7 +273,7 @@ def dynamic_eval_ctc_loss_su(
         use_tqdm=True,
         optim:optim.Optimizer=madgrad.MADGRAD,
         num_negatives:int=1,
-        lr_args:dict={'lr':1e-15},
+        lr_args:dict={'lr':1e-8},
         ngram_decoder=None,
 
     ):
@@ -318,37 +290,14 @@ def dynamic_eval_ctc_loss_su(
     # freeze model.wav2vec2.feature_extractor
     print(model)
     
-    # for p in model.wav2vec2.feature_extractor.parameters():
-    #     p.requires_grad = True
-    # for p in model.wav2vec2.feature_projection.parameters():
-    #     p.requires_grad = True 
-    # for p in model.wav2vec2.encoder.pos_conv_embed.parameters():
-    #     p.requires_grad = False 
-
+    # for p in model.wav2vec2.parameters():
+    #     p.requires_grad = False
     # for p in model.lm_head.parameters():
     #     p.requires_grad = False
-    # # freeze all layer norms
-    # for m in model.modules():
-    #     if isinstance(m, torch.nn.LayerNorm):
-    #         m.eval()
-    #         m.requires_grad = False
-            
-    # drop the middle 4 layers
-    # print(len(model.wav2vec2.encoder.layers))
-    # model.wav2vec2.encoder.layers = model.wav2vec2.encoder.layers[:10] + model.wav2vec2.encoder.layers[-10:]
-       
-    # for layer in model.wav2vec2.encoder.layers:
-    #     # add forward hook to each layer
-    #     layer.register_forward_hook(mask_hook)
-
-    # for p in model.parameters():
-    #     if p.requires_grad:
-    #         p.register_hook(lambda grad: torch.clamp(grad, -20, 20))
-
 
     # # print(model.wav2vec2.feature_extractor)
     # exit()
-    ctc_loss_fn = torch.nn.CTCLoss(blank=tokenizer.blank_id, reduction='mean')
+    ctc_loss_fn = torch.nn.CTCLoss(blank=tokenizer.blank_id, reduction='sum')
     print(tokenizer.vocab)
 
     optimizer = optim(model.parameters(), **lr_args)
@@ -396,32 +345,31 @@ def dynamic_eval_ctc_loss_su(
             src_info = {'rate': 16000, 'channels': 1, 'mean':audio_chunk[-1].mean().item()}
             tgt_info = {'rate': 16000, 'channels': 1}
 
-
+            # for j in range(num_negatives):
+            #     audio_chunk[j] = augmentation_2.apply(audio_chunk[j].clone(), src_info, tgt_info).clone()
+            #     for _ in range(30):
+            #         audio_chunk[j] = augmentation_1.apply(audio_chunk[j].clone(), src_info, tgt_info).clone()
                 #audio_chunk[j] = augmentation_2.apply(audio_chunk[j].clone(), src_info, tgt_info).clone() # [-1,None]
             # for j in range(num_negatives):
             #     audio_chunk[j] = wav_fourier_top_k(audio_chunk[j])
 
             u_len = audio_chunk.shape[-1]
             audio_chunk = audio_chunk.squeeze(1)
-            input_values = processor.feature_extractor(audio_chunk.numpy(), sampling_rate=16000, return_tensors='pt').input_values
+            input_values = processor.feature_extractor(audio_chunk.numpy(), sampling_rate=16000, return_tensors='pt').input_values.to(model.device)
+            input_values = audio_chunk.to(input_values)
     
-            # for j in range(num_negatives):
-            #     audio_chunk[j] = augmentation_2.apply(input_values[j].clone(), src_info, tgt_info).clone()
-            #     for _ in range(5):
-            #         input_values[j] = augmentation_1.apply(input_values[j].clone(), src_info, tgt_info).clone()
-
-            pred = model(input_values.to(model.device))
+            pred = model(input_values)
 
             logits = pred.logits
             print(logits.shape)
             log_p = F.log_softmax(logits, dim=-1)
-            if ngram_decoder is None:
-                pseudo_targets = decoder(log_p[-1].detach().cpu())
-            else:
-                pseudo_targets = ngram_decoder.decode(log_p[-1].detach().cpu().numpy(), beam_width=5).upper()
+            # if ngram_decoder is None:
+            #     pseudo_targets = decoder(log_p[-1].detach().cpu())
+            # else:
+            #     pseudo_targets = ngram_decoder.decode(log_p[-1].detach().cpu().numpy(), beam_width=5).upper()
                 
             dtgts = decoder(log_p[0].detach().cpu())
-            # pseudo_targets = utt["text"].upper() 
+            pseudo_targets = utt["text"].upper() 
             print(pseudo_targets, '\n', dtgts, '\n---\n')
            
              
@@ -431,26 +379,25 @@ def dynamic_eval_ctc_loss_su(
        
             total_tokens_in_loss = N * B
   
-            loss = ctc_loss_fn(augmented_outs.transpose(0, 1), pseudo_targets, torch.LongTensor([N] * augmented_outs.shape[0]).to(model.device), torch.LongTensor([pseudo_targets.shape[1]] * pseudo_targets.shape[0]).to(model.device)) #/ total_tokens_in_loss
+            loss = ctc_loss_fn(augmented_outs.transpose(0, 1), pseudo_targets, torch.LongTensor([N] * augmented_outs.shape[0]).to(model.device), torch.LongTensor([pseudo_targets.shape[1]] * pseudo_targets.shape[0]).to(model.device)) / total_tokens_in_loss
             #print('loss', loss.item())
             #losses.append(loss.item())
             accumulated_loss += loss.item()
             
-            loss.backward()
-            num_accumulated += 1
-            if num_accumulated == accumulate_for:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 10.0) # clip gradients
-                optimizer.step()
-                optimizer.zero_grad()
-                accumulated_loss = accumulated_loss / accumulate_for
-                print(f'Loss: {accumulated_loss}')
-                losses.append(accumulated_loss)
-                num_accumulated = 0
-                accumulated_loss = 0
+            # loss.backward()
+            # num_accumulated += 1
+            # if num_accumulated == accumulate_for:
+            #     optimizer.step()
+            #     optimizer.zero_grad()
+            #     accumulated_loss = accumulated_loss / accumulate_for
+            #     print(f'Loss: {accumulated_loss}')
+            #     losses.append(accumulated_loss)
+            #     num_accumulated = 0
+            #     accumulated_loss = 0
 
-                plt.plot(losses)
-                plt.savefig('loss.png')
-                plt.close()
+            #     plt.plot(losses)
+            #     plt.savefig('loss.png')
+            #     plt.close()
     
             probs = log_p[-1].detach().cpu()
             utterances[idx]['probs'] = probs

@@ -65,8 +65,8 @@ def fetch_utterances(stm_path:str, waveform:torch.Tensor, sr:int = 16000):
         if text == 'ignore_time_segment_in_scoring':
             continue
         #print(int(float(start) * sr), int(float(end) * sr))
-        text = re.sub(r" '([a-z])", r"'\1", text)
-        text = re.sub(r" +", r" ", text)
+        # text = re.sub(r" '([a-z])", r"'\1", text)
+        # text = re.sub(r" +", r" ", text)
         utterances.append({
             'start': float(start), 
             'end': float(end), 

@@ -1,24 +1,15 @@
 import torch, lcasr, os, re
 import argparse
 from tqdm import tqdm
-from typing import List
-from lcasr.utils.audio_tools import processing_chain, total_frames
+from typing import List, Tuple
+from lcasr.utils.audio_tools import processing_chain, total_seconds, total_frames
 from lcasr.utils.general import load_model
-from lcasr.eval.utils import zero_out_spectogram, decode_beams_lm, fetch_logits
-#from lcasr.eval.dynamic_eval import dynamic_eval
+from lcasr.eval.utils import zero_out_spectogram, fetch_logits, decode_beams_lm
 from lcasr.eval.wer import word_error_rate_detail 
 from pyctcdecode import build_ctcdecoder
-import time
 
-import sys
-import os.path
-sys.path.append(
-    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))) # for importing from parent dir
-import lib
-from lib import dynamic_eval
-
-TEST_PATH = lib.paths.datasets.tedlium.test
-DEV_PATH = lib.paths.datasets.tedlium.dev
+TEST_PATH = '/mnt/parscratch/users/acp21rjf/TEDLIUM_release1/test/'
+DEV_PATH = '/mnt/parscratch/users/acp21rjf/TEDLIUM_release1/dev/'
 
 from whisper.normalizers import EnglishTextNormalizer
 normalize = EnglishTextNormalizer()
@@ -35,7 +26,8 @@ def proc_stm_and_timings(stm_path:str):
     remove_timings = []
     for line in stm:
         sline = line.split(' ')
-        if len(sline) < 6: continue
+        if len(sline) < 6:
+            continue
         a_id, s_id, spk, start, end, meta = sline[:6]
         text = ' '.join(sline[6:])
         if text == 'ignore_time_segment_in_scoring':
@@ -99,8 +91,6 @@ def main(args):
     checkpoint = torch.load(args.checkpoint, map_location='cpu')
     model_config = checkpoint['config']
     args.config = model_config
-    if args.disable_flash_attention:
-        args.config.model.flash_attn = False
     
 
     tokenizer = lcasr.utils.audio_tools.load_tokenizer()
@@ -123,44 +113,57 @@ def main(args):
     all_texts = []
     all_golds = []
 
-    beamsearch = None
-    if args.beamsearch:
-        beamsearch = lib.load_beamsearch(path = lib.paths.checkpoints.lm)
+    if not args.single_utterance:
+        for rec in tqdm(range(len(audio_files)), total=len(audio_files)):
+            print(f'Processing {rec+1}/{len(audio_files)}') if args.verbose else None   
 
-    for rec in tqdm(range(len(audio_files)), total=len(audio_files)):
-        print(f'Processing {rec+1}/{len(audio_files)}') if args.verbose else None   
+            audio_spec = processing_chain(audio_files[rec])
+            print('\n\n'+paired[audio_files[rec]]+'\n\n') if args.verbose else None
+            stm_path = paired[audio_files[rec]]
+            gold_text, timings, remove_timings = proc_stm_and_timings(stm_path=stm_path)
 
-        audio_spec = processing_chain(audio_files[rec])
-        print('\n\n'+paired[audio_files[rec]]+'\n\n') if args.verbose else None
-        stm_path = paired[audio_files[rec]]
-        gold_text, timings, remove_timings = proc_stm_and_timings(stm_path=stm_path)
+            audio_spec = zero_out_spectogram(spec = audio_spec, remove_timings = remove_timings)
+            import time
+            stime = time.time()
+            logits = fetch_logits(args, model, audio_spec, args.seq_len, args.overlap, tokenizer)
+            etime = time.time()
+            print(f'Inference time: {etime-stime}')
+            ds_factor = audio_spec.shape[-1] / logits.shape[0]
+            decoded, bo = decode_beams_lm([logits], decoder, beam_width=1, ds_factor=ds_factor)
 
-        audio_spec = zero_out_spectogram(spec = audio_spec, remove_timings = remove_timings)
-        
-        stime = time.time()
-        logits = dynamic_eval(
-            args, 
-            model, 
-            audio_spec, 
-            args.seq_len, 
-            args.overlap, 
-            tokenizer,
-            beam_search_fn = beamsearch
-        )
+            all_text = normalize(decoded[0]['text']).lower()
+            all_text = all_text[:-1].strip() if all_text.endswith('.') else all_text.strip()
+            gold_text = normalize(gold_text).lower()    
+            print(gold_text) if args.verbose else None
+            print(all_text) if args.verbose else None
+            all_texts.append(all_text)
+            all_golds.append(gold_text)
+            #break
+    else:
+        for rec in tqdm(range(len(audio_files)), total=len(audio_files)):
 
-        etime = time.time()
-        print(f'Inference time: {etime-stime}')
-        ds_factor = audio_spec.shape[-1] / logits.shape[0]
-        decoded, bo = decode_beams_lm([logits], decoder, beam_width=1, ds_factor=ds_factor)
+            print(f'Processing {rec+1}/{len(audio_files)}') if args.verbose else None
 
-        all_text = normalize(decoded[0]['text']).lower()
-        all_text = all_text[:-1].strip() if all_text.endswith('.') else all_text.strip()
-        gold_text = normalize(gold_text).lower()    
-        print(gold_text) if args.verbose else None
-        print(all_text) if args.verbose else None
-        all_texts.append(all_text)
-        all_golds.append(gold_text)
-        break
+            audio_spec = processing_chain(audio_files[rec])
+            print('\n\n'+paired[audio_files[rec]]+'\n\n') if args.verbose else None
+            stm_path = paired[audio_files[rec]]
+            utterances, gold_text = fetch_utterances(stm_path=stm_path, spectogram=audio_spec)
+           
+            out_texts = []
+            for utterance in tqdm(utterances):
+                logit = fetch_logits(args, model, utterance['spectogram'], utterance['spectogram'].shape[-1], 0, tokenizer, use_tqdm=False)
+                ds_factor = utterance['spectogram'].shape[-1] / logit.shape[0]
+                decoded, bo = decode_beams_lm([logit], decoder, beam_width=1, ds_factor=ds_factor)
+                out_text = normalize(decoded[0]['text']).lower().strip()
+                out_text = out_text[:-1].strip() if out_text.endswith('.') else out_text
+                out_texts.append(out_text)
+            all_text = " ".join(out_texts).strip()#
+            gold_text = normalize(gold_text).lower().strip()
+            print(gold_text) if args.verbose else None
+            print(all_text) if args.verbose else None
+            all_texts.append(all_text)
+            all_golds.append(gold_text)
+
 
         
     wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=all_texts, references=all_golds)
@@ -174,6 +177,20 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    args = lib.apply_args(parser)
+    parser.add_argument('-c', '--checkpoint', type=str, default='../../exp/model.pt', help='path to checkpoint')
+    parser.add_argument('-split', '--split', type=str, default='test', help='test or dev split')
+    parser.add_argument('-seq', '--seq_len', type=int, default=-1, help='-1 to use setting from config in checkpoint file')
+    parser.add_argument('-overlap', '--overlap', type=int, default=0, help='-1 to use setting from config in checkpoint file')
+    parser.add_argument('-cache_len', '--cache_len', type=int, default=-1, help='cache length for decoding')
+
+    parser.add_argument('-single_utt', '--single_utterance', action='store_true', help='single utterance decoding')
+    parser.add_argument('-nv', '--not_verbose', action='store_true', help='verbose')
+
+    parser.add_argument('-log', '--log', type=str, default='')
+
+    args = parser.parse_args()
+    args.verbose = not args.not_verbose
+
+
     main(args)
     

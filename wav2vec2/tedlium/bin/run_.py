@@ -65,8 +65,6 @@ def fetch_utterances(stm_path:str, waveform:torch.Tensor, sr:int = 16000):
         if text == 'ignore_time_segment_in_scoring':
             continue
         #print(int(float(start) * sr), int(float(end) * sr))
-        text = re.sub(r" '([a-z])", r"'\1", text)
-        text = re.sub(r" +", r" ", text)
         utterances.append({
             'start': float(start), 
             'end': float(end), 
@@ -94,14 +92,7 @@ def fetch_data(path:str = TEST_PATH):
     return audio_files, text_files
 
 
-def get_vocab(processor):
-    vocab_dict = processor.tokenizer.get_vocab()
-    sort_vocab = sorted((value, key) for (key,value) in vocab_dict.items())
-    vocab = []
-    for _, key in sort_vocab:
-        vocab.append(key.lower())
-    vocab[vocab.index(processor.tokenizer.word_delimiter_token)] = ' '
-    return vocab
+
 
 def main(args):
     assert args.split in ['test', 'dev'], f'Split must be either test or dev (got {args.split})'
@@ -123,15 +114,6 @@ def main(args):
     tokenizer.blank_id = 0
     tokenizer.vocab_list = vocab
     decoder = GreedyCTCDecoder(tokenizer = tokenizer, blank_id = tokenizer.blank_id)
-
-    # ngram_decoder = build_ctcdecoder(
-    #     labels = get_vocab(processor),
-    #     kenlm_model_path = '../4gram_big.arpa.gz',
-    #     alpha = 0.3,
-    #     beta = 0.8,
-    # )
-    ngram_decoder = None
-
     print(tokenizer.vocab)
     audio_files, text_files = fetch_data(path=data_path)
     paired = dict(zip(audio_files, text_files))
@@ -152,7 +134,7 @@ def main(args):
         #audio_spec = zero_out_spectogram(spec = audio_spec, remove_timings = remove_timings)
         
  
-        utterances_out = lib.dynamic_eval_su(args, model, utterances, args.seq_len, args.overlap, tokenizer, processor, ngram_decoder=ngram_decoder)
+        utterances_out = lib.dynamic_eval_su(args, model, utterances, args.seq_len, args.overlap, tokenizer, processor)
         for i, utt in enumerate(utterances_out):
             txt = decoder(utt['probs']).lower()
             utterances_out[i]['text'] = txt
