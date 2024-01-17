@@ -60,7 +60,7 @@ def preprocess_transcript(text:str):
 
 
 def main(args):
-    assert args.split in ['test', 'dev'], 'Split must be either test or dev'
+    assert args.split in ['test', 'dev'], f'Split must be either test or dev (got {args.split})'
     data_path = TEST_PATH if args.split == 'test' else DEV_PATH
     
     checkpoint = torch.load(args.checkpoint, map_location='cpu')
@@ -135,6 +135,7 @@ def main(args):
         with open(args.log, 'a') as f:
             f.write(f'{args.checkpoint}\t overlap: {args.overlap}\t seq_len: {args.seq_len}\t WER: {wer}\n')
 
+    return wer
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
