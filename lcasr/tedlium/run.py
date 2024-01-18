@@ -12,8 +12,7 @@ import time
 
 import sys
 import os.path
-sys.path.append(
-    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))) # for importing from parent dir
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))) # for importing from parent dir
 import lib
 from lib import dynamic_eval
 
@@ -171,6 +170,7 @@ def main(args):
         with open(args.log, 'a') as f:
             f.write(f'{args.checkpoint}\t overlap: {args.overlap}\t seq_len: {args.seq_len}\t WER: {wer}\n')
 
+    return wer
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

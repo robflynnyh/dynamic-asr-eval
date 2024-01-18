@@ -16,16 +16,15 @@ sweep_config = {
     },
     "parameters": {
         "optim_lr": {
-            "min": 1e-9,
-            "max": 1e-3,
+            "values": [1e-5, 5e-5, 7e-5, 8e-5, 9e-5, 1e-4, 2e-4, 3e-4, 5e-4, 1e-3]
         },
         "spec_augment_n_time_masks": {
             "min": 0,
-            "max": 8,
+            "max": 10,
         },
         "spec_augment_n_freq_masks":{
             "min": 0,
-            "max": 6,
+            "max": 15,
         },
         "spec_augment_freq_mask_param":{
             "min": 0,
@@ -33,11 +32,11 @@ sweep_config = {
         },
         "spec_augment_min_p":{
             "min": 0.,
-            "max": 0.3,
+            "max": 0.05,
         },
         "epochs":{
-            "min": 1,
-            "max": 5,
+            "min": 2,
+            "max": 8,
         },
     }
 }
@@ -54,7 +53,6 @@ def launch_agent(args):
     args = argparse.Namespace(**args_dict)
     
     if args.dataset == 'earnings22':
-        print('Running earnings22!!')
         wer = run_earnings22.main(args)
     elif args.dataset == 'chime6':
         wer = run_chime6.main(args)
@@ -63,6 +61,9 @@ def launch_agent(args):
     else:
         raise ValueError(f'Unknown dataset: {args.dataset}')
     
+    if wer == None:
+        raise ValueError('WER is None - something went wrong')
+    
     wandb.log({'WER': wer})
 
 
@@ -70,7 +71,7 @@ def launch_agent(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-sweep_id','-sweep_id', type=str, default='', help='Sweep ID to launch an agent')
-    parser.add_argument('-dataset','--dataset', type=str, default='earnings22', help='Dataset to use', choices=['chime6', 'earnings22', 'tedlium'])
+    parser.add_argument('-dataset','--dataset', type=str, default='tedlium', help='Dataset to use', choices=['chime6', 'earnings22', 'tedlium'])
     args = lib.apply_args(parser)
 
     if args.sweep_id == '':
