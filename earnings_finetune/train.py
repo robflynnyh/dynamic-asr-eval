@@ -75,10 +75,10 @@ class SimpleDataset(torch.utils.data.Dataset):
         return len(self.pairs)
 
     def __getitem__(self, idx):
-        audio, txt = load_sample({'audio': self.pairs['audio'][idx], 'txt': self.pairs['txt'][idx]})
+        audio = torch.load(self.pairs['spectrogram'][idx])
         id = self.pairs['id'][idx]
         audio = rearrange(audio, '() f t -> t f')
-        return audio, id
+        return audio, None, id # none is text which we don't have due to NST
 
 class SimpleDataloader(torch.utils.data.DataLoader):
     def __init__(
@@ -238,21 +238,22 @@ def get_dtype(dtype:str) -> torch.dtype:
         raise ValueError(f'invalid dtype: {dtype}')
 
 def NST(model, ema, augmentation, ctc_decoder, ctc_loss_fn, batch):
+    print(batch['audio_signal'].shape)
     with torch.no_grad(), ema.average_parameters():
         ema_outs = model(**batch)
         ema_probs = ema_outs['final_posteriors']
-    ema_labels = [ctc_decoder(el) for el in ema_probs]
+    ema_labels = [torch.LongTensor(ctc_decoder(el)) for el in ema_probs]
     ema_label_lengths = torch.LongTensor([len(el) for el in ema_labels])
     ema_labels = torch.nn.utils.rnn.pad_sequence(ema_labels, batch_first=True, padding_value=0)
-    ema_labels = ema_labels.to(batch['audio'].device)
+    ema_labels = ema_labels.to(batch['audio_signal'].device)
 
-    batch['audio'] = apply_augmentation(audio=batch['audio'], lengths=batch['a_lengths'], augmentation=augmentation, start_augment_after_n_epochs=0, epoch=0, is_warmup=False)
+    batch['audio_signal'] = apply_augmentation(audio=batch['audio_signal'], lengths=batch['length'], augmentation=augmentation, start_augment_after_n_epochs=0, epoch=0, is_warmup=False)
 
     out = model(**batch)
     probs = out['final_posteriors']
 
     loss = ctc_loss_fn(probs.transpose(0,1), ema_labels, out['length'], ema_label_lengths).sum() # !!
-    return loss    
+    return loss, probs
 
 
 
@@ -297,7 +298,6 @@ def train(
 
     i, finished, dataloader_iter, total_recordings = -1, False, iter(dataloader), dataloader.total_recordings() * max_epochs
     pbar = tqdm(total = len(dataloader), desc = f'Training - Epoch {epoch}')
-    start_spec_augment_after_n_epochs = args.config['training'].get('start_spec_augment_after_n_epochs', -1)
 
     while not finished:#################
         try:
@@ -317,6 +317,7 @@ def train(
                 sequence_scheduler = sequence_scheduler,
                 seen_ids = seen_ids,
                 epoch = epoch,
+                other = {'ema_weights':ema.state_dict()},
             )
             podcasts_since_last_save = 0
             if epoch >= max_epochs:
@@ -370,7 +371,8 @@ def train(
                 scheduler.set_cosine_schedule(total_recordings=total_recordings, cur_podcast=cur_podcast)
         prev_selection_mask, last_kv_set = None, None # selection mask from previous chunk
         ################################
- 
+        # shuffle chunks
+        random.shuffle(chunks)
         try:
             for ix, chunk_json in enumerate(chunks):
                 print(f'chunk {ix}/{len(chunks)}')
@@ -379,23 +381,16 @@ def train(
                 audio, a_lengths = audio.to(device, dtype=model_dtype), a_lengths.to(device)
 
                 with autocast(device.type, dtype=dtype) if torch.cuda.is_available() else nullcontext():
-                    audio = apply_augmentation(audio=audio, lengths=a_lengths, augmentation=augmentation, start_augment_after_n_epochs=start_spec_augment_after_n_epochs, epoch=epoch, is_warmup=scheduler.is_warmup)
-                    cached_kvs = last_kv_set.clone() if last_kv_set != None else None
-                    cached_kv_lengths = torch.LongTensor([cached_kvs.shape[1]] * cached_kvs.shape[0]).to(device) if cached_kvs != None else None
-
-                    out = model(audio_signal = audio,  length = a_lengths)                    
-            
-                    cur_probs = out['final_posteriors']
-                    B,N,C = cur_probs.shape 
-                    loss = NST(
+                    loss, probs = NST(
                         model = model,
                         ema = ema,
                         augmentation = augmentation,
                         ctc_decoder = ctc_decoder,
                         ctc_loss_fn = ctc_loss_fn,
+                        batch = {"audio_signal":audio, "length":a_lengths}
                     )
                     
-                blank_prob = blank_p(cur_probs.detach(), dataloader.tokenizer)
+                blank_prob = blank_p(probs.detach(), dataloader.tokenizer)
                 # check for nan in loss
                 if torch.isnan(loss):
                     print('OH NO! NAN IN LOSS, SKIPPING') # TODO: set kv cache to None here
@@ -445,7 +440,6 @@ def train(
                             'sequence_length': chunk_size,
                             'batch_size': batch_size,
                             'epoch': epoch,
-                            'spec_augment': int(True) if start_spec_augment_after_n_epochs != -1 and epoch >= start_spec_augment_after_n_epochs and scheduler.is_warmup == False else int(False),
                         })
                     
                     cur_tokens_in_loss, cur_loss = 0, torch.tensor(0.0, dtype=model_dtype, device=device)
@@ -505,7 +499,8 @@ def main(args):
     if wandb_config['use']:
         project_name, w_id = wandb_config['project_name'], wandb_config['id']
         run_name = None if 'name' not in wandb_config else wandb_config['name']
-        wandb.init(project=project_name, config=args.config, name=run_name) if w_id == '' else wandb.init(project=project_name, id=w_id, resume="must", config=args.config, allow_val_change=True)
+        config_dict = OmegaConf.to_container(args.config, resolve=True)
+        wandb.init(project=project_name, config=config_dict, name=run_name) if w_id == '' else wandb.init(project=project_name, id=w_id, resume="must", config=args.config, allow_val_change=True)
         wandb.watch(model, log="all") # sometimes this causes a crash ):
         wandb.config.update({'total_params': tparams}, allow_val_change=True)
         print(f'\nLoggging with Wandb id: {wandb.run.id}\n')
@@ -539,7 +534,7 @@ def main(args):
 
     print(f'Starting from podcast: {len(seen_ids)}')
     random_seed = args.config['training'].get('random_seed', 1234)
-    start_spec_augment_after_n_epochs = args.config['training'].get('start_spec_augment_after_n_epochs', -1)
+    
 
     # skip data up to step
     dataloader = VariableBatchSimpleDataloader(
@@ -557,7 +552,7 @@ def main(args):
 
     # None if start_spec_augment_after_n_epochs == -1 or epoch < start_spec_augment_after_n_epochs else 
     augmentation = SpecAugment(**args.config['spec_augment']) if 'spec_augment' in args.config else None
-    assert exists(augmentation) or start_spec_augment_after_n_epochs == -1, 'must have spec augment in config if start_spec_augment_after_n_epochs > 0'
+    assert exists(augmentation), 'must have spec augment in config for noisy student teacher training'
 
     if args.debug_hooks:
         assert wandb_config['use'], 'must have wandb enabled when - arg.debug_hooks ==  True - to log debug hooks outputs'
