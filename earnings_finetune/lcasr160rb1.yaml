@@ -31,10 +31,10 @@ model:
 optimizer:
   name: madgrad
   args:
-    lr: 5e-4
+    lr: 1e-6
 
 scheduler:
-  warmup_steps: 5000
+  warmup_steps: 1
 
 audio_chunking:
   size: 16384
@@ -53,7 +53,7 @@ data:
   path: /store/store4/data/earnings-22/earnings_train.json
 
 training:
-  ema_decay: 0.999
+  ema_decay: 0.9999
   batch_size: 4
   backprop_every: 1
   backwards_every: 1
@@ -61,7 +61,7 @@ training:
   clip_value: 0.8
   intermediate_loss_weighting: 0.0
   random_seed: 8241
-  max_epochs: 20
+  max_epochs: 5
 
 
 description: NST finetuning on earnings22 

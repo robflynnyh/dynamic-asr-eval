@@ -87,11 +87,9 @@ def main(args):
     meetings_keys = [el['meeting'] for el in audio_files]
     
     beamsearch = None
-    if args.beamsearch:
-        beamsearch = lib.load_beamsearch(path = lib.paths.checkpoints.lm)
+    if args.beamsearch: beamsearch = lib.load_beamsearch(path = lib.paths.checkpoints.lm)
 
-    all_texts = []
-    all_golds = []
+    all_texts, all_golds = [],[]
 
     for rec in tqdm(range(len(meetings_keys)), total=len(audio_files)):
 

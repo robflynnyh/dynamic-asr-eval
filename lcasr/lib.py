@@ -100,13 +100,13 @@ def dynamic_eval_ctc_loss(
         tokenizer, 
         use_tqdm=True,
         optim:optim.Optimizer=madgrad.MADGRAD,
-        num_negatives:int=2,
         optimizer_state:dict=None,
         beam_search_fn:Callable=None,
     ):
 
     spec_augment_config = get_specaugment_config_from_args(args)
     lr_args = get_lr_args_from_args(args)
+    num_negatives = args.__dict__.get('num_negatives', 2)
     
     spec_n = spec.shape[-1]
     downsampling_factor = args.config['model']['subsampling_factor']
@@ -115,7 +115,6 @@ def dynamic_eval_ctc_loss(
     # create copy of model parameters that are not updated
     original_model_params = list(model.parameters())
     original_model_params = [p.clone().detach() for p in original_model_params]
-
  
     
     ctc_loss_fn = torch.nn.CTCLoss(blank=model.decoder.num_classes-1, reduction='sum')

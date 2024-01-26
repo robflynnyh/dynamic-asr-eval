@@ -14,9 +14,10 @@ from lcasr.utils.dataloading import chunk_spectogram, reset_seen_ids, load_sampl
 from lcasr.utils.hooks import add_debug_backwards_hooks
 from lcasr.utils.scheduling import CosineLRScheduler, SequenceWarmupManager
 from lcasr.utils.helpers import exists
-from lcasr.utils.general import load_model, save_model, load_checkpoint, load_optimizer
+from lcasr.utils.general import load_model, save_model, load_checkpoint, load_optimizer, find_latest_checkpoint
 from lcasr.utils.augmentation import SpecAugment
 from lcasr.decoding.greedy import GreedyCTCDecoder
+
 from einops import rearrange
 import numpy as np
 import os, wandb, resource
@@ -31,6 +32,7 @@ import warnings,random
 random.seed(1234)
 import pandas as pd
 from torch_ema import ExponentialMovingAverage
+from run_eval import EvalRunner
 
 
 class SimpleDataset(torch.utils.data.Dataset):
@@ -254,7 +256,7 @@ def NST(model, ema, augmentation, ctc_decoder, ctc_loss_fn, batch):
 
     loss = ctc_loss_fn(probs.transpose(0,1), ema_labels, out['length'], ema_label_lengths).sum() # !!
     return loss, probs
-
+    
 
 
 def train(
@@ -298,12 +300,17 @@ def train(
 
     i, finished, dataloader_iter, total_recordings = -1, False, iter(dataloader), dataloader.total_recordings() * max_epochs
     pbar = tqdm(total = len(dataloader), desc = f'Training - Epoch {epoch}')
+    
+    evalrunner = EvalRunner(tokenizer=tokenizer, split='dev')
+    initial_wer = evalrunner.run_eval(model = model, device=device, seq_len=chunk_size, overlap=int(chunk_size*0.875))
+    wandb.log({'wer':initial_wer}) if wandb_config['use'] else None
 
     while not finished:#################
         try:
             batch, i = next(dataloader_iter), i + 1
             pbar.update(1) if i > 0 else None
         except StopIteration:
+            wer = evalrunner.run_eval(model = model, device=device, seq_len=chunk_size, overlap=int(chunk_size*0.875))
             epoch += 1
             seen_ids = reset_seen_ids(seen_ids = seen_ids, epoch = epoch - 1)
             # save model
@@ -369,7 +376,6 @@ def train(
             scheduler.is_warmup = scheduler.is_warming_up()
             if not scheduler.is_warmup and was_warmup:
                 scheduler.set_cosine_schedule(total_recordings=total_recordings, cur_podcast=cur_podcast)
-        prev_selection_mask, last_kv_set = None, None # selection mask from previous chunk
         ################################
         # shuffle chunks
         random.shuffle(chunks)
@@ -412,9 +418,7 @@ def train(
 
                 if (ix+1) % backwards_every == 0 or (ix+1) == len(chunks):
                     scaler.scale(((backwards_every_loss) / (chunk_size*batch_size)*steps_since_backwards) * 100).backward() # divide by chunk*batch_size constant to weight smaller batches less
-                    last_kv_set.detach_() if last_kv_set != None else None
-                    steps_since_backwards = 0
-                    backwards_every_loss = 0
+                    steps_since_backwards, backwards_every_loss = 0, 0
 
                 if (ix+1) % backprop_every == 0 or (ix+1) == len(chunks): 
                     full_loss = (cur_loss / cur_tokens_in_loss) * 100
