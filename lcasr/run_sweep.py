@@ -16,11 +16,10 @@ sweep_config = {
     },
     "parameters": {
         "optim_lr": {
-            "values": [1e-5, 5e-5, 7e-5, 8e-5, 9e-5, 1e-4, 2e-4, 3e-4, 5e-4, 1e-3]
+            "values": [1e-9, 1e-8, 5e-8, 1e-7, 5e-7, 9e-7, 1e-6, 5e-6, 8e-6, 5e-5]
         },
         "spec_augment_n_time_masks": {
-            "min": 0,
-            "max": 10,
+            "values": [0],
         },
         "spec_augment_n_freq_masks":{
             "min": 0,
@@ -31,8 +30,7 @@ sweep_config = {
             "max": 80,
         },
         "spec_augment_min_p":{
-            "min": 0.,
-            "max": 0.05,
+            "values": [0.0],
         },
         "epochs":{
             "min": 2,
@@ -71,7 +69,7 @@ def launch_agent(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-sweep_id','-sweep_id', type=str, default='', help='Sweep ID to launch an agent')
-    parser.add_argument('-dataset','--dataset', type=str, default='tedlium', help='Dataset to use', choices=['chime6', 'earnings22', 'tedlium'])
+    parser.add_argument('-dataset','--dataset', type=str, default='earnings22', help='Dataset to use', choices=['chime6', 'earnings22', 'tedlium'])
     args = lib.apply_args(parser)
 
     if args.sweep_id == '':

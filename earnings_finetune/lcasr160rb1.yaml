@@ -31,7 +31,7 @@ model:
 optimizer:
   name: madgrad
   args:
-    lr: 1e-6
+    lr: 1e-5
 
 scheduler:
   warmup_steps: 1
@@ -53,7 +53,7 @@ data:
   path: /store/store4/data/earnings-22/earnings_train.json
 
 training:
-  ema_decay: 0.9999
+  ema_decay: 0.8 #0.999999
   batch_size: 4
   backprop_every: 1
   backwards_every: 1
@@ -61,7 +61,8 @@ training:
   clip_value: 0.8
   intermediate_loss_weighting: 0.0
   random_seed: 8241
-  max_epochs: 5
+  max_epochs: 100
+  dtype: float32
 
 
 description: NST finetuning on earnings22 
@@ -76,5 +77,5 @@ spec_augment:
   freq_mask_param: 34
   iid_masks: true
   min_p: 0.0
-  max_p: 0.0
+  max_p: 0.5
   zero_masking: false

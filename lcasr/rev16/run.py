@@ -21,7 +21,7 @@ def open_txt(path:str):
         return f.read().strip()
 
 def fetch_data(data_path:str = DATA_PATH, ids:str = TEST_IDS):
-    with open(TEST_IDS, 'r') as f:
+    with open(ids, 'r') as f:
         IDS = f.read().strip().split(" ")
         IDS = [el.strip() for el in IDS if el.strip() != '']
 
@@ -35,13 +35,26 @@ def fetch_data(data_path:str = DATA_PATH, ids:str = TEST_IDS):
         'text': open_txt(os.path.join(data_path, "transcripts", el+".txt"))
     } for el in IDS]
 
-
     return audio_files, text_files
-
 
 
 def preprocess_transcript(text:str):
     return normalize(text).lower()
+
+def process_text_and_audio_fn(audio:str, text:str): return processing_chain(audio), preprocess_transcript(text)
+
+def get_text_and_audio(split):
+    assert args.split in ['test'], 'Split must be test'
+    audio_files, text_files = fetch_data(data_path = DATA_PATH, ids = TEST_IDS)
+    return_data = []
+    for rec in range(len(audio_files)):
+        return_data.append({
+            'text': text_files[rec]['text'], 
+            'audio': audio_files[rec]['path'], 
+            "process_fn": process_text_and_audio_fn,
+            "id": text_files[rec]['id'],
+        })
+    return return_data
 
 
 def main(args):
@@ -78,7 +91,6 @@ def main(args):
         beamsearch = lib.load_beamsearch(path = lib.paths.checkpoints.lm)
 
     for rec in tqdm(range(len(meetings_keys)), total=len(audio_files)):
-        if rec == 0: continue
         print(f'Processing {rec+1}/{len(audio_files)}')
         cur_meetings = meetings_keys[rec]
         cur_audio = audio_files[rec]['path']

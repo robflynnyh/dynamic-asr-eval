@@ -106,7 +106,7 @@ def dynamic_eval_ctc_loss(
 
     spec_augment_config = get_specaugment_config_from_args(args)
     lr_args = get_lr_args_from_args(args)
-    num_negatives = args.__dict__.get('num_negatives', 2)
+    num_negatives = args.__dict__.get('num_negatives', 1)
     
     spec_n = spec.shape[-1]
     downsampling_factor = args.config['model']['subsampling_factor']
@@ -136,12 +136,13 @@ def dynamic_eval_ctc_loss(
 
     all_logits, logit_count = torch.zeros((1, spec_n//4 + seq_len, tokenizer.vocab_size() + 1)), torch.zeros((1, spec_n//4 + seq_len, tokenizer.vocab_size() + 1))
     
+    model.eval() # don't update batchrenorm
     training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
     for epoch in range(args.__dict__.get('epochs', 1)):
         print(f'Epoch {epoch + 1} / {args.__dict__.get("epochs", 1)}')
         training_keys = list(training_data.keys())
         training_keys = random.sample(training_keys, len(training_keys)) if args.__dict__.get('shuffle', False) else training_keys
-
+      
         pbar = tqdm(training_keys) if use_tqdm else training_keys
         for i in pbar:
             audio_chunk = training_data[i].clone()
@@ -177,7 +178,7 @@ def dynamic_eval_ctc_loss(
             #torch.nn.utils.clip_grad_norm_(model.parameters(), 0.8) # add clip value to args
             optimizer.step()
         
-    
+    model.eval()
     training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
     model_outputs = {}
     pbar = tqdm(training_keys) if use_tqdm else training_keys
@@ -192,7 +193,7 @@ def dynamic_eval_ctc_loss(
         ratio = u_len / ds_len
         overlap_ds = int(overlap / ratio)
         model_outputs[i] = {'logits': logits, 'ds_len': ds_len, 'overlap_ds': overlap_ds}
-
+    model.train()
 
 
            

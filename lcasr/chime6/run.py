@@ -4,7 +4,7 @@ from typing import Tuple
 from lcasr.utils import audio_tools 
 from lcasr.eval.utils import zero_out_spectogram
 from lcasr.eval.utils import fetch_logits, decode_beams_lm
-from lcasr.eval.dynamic_eval import dynamic_eval
+
 from lcasr.utils.general import load_model
 from pyctcdecode import build_ctcdecoder
 from lcasr.eval.wer import word_error_rate_detail 
@@ -17,13 +17,15 @@ import sys
 import os.path
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))) # for importing from parent dir
+
 import lib
+from lib import dynamic_eval
 
-
-TEST_AUDIO = '/mnt/parscratch/users/acp21rjf/chime6/audio/eval'
-DEV_AUDIO = '/mnt/parscratch/users/acp21rjf/chime6/audio/dev'
-TEST_TEXT = '/mnt/parscratch/users/acp21rjf/chime6/transcriptions/eval'
-DEV_TEXT = '/mnt/parscratch/users/acp21rjf/chime6/transcriptions/dev'
+basedir = "/store/store4/data/chime6"
+TEST_AUDIO = f'{basedir}/audio/eval'
+DEV_AUDIO = f'{basedir}/audio/dev'
+TEST_TEXT = f'{basedir}/transcriptions/eval'
+DEV_TEXT = f'{basedir}/transcriptions/dev'
 
 DATA = {
     'test': {
@@ -89,6 +91,7 @@ def fetch_data(data:dict = DATA['test']) -> Tuple[list, list]:
     
     # get audio
     audio_file_names = [el for el in os.listdir(data['audio']) if el.endswith('.wav')]
+    #audio_file_names = [el for el in audio_file_names if re.match('S\d+_U01.CH1.wav',el)] #\d+.wav', el)]
     audio_file_names = [el for el in audio_file_names if re.match('S\d+_U01.CH\d+.wav', el)]
     print(audio_file_names)
     # get unique scene names
@@ -112,7 +115,8 @@ def main(args):
     checkpoint = torch.load(args.checkpoint, map_location='cpu')
     model_config = checkpoint['config']
     args.config = model_config
-    
+    if args.disable_flash_attention:
+        args.config.model.flash_attn = False
 
     tokenizer = lcasr.utils.audio_tools.load_tokenizer()
     model = load_model(args.config, tokenizer.vocab_size())
@@ -174,11 +178,11 @@ def main(args):
         with open(args.log, 'a') as f:
             f.write(f'{args.checkpoint}\t overlap: {args.overlap}\t seq_len: {args.seq_len}\t WER: {wer}\n')
 
+    return wer, model_config
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser = lib.apply_args(parser)
+    args = lib.apply_args(parser)
 
-    args = parser.parse_args()
     main(args)
     

@@ -239,12 +239,14 @@ def get_dtype(dtype:str) -> torch.dtype:
     else:
         raise ValueError(f'invalid dtype: {dtype}')
 
-def NST(model, ema, augmentation, ctc_decoder, ctc_loss_fn, batch):
-    print(batch['audio_signal'].shape)
+def NST(model, ema, augmentation, ctc_decoder, ctc_loss_fn, batch, tokenizer):
+    #print(batch['audio_signal'].shape)
+   
     with torch.no_grad(), ema.average_parameters():
         ema_outs = model(**batch)
         ema_probs = ema_outs['final_posteriors']
     ema_labels = [torch.LongTensor(ctc_decoder(el)) for el in ema_probs]
+    #print(tokenizer.decode(ema_labels[0].tolist()), "!")
     ema_label_lengths = torch.LongTensor([len(el) for el in ema_labels])
     ema_labels = torch.nn.utils.rnn.pad_sequence(ema_labels, batch_first=True, padding_value=0)
     ema_labels = ema_labels.to(batch['audio_signal'].device)
@@ -279,7 +281,8 @@ def train(
     resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 
     model.train()
-
+    ema.update() # otherwise weights of ema model are randomly initialized
+    
     model_dtype, ctc_loss_fn = next(model.parameters()).dtype, torch.nn.CTCLoss(blank=model.decoder.num_classes-1, reduction='sum')
     backprop_every, backwards_every = args.config['training']['backprop_every'], args.config['training'].get('backwards_every', 1)
 
@@ -302,8 +305,8 @@ def train(
     pbar = tqdm(total = len(dataloader), desc = f'Training - Epoch {epoch}')
     
     evalrunner = EvalRunner(tokenizer=tokenizer, split='dev')
-    initial_wer = evalrunner.run_eval(model = model, device=device, seq_len=chunk_size, overlap=int(chunk_size*0.875))
-    wandb.log({'wer':initial_wer}) if wandb_config['use'] else None
+    #initial_wer = evalrunner.run_eval(model = model, device=device, seq_len=chunk_size, overlap=int(chunk_size*0.875))
+    wandb.log({'wer':0.2388304862023653}) if wandb_config['use'] else None
 
     while not finished:#################
         try:
@@ -311,6 +314,7 @@ def train(
             pbar.update(1) if i > 0 else None
         except StopIteration:
             wer = evalrunner.run_eval(model = model, device=device, seq_len=chunk_size, overlap=int(chunk_size*0.875))
+            wandb.log({'wer':wer}) if wandb_config['use'] else None
             epoch += 1
             seen_ids = reset_seen_ids(seen_ids = seen_ids, epoch = epoch - 1)
             # save model
@@ -393,7 +397,8 @@ def train(
                         augmentation = augmentation,
                         ctc_decoder = ctc_decoder,
                         ctc_loss_fn = ctc_loss_fn,
-                        batch = {"audio_signal":audio, "length":a_lengths}
+                        batch = {"audio_signal":audio, "length":a_lengths},
+                        tokenizer=tokenizer,
                     )
                     
                 blank_prob = blank_p(probs.detach(), dataloader.tokenizer)
@@ -515,6 +520,7 @@ def main(args):
     optimizer, scheduler = load_optimizer(args.config, model)
     ema = ExponentialMovingAverage(model.parameters(), decay=args.config['training'].get('ema_decay', 0.999))
 
+
     sequence_scheduler = None
     if 'sequence_scheduler' in args.config:
         sequence_scheduler = SequenceWarmupManager(
@@ -526,7 +532,7 @@ def main(args):
     seen_ids, step, epoch = load_checkpoint(
         args = args, 
         model = model, 
-        optimizer = optimizer, 
+        optimizer = optimizer if not args.reset_optim else None,
         scheduler = scheduler, 
         sequence_scheduler = sequence_scheduler,
         path = args.config['checkpointing']['dir'],
@@ -590,6 +596,7 @@ if __name__ == '__main__':
     parser.add_argument('-config', '--config', type=str, required=True, help='path to config file')
     parser.add_argument('-rm_sched', '--remove_scheduler', action='store_true', help='remove scheduler from checkpoint')
     parser.add_argument('-reset_step', '--reset_step', action='store_true', help='reset step to 0')
+    parser.add_argument('-reset_optim', '--reset_optim', action='store_true', help='reset optimizer to default')
     parser.add_argument('-anomaly', '--anomaly', action='store_true', help='turn on anomaly detection')
     parser.add_argument('-num_workers', '--num_workers', type=int, default=0, help='number of workers for dataloader')
     parser.add_argument('-pin_memory', '--pin_memory', action='store_true', help='pin memory for dataloader')
