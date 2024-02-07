@@ -509,7 +509,7 @@ def main(args):
         project_name, w_id = wandb_config['project_name'], wandb_config['id']
         run_name = None if 'name' not in wandb_config else wandb_config['name']
         config_dict = OmegaConf.to_container(args.config, resolve=True)
-        wandb.init(project=project_name, config=config_dict, name=run_name) if w_id == '' else wandb.init(project=project_name, id=w_id, resume="must", config=args.config, allow_val_change=True)
+        wandb.init(project=project_name, config=config_dict, name=run_name) if w_id == '' else wandb.init(project=project_name, id=w_id, resume="must", config=config_dict, allow_val_change=True)
         wandb.watch(model, log="all") # sometimes this causes a crash ):
         wandb.config.update({'total_params': tparams}, allow_val_change=True)
         print(f'\nLoggging with Wandb id: {wandb.run.id}\n')

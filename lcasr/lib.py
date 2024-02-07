@@ -12,7 +12,6 @@ import torch.optim as optim
 from lcasr.utils.augmentation import SpecAugment
 from lcasr.decoding.greedy import GreedyCTCDecoder
 import madgrad, random
-from soft_dtw_cuda import SoftDTW
 from einops import rearrange
 from lcasr.decoding import ctc_beam_search as beam_search
 from lming.utils import general
@@ -102,6 +101,7 @@ def dynamic_eval_ctc_loss(
         optim:optim.Optimizer=madgrad.MADGRAD,
         optimizer_state:dict=None,
         beam_search_fn:Callable=None,
+        return_params:bool=False,
     ):
 
     spec_augment_config = get_specaugment_config_from_args(args)
@@ -114,7 +114,7 @@ def dynamic_eval_ctc_loss(
 
     # create copy of model parameters that are not updated
     original_model_params = list(model.parameters())
-    original_model_params = [p.clone().detach() for p in original_model_params]
+    original_model_params = [p.clone().detach().cpu() for p in original_model_params]
  
     
     ctc_loss_fn = torch.nn.CTCLoss(blank=model.decoder.num_classes-1, reduction='sum')
@@ -195,7 +195,6 @@ def dynamic_eval_ctc_loss(
         model_outputs[i] = {'logits': logits, 'ds_len': ds_len, 'overlap_ds': overlap_ds}
     model.train()
 
-
            
     logit_position = 0
     for i in sorted(list(model_outputs.keys())):
@@ -213,155 +212,17 @@ def dynamic_eval_ctc_loss(
     logits = all_logits / logit_count
     logits = torch.log(logits) # convert to log 
 
-    # reset model parameters
-    for p, p_orig in zip(model.parameters(), original_model_params):
-        p.data = p_orig.data
-
-
-    return logits.squeeze(0).numpy()
-
-
-'''
-def dynamic_eval_ctc_loss(
-        args, 
-        model:nn.Module, 
-        spec:torch.Tensor, 
-        seq_len:int, 
-        overlap:int, 
-        tokenizer, 
-        use_tqdm=True,
-        optim:optim.Optimizer=madgrad.MADGRAD,
-        num_negatives:int=2,
-        optimizer_state:dict=None,
-        beam_search_fn:Callable=None,
-    ):
-
-    spec_augment_config = get_specaugment_config_from_args(args)
-    lr_args = get_lr_args_from_args(args)
-    
-    spec_n = spec.shape[-1]
-    downsampling_factor = args.config['model']['subsampling_factor']
-    seq_len = seq_len if seq_len != -1 else args.config['audio_chunking']['size']
-
-    # create copy of model parameters that are not updated
-    original_model_params = list(model.parameters())
-    original_model_params = [p.clone().detach() for p in original_model_params]
-
- 
-    
-    ctc_loss_fn = torch.nn.CTCLoss(blank=model.decoder.num_classes-1, reduction='sum')
-    optimizer = optim(model.parameters(), **lr_args)
-    if optimizer_state is not None:
-        optimizer.load_state_dict(optimizer_state)
-        
-    decoder = GreedyCTCDecoder(tokenizer = tokenizer, blank_id = model.decoder.num_classes-1)
-    augmentation = SpecAugment(**spec_augment_config)
-
-    if seq_len > spec_n:
-        seq_len, overlap = spec_n, 0
-    else:
-        overlap = overlap if overlap != -1 else args.config['audio_chunking']['overlap']
-
-    assert args.config['training'].get("max_seq_len", 0) == 0, 'caching is not used anymore'
-    assert overlap / downsampling_factor == overlap // downsampling_factor, 'Overlap must be a multiple of the downsampling factor'
-    print(f'Using seq_len: {seq_len} and overlap: {overlap}')
-
-    all_logits, logit_count = torch.zeros((1, spec_n//4 + seq_len, tokenizer.vocab_size() + 1)), torch.zeros((1, spec_n//4 + seq_len, tokenizer.vocab_size() + 1))
-    losses = []
-
-    training_data, training_keys = prepare_chunks(spec, seq_len, 0) # no overlap for training (faster)
-
-    for epoch in range(args.__dict__.get('epochs', 1)):
-        print(f'Epoch {epoch + 1} / {args.__dict__.get("epochs", 1)}')
-        training_keys = list(training_data.keys())
-        training_keys = random.sample(training_keys, len(training_keys)) if args.__dict__.get('shuffle', False) else training_keys
-        model_outputs = {}
-        pbar = tqdm(training_keys) if use_tqdm else training_keys
-        for i in pbar:
-            audio_chunk = training_data[i].clone()
-            audio_chunk = audio_chunk.repeat(num_negatives+1, 1, 1) # [B, C, T]
-            audio_chunk[:num_negatives] = augmentation(audio_chunk[:num_negatives]) # apply augmentation to 2 of the 3 copies
-
-            u_len = audio_chunk.shape[-1]
-            audio_chunk = audio_chunk.to(model.device)
-            out = model(audio_signal = audio_chunk)
-
-            if beam_search_fn is None:
-                pseudo_targets = decoder(out['final_posteriors'][-1].detach().cpu())
-            else:
-                beam_search = beam_search_fn(log_probs = out['final_posteriors'][-1].detach().cpu())
-                beam_search.run_search(use_tqdm = True)
-                pseudo_targets = beam_search.return_text(idx = 0)
-
-            noisy_predictions = decoder(out['final_posteriors'][0].detach().cpu())
-            print(f'Pseudo targets: {pseudo_targets}')
-            print(f'Noisy predictions: {noisy_predictions}')
-            print('\n--\n')
-            pseudo_targets = torch.LongTensor(tokenizer.encode(pseudo_targets)).unsqueeze(0).to(model.device).repeat(num_negatives, 1)
-            augmented_outs = out['final_posteriors'][:num_negatives]            
-            
-            N, B = augmented_outs.shape[1], augmented_outs.shape[0]
-            total_tokens_in_loss = N * B
-
-            loss = ctc_loss_fn(augmented_outs.transpose(0, 1), pseudo_targets, torch.LongTensor([N] * augmented_outs.shape[0]).to(model.device), torch.LongTensor([pseudo_targets.shape[1]] * pseudo_targets.shape[0]).to(model.device)) / total_tokens_in_loss
-            losses.append(loss.item())
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            # plt.plot(losses)
-            # plt.savefig('loss.png')
-            # plt.close()
-            logits = out['final_posteriors'][-1].detach().cpu()
-            logits = torch.exp(logits) # convert to prob
-            ds_len = logits.shape[-2]
-            ratio = u_len / ds_len
-            overlap_ds = int(overlap / ratio)
-            model_outputs[i] = {'logits': logits, 'ds_len': ds_len, 'overlap_ds': overlap_ds}
-
-    #training_data, training_keys = prepare_chunks(spec, seq_len, 0)
-    # model_outputs = {}
-    # # pbar = tqdm(training_keys) if use_tqdm else training_keys
-    # # print(training_keys)
-    # with torch.no_grad():
-    #     for i in pbar:
-            
-    #         audio_chunk = training_data[i].clone()
-            
-    #         u_len = audio_chunk.shape[-1]
-    #         audio_chunk = audio_chunk.to(model.device)
-    #         out = model(audio_signal = audio_chunk)
-
-    #         logits = out['final_posteriors'][-1].detach().cpu()
-    #         logits = torch.exp(logits) # convert to prob
-    #         ds_len = logits.shape[-2]
-    #         ratio = u_len / ds_len
-    #         overlap_ds = int(overlap / ratio)
-    #         model_outputs[i] = {'logits': logits, 'ds_len': ds_len, 'overlap_ds': overlap_ds}
-
-    logit_position = 0
-    for i in sorted(list(model_outputs.keys())):
-        logits, ds_len, overlap_ds = model_outputs[i]['logits'], model_outputs[i]['ds_len'], model_outputs[i]['overlap_ds']
-        logit_position -= overlap_ds if i != 0 else 0
-        logit_count[:, logit_position:logit_position+ds_len, :] += 1
-        all_logits[:, logit_position:logit_position+ds_len, :] += logits
-        logit_position += ds_len 
-
-    B,N,C = all_logits.shape
-    all_logits = all_logits[logit_count.sum(dim=-1) != 0]
-    all_logits = all_logits.reshape(B,-1,C)
-    logit_count = logit_count[logit_count.sum(dim=-1) != 0]
-    logit_count = logit_count.reshape(B,-1,C)
-    logits = all_logits / logit_count
-    logits = torch.log(logits) # convert to log 
+    if return_params:
+        updated_model_params = list(model.parameters())
+        updated_model_params = [p.clone().detach().cpu() for p in updated_model_params]
 
     # reset model parameters
     for p, p_orig in zip(model.parameters(), original_model_params):
-        p.data = p_orig.data
+        p.data = p_orig.data.to(p.device)
 
 
-    return logits.squeeze(0).numpy()
-'''
+    return logits.squeeze(0).numpy() if not return_params else (logits.squeeze(0).numpy(), updated_model_params)
+
 
 dynamic_eval = dynamic_eval_ctc_loss
 
@@ -372,8 +233,8 @@ shared functions between scripts
 def apply_args(parser):
     parser.add_argument('-c', '--checkpoint', type=str, default='', help='path to checkpoint')
     parser.add_argument('-split', '--split', type=str, default='test', help='test or dev split')
-    parser.add_argument('-seq', '--seq_len', type=int, default=-1, help='-1 to use setting from config in checkpoint file')
-    parser.add_argument('-o', '--overlap', type=int, default=0, help='-1 to use setting from config in checkpoint file')
+    parser.add_argument('-seq', '--seq_len', type=int, default=16384, help='-1 to use setting from config in checkpoint file')
+    parser.add_argument('-o', '--overlap', type=int, default=14336, help='-1 to use setting from config in checkpoint file')
     parser.add_argument('-nv', '--not_verbose', action='store_true', help='verbose')
     parser.add_argument('-log', '--log', type=str, default='')
     parser.add_argument('-ds', '--dont_shuffle', action='store_true', help='dont shuffle')

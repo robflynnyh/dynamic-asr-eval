@@ -7,6 +7,7 @@ from earnings22 import run as run_earnings22
 from chime6 import run as run_chime6
 from tedlium import run as run_tedlium
 
+
 sweep_config = {
     'method': 'bayes',
     'name': 'sweep',
@@ -16,10 +17,10 @@ sweep_config = {
     },
     "parameters": {
         "optim_lr": {
-            "values": [1e-9, 1e-8, 5e-8, 1e-7, 5e-7, 9e-7, 1e-6, 5e-6, 8e-6, 5e-5]
+            "values": [1e-06, 1e-05, 5e-05, 9e-05, 0.0001, 0.0002, 0.0005],
         },
         "spec_augment_n_time_masks": {
-            "values": [0],
+            "values": [0, 5, 10],
         },
         "spec_augment_n_freq_masks":{
             "min": 0,
@@ -30,11 +31,11 @@ sweep_config = {
             "max": 80,
         },
         "spec_augment_min_p":{
-            "values": [0.0],
+            "values": [0.0, 0.01, 0.05],
         },
         "epochs":{
             "min": 2,
-            "max": 8,
+            "max": 9,
         },
     }
 }
@@ -80,3 +81,4 @@ if __name__ == '__main__':
     
     wandb.agent(sweep_id, partial(launch_agent, args), project='dynamic-eval-sweep')
 
+#CUDA_VISIBLE_DEVICES="3" python run_sweep.py -dfa -split 'dev' -seq 16384 -o 14336 -sweep_id x07cbzxv

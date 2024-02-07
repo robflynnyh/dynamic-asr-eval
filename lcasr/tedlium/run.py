@@ -88,11 +88,12 @@ def fetch_data(path:str = TEST_PATH):
     return audio_files, text_files
 
 
-def process_text_and_audio_fn(audio:str, text:str):
-    gold_text, timings, remove_timings = proc_stm_and_timings(stm_path=text)
+def process_text_and_audio_fn(rec_dict):
+    audio, text = rec_dict['audio'], rec_dict['text']
+    gold_text, _, remove_timings = proc_stm_and_timings(stm_path=text)
     audio_spec = processing_chain(audio)
     audio_spec = zero_out_spectogram(spec = audio_spec, remove_timings = remove_timings)
-    return audio_spec, gold_text
+    return audio_spec, normalize(gold_text).lower()
 
 def get_text_and_audio(split):
     assert split in ['test', 'dev'], f'Split must be either test or dev (got {args.split})'
