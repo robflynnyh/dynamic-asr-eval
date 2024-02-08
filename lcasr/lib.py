@@ -11,7 +11,8 @@ import torch.optim as optim
 
 from lcasr.utils.augmentation import SpecAugment
 from lcasr.decoding.greedy import GreedyCTCDecoder
-import madgrad, random
+from lcasr.optim import madgrad
+import random
 from einops import rearrange
 from lcasr.decoding import ctc_beam_search as beam_search
 from lming.utils import general
@@ -70,7 +71,8 @@ def get_specaugment_config_from_args(args):
     return spec_augment_config
 
 def get_lr_args_from_args(args):
-    lr_args = {k.replace('optim_', ''):v for k,v in args.__dict__.items() if k.startswith('lr_')}
+    lr_args = {k.replace('optim_', ''):v for k,v in args.__dict__.items() if k.startswith('optim_')}
+    print(lr_args)
     lr_args['lr'] = lr_args.get('lr', 9e-5)
     return lr_args
 
@@ -116,7 +118,6 @@ def dynamic_eval_ctc_loss(
     original_model_params = list(model.parameters())
     original_model_params = [p.clone().detach().cpu() for p in original_model_params]
  
-    
     ctc_loss_fn = torch.nn.CTCLoss(blank=model.decoder.num_classes-1, reduction='sum')
     optimizer = optim(model.parameters(), **lr_args)
     if optimizer_state is not None:
@@ -226,6 +227,144 @@ def dynamic_eval_ctc_loss(
 
 dynamic_eval = dynamic_eval_ctc_loss
 
+
+def enc_dec_inference(
+        model:nn.Module,
+        spec:int,
+        seq_len:int,
+        overlap:int,
+        tokenizer,
+        use_tqdm:bool=True,
+    ):
+    assert overlap == 0, 'Overlap not implemented for encoder-decoder model (yet)'
+    training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
+    training_keys_idx = [i for i in range(len(training_keys))]
+    output_sequences = [None] * len(training_keys)
+    pbar = tqdm(training_keys_idx) if use_tqdm else training_keys_idx
+ 
+    for idx in pbar:
+        audio_chunk = training_data[training_keys[idx]].to(model.device)
+        with torch.no_grad(): output = model.generate(audio_chunk)
+        text = tokenizer.decode(output.squeeze().tolist()).strip()
+        print(f'Generated text: {text}')
+        output_sequences[idx] = text
+
+    transcript = " ".join(output_sequences).replace('  ', ' ').strip()
+    return transcript
+
+def enc_dec_dynamic_eval(
+        args,
+        model:nn.Module,
+        spec:torch.Tensor,
+        seq_len:int,
+        overlap:int,
+        tokenizer,
+        use_tqdm:bool=True,
+        optim:optim.Optimizer=madgrad.MADGRAD,
+        optimizer_state:dict=None,
+        beam_search_fn:Callable=None,
+        return_params:bool=False,
+    ):
+
+    spec_augment_config = get_specaugment_config_from_args(args)
+    lr_args = get_lr_args_from_args(args)
+    num_negatives = args.__dict__.get('num_negatives', 1)
+
+    ###
+    spec_n = spec.shape[-1]
+    seq_len = seq_len if seq_len != -1 else args.config['audio_chunking']['size']
+
+    # create copy of model parameters that are not updated
+    original_model_params = list(model.parameters())
+    original_model_params = [p.clone().detach().cpu() for p in original_model_params]
+ 
+    # ctc_loss_fn = torch.nn.CTCLoss(blank=model.decoder.num_classes-1, reduction='sum')
+    # ce_loss_fn = torch.nn.CrossEntropyLoss()
+    
+    optimizer = optim(model.parameters(), **lr_args)
+
+    if optimizer_state is not None:
+        optimizer.load_state_dict(optimizer_state)
+        
+        
+    augmentation = SpecAugment(**spec_augment_config)
+
+    if seq_len > spec_n:
+        seq_len, overlap = spec_n, 0
+    else:
+        overlap = overlap if overlap != -1 else args.config['audio_chunking']['overlap']
+
+    assert overlap == 0, 'Overlap > 0 not implemented for encoder-decoder model'
+    print(f'Using seq_len: {seq_len}')# and overlap: {overlap}')
+
+
+    #model.ctc_loss_weight = 1.0
+    
+    model.eval() # don't update batchrenorm
+    training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
+    for epoch in range(args.__dict__.get('epochs', 1)):
+        print(f'Epoch {epoch + 1} / {args.__dict__.get("epochs", 1)}')
+        training_keys = list(training_data.keys())
+        training_keys_idx = [i for i in range(len(training_keys))]
+        training_keys_idx = random.sample(training_keys_idx, len(training_keys_idx)) if args.__dict__.get('shuffle', False) else training_keys_idx
+
+        pbar = tqdm(training_keys_idx) if use_tqdm else training_keys_idx
+        for idx in pbar:
+            audio_chunk = training_data[training_keys[idx]].clone().to(model.device)
+            audio_chunk = audio_chunk.repeat(num_negatives+1, 1, 1)
+            audio_chunk[:num_negatives] = augmentation(audio_chunk[:num_negatives]) # apply augmentation to 2 of the 3 copies
+
+            teacher_pred, teacher_encoder_out = model.generate(audio_chunk[-1, None], return_encoder_states=True)
+            teacher_pred_text = tokenizer.decode(teacher_pred.squeeze().tolist()).strip()
+            print(f'Teacher pred: {teacher_pred_text}')
+            teacher_lengths = torch.LongTensor([teacher_pred.shape[-1]]).to(model.device)
+            acoustic_length = torch.LongTensor([audio_chunk.shape[-1]]).to(model.device)
+            print(audio_chunk[:num_negatives].shape, teacher_pred.shape)
+            student_out = model.calc_loss(audio_chunk[:num_negatives], teacher_pred, a_lengths=acoustic_length, t_lengths=teacher_lengths)
+            loss = student_out['loss']
+            
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+    model.eval()
+    final_out = enc_dec_inference(
+        model = model,
+        spec = spec,
+        seq_len = seq_len,
+        overlap = overlap,
+        tokenizer = tokenizer,
+        use_tqdm = use_tqdm
+    )
+    if return_params:
+        updated_model_params = list(model.parameters())
+        updated_model_params = [p.clone().detach().cpu() for p in updated_model_params]
+
+    # reset model parameters
+    for p, p_orig in zip(model.parameters(), original_model_params):
+        p.data = p_orig.data.to(p.device)
+
+    return final_out if not return_params else (final_out, updated_model_params)
+
+
+
+
+
+# def dynamic_eval_enc_dec_loss(
+#         args, 
+#         model:nn.Module, 
+#         spec:torch.Tensor, 
+#         seq_len:int, 
+#         overlap:int, 
+#         tokenizer, 
+#         use_tqdm=True,
+#         optim:optim.Optimizer=madgrad.MADGRAD,
+#         optimizer_state:dict=None,
+#         beam_search_fn:Callable=None,
+#         return_params:bool=False,
+#     ):
+
+#     assert beam_search_fn is None, 'Beam search not implemented for encoder-decoder model ()
 
 '''
 shared functions between scripts
