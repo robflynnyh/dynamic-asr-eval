@@ -19,7 +19,9 @@ from lming.utils import general
 import lcasr
 from functools import partial
 from matplotlib import pyplot as plt
-
+from torch_ema import ExponentialMovingAverage
+from torch.nn import functional as F
+from lcasr.utils.lm_tools import add_eos, token_lens_to_mask, mark_padding
 
 def load_beamsearch(path):
     checkpoint = torch.load(path, map_location='cpu')
@@ -72,7 +74,6 @@ def get_specaugment_config_from_args(args):
 
 def get_lr_args_from_args(args):
     lr_args = {k.replace('optim_', ''):v for k,v in args.__dict__.items() if k.startswith('optim_')}
-    print(lr_args)
     lr_args['lr'] = lr_args.get('lr', 9e-5)
     return lr_args
 
@@ -108,6 +109,7 @@ def dynamic_eval_ctc_loss(
 
     spec_augment_config = get_specaugment_config_from_args(args)
     lr_args = get_lr_args_from_args(args)
+    print(spec_augment_config, lr_args)
     num_negatives = args.__dict__.get('num_negatives', 1)
     
     spec_n = spec.shape[-1]
@@ -252,6 +254,125 @@ def enc_dec_inference(
     transcript = " ".join(output_sequences).replace('  ', ' ').strip()
     return transcript
 
+
+@torch.no_grad()
+def generate_enc_dec(model, audio_signal, max_generate=256, bos_id=0, eos_id=0):
+    '''
+    greedy generation, audio_signal should be a single batch
+    '''
+    encoder_out = model.forward(audio_signal=audio_signal)
+    a_hidden, length = encoder_out['a_hidden'], encoder_out['length']
+    text_sequence = torch.LongTensor([[bos_id]]).to(a_hidden.device)
+    finished = False
+    #generated = 0
+    output_probs = []
+    while not finished:
+        decoder_logits = model.language_model_decoder(
+            tokens = text_sequence,
+            a_hidden = a_hidden,
+            a_lengths = length,
+        )
+        probs = decoder_logits[0, -1, :].softmax(dim=-1)
+        output_probs.append(probs)
+        decoder_pred = probs.argmax(dim=-1)
+        
+        #generated += 1
+        #print(f'Generated {generated} tokens: {decoder_pred.item()}')
+        if decoder_pred == eos_id or text_sequence.shape[1] > max_generate:
+            finished = True
+        else:
+            text_sequence = torch.cat([text_sequence, decoder_pred.unsqueeze(0).unsqueeze(0)], dim=1)
+
+    output_probs = torch.stack(output_probs, dim=0)
+    text_sequence = text_sequence[:, 1:] # remove bos
+    
+    return text_sequence, encoder_out, output_probs
+
+def calc_loss_enc_dec(
+        model,
+        audio_signal,
+        text_sequence,
+        teacher_probs,
+        a_lengths,
+        t_lengths,
+        bos_id=0, 
+        eos_id=0,
+        label_smoothing=0.0
+    ):
+    # add bos to text sequence
+    print(text_sequence.shape)
+    text_sequence_bos = F.pad(text_sequence, (1, 0), value=bos_id)
+    target_lengths_bos = t_lengths + 1
+    
+    out = model.forward(audio_signal, text_sequence_bos, a_lengths)
+    ctc_out, lm_out, a_length_out = out['final_posteriors_ctc'], out['final_posteriors_lm'], out['length']
+
+    if model.ctc_loss_weight > 0.0:
+        ctc_loss = F.ctc_loss(
+            log_probs = rearrange(ctc_out, 'b n c -> n b c'),
+            targets = text_sequence,
+            input_lengths = a_length_out,
+            target_lengths = t_lengths,
+            reduction = 'sum',
+            blank = ctc_out.shape[-1] - 1
+        )
+        a_sum = a_lengths.sum()
+        ctc_loss_to_show = (ctc_loss / a_sum).item() * 100
+        ctc_loss_to_bwd = ctc_loss / (ctc_out.shape[1] * ctc_out.shape[0]) * 100
+    else:
+        ctc_loss_to_show, ctc_loss_to_bwd = 0, 0
+
+    targets = text_sequence_bos.clone()
+    targets[:, :-1] = text_sequence_bos[:, 1:]
+
+    if target_lengths_bos.max() == target_lengths_bos.min(): targets[:, -1] = 0
+    else:
+        targets = add_eos(targets, eos_id = eos_id, token_lens = target_lengths_bos)
+
+    mask = token_lens_to_mask(target_lengths_bos)
+    targets = mark_padding(targets, mask, pad_id = -100)
+    predictions = lm_out
+
+    #pred = predictions.squeeze(0)[:-1] # remove eos
+    print(predictions.shape, teacher_probs.shape)
+    #ce = -torch.sum(teacher_probs * F.log_softmax(predictions, dim=-1), dim=-1)
+    #lm_loss = torch.sum(ce * mask) / mask.sum()
+    #print(lm_loss)
+    lm_loss = F.cross_entropy(
+        input = rearrange(predictions, 'b n c -> (b n) c'),
+        target = rearrange(targets, 'b n -> (b n)'),
+        ignore_index = -100,
+        reduction = 'sum',
+        label_smoothing = label_smoothing
+    )
+
+    lm_loss_to_show = (lm_loss / t_lengths.sum()).item()
+    lm_loss_to_bwd = lm_loss / (predictions.shape[0] * predictions.shape[1])
+
+    loss_to_show = ctc_loss_to_show * model.ctc_loss_weight + lm_loss_to_show * (1 - model.ctc_loss_weight)
+    #print(1-self.ctc_loss_weight)
+    loss = ctc_loss_to_bwd * model.ctc_loss_weight + lm_loss_to_bwd * (1 - model.ctc_loss_weight) 
+
+    wandb_log_data = {
+        'loss': loss_to_show,
+        'ctc_loss': ctc_loss_to_show,
+        'lm_loss': lm_loss_to_show,
+    }
+
+    return {
+        'loss': loss,
+        'display_losses': wandb_log_data,
+        'ctc_posteriors': ctc_out,
+        'lm_posteriors': lm_out,
+        'length': a_length_out,
+    }
+        
+def get_ema_from_args(args):
+    ema_args = {k.replace('ema_', ''):v for k,v in args.__dict__.items() if k.startswith('ema_')}
+    ema = ema_args.get('ema', 0.9)
+    print(ema)
+    return ema  
+
 def enc_dec_dynamic_eval(
         args,
         model:nn.Module,
@@ -268,7 +389,8 @@ def enc_dec_dynamic_eval(
 
     spec_augment_config = get_specaugment_config_from_args(args)
     lr_args = get_lr_args_from_args(args)
-    num_negatives = args.__dict__.get('num_negatives', 1)
+    print(spec_augment_config, lr_args)
+    num_negatives = 1 # only coded for 1 negative
 
     ###
     spec_n = spec.shape[-1]
@@ -281,6 +403,22 @@ def enc_dec_dynamic_eval(
     # ctc_loss_fn = torch.nn.CTCLoss(blank=model.decoder.num_classes-1, reduction='sum')
     # ce_loss_fn = torch.nn.CrossEntropyLoss()
     
+    # freeze params
+    modules_to_freeze = [
+        model.language_model_decoder.pos_enc,
+        #model.language_model_decoder.embed,
+        model.pos_enc,
+        #model.subsampling
+        #model.language_model_decoder
+    ]
+
+    for module in modules_to_freeze:
+        for param in module.parameters():
+            param.requires_grad = False
+        print(f'Freezing {module}')
+
+    ema = ExponentialMovingAverage(model.parameters(), decay=get_ema_from_args(args))
+
     optimizer = optim(model.parameters(), **lr_args)
 
     if optimizer_state is not None:
@@ -298,8 +436,9 @@ def enc_dec_dynamic_eval(
     print(f'Using seq_len: {seq_len}')# and overlap: {overlap}')
 
 
-    #model.ctc_loss_weight = 1.0
     
+    #model.ctc_loss_weight = 1.0
+    ema.update()
     model.eval() # don't update batchrenorm
     training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
     for epoch in range(args.__dict__.get('epochs', 1)):
@@ -314,13 +453,24 @@ def enc_dec_dynamic_eval(
             audio_chunk = audio_chunk.repeat(num_negatives+1, 1, 1)
             audio_chunk[:num_negatives] = augmentation(audio_chunk[:num_negatives]) # apply augmentation to 2 of the 3 copies
 
-            teacher_pred, teacher_encoder_out = model.generate(audio_chunk[-1, None], return_encoder_states=True)
+            with ema.average_parameters():
+                teacher_pred, teacher_encoder_out, output_probs = generate_enc_dec(model, audio_chunk[-1, None])
+
             teacher_pred_text = tokenizer.decode(teacher_pred.squeeze().tolist()).strip()
             print(f'Teacher pred: {teacher_pred_text}')
             teacher_lengths = torch.LongTensor([teacher_pred.shape[-1]]).to(model.device)
             acoustic_length = torch.LongTensor([audio_chunk.shape[-1]]).to(model.device)
-            print(audio_chunk[:num_negatives].shape, teacher_pred.shape)
-            student_out = model.calc_loss(audio_chunk[:num_negatives], teacher_pred, a_lengths=acoustic_length, t_lengths=teacher_lengths)
+            #print(audio_chunk[:num_negatives].shape, teacher_pred.shape)
+
+
+            student_out = calc_loss_enc_dec(
+                model = model,
+                audio_signal = audio_chunk[:num_negatives], 
+                text_sequence = teacher_pred, 
+                teacher_probs = output_probs,
+                a_lengths = acoustic_length, 
+                t_lengths = teacher_lengths,
+            )
             loss = student_out['loss']
             
             optimizer.zero_grad()
