@@ -122,7 +122,7 @@ def AWMC(
 
     ):
     
-    assert beam_search_fn is not None, 'Beam search function must be provided for AWMC'
+    assert beam_search_fn is None, 'Beam search function not implemented for AWMC'
     spec_augment_config = get_specaugment_config_from_args(args)
     lr_args = get_lr_args_from_args(args)
     frame_shuffle_args = get_frame_shuffle_config_from_args(args)
@@ -159,26 +159,29 @@ def AWMC(
     print(f'Using seq_len: {seq_len} and overlap: {overlap}')
 
     all_logits, logit_count = torch.zeros((1, spec_n//4 + seq_len, tokenizer.vocab_size() + 1)), torch.zeros((1, spec_n//4 + seq_len, tokenizer.vocab_size() + 1))
-    
+    epochs = args.__dict__.get('epochs', 1)
     training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
     training_keys = list(training_data.keys())
     pbar = tqdm(training_keys) if use_tqdm else training_keys
+
+    model_outputs = {}
+    
     for i in pbar:
         label_bank = [None, None]
-        for j in range(args.__dict__.get('epochs', 1)):
-            audio_chunk = training_data[i].clone()
+        for j in range(epochs):
+            audio_chunk = training_data[i].clone().to(model.device)
             if j == 0:
                 with ema_anchor_model.average_parameters() as anchor_params, torch.no_grad() as g:
                     out = model(audio_signal = audio_chunk)
                     pseudo_targets = decoder(out['final_posteriors'][-1].detach().cpu(), decode=False)
-                    label_bank[0] = torch.LongTensor(pseudo_targets).unsqueeze(0).to(model.device)
+                    label_bank[0] = torch.LongTensor(pseudo_targets).unsqueeze(0).transpose(0, 1).to(model.device)
 
             with ema_leader_model.average_parameters() as leader_params, torch.no_grad() as g:
                 out = model(audio_signal = audio_chunk)
                 pseudo_targets = decoder(out['final_posteriors'][-1].detach().cpu(), decode=True)
                 pseudo_targets = torch.LongTensor(tokenizer.encode(pseudo_targets)).unsqueeze(0).to(model.device)
                 print(f'Pseudo targets: {pseudo_targets}')
-                label_bank[1] = pseudo_targets
+                label_bank[1] = pseudo_targets.transpose(0, 1)
 
             audio_chunk = augmentation(audio_chunk)
             audio_chunk = frame_shuffle(audio_chunk, **frame_shuffle_args)
@@ -186,17 +189,50 @@ def AWMC(
             predictions = decoder(out['final_posteriors'][-1].detach().cpu(), decode=True)
             print(f'Noisy Predictions: {predictions}')
             predictions = torch.LongTensor(tokenizer.encode(predictions)).unsqueeze(0).to(model.device)
-
-            # pad label bank to same length
-            print(label_bank[0].shape, label_bank[1].shape)
-            label_bank_lengths = torch.LongTensor([label_bank[0].shape[-1], label_bank[1].shape[-1]])
-            max_length = label_bank_lengths.max()
-            label_bank = torch.nn.utils.rnn.pad_sequence(label_bank, batch_first=True, padding_value=-100)
-            print(label_bank.shape)
-            print(label_bank)
-            exit()           
-
             
+            label_bank_lengths = torch.LongTensor([label_bank[0].shape[-1], label_bank[1].shape[-1]]).to(model.device)
+            label_bank = torch.nn.utils.rnn.pad_sequence(sequences=label_bank, batch_first=False, padding_value=-100).squeeze(2).transpose(0, 1)
+            N, B = out['final_posteriors'].shape[1], out['final_posteriors'].shape[0]
+            total_tokens_in_loss = N * B * 2
+
+            loss = ctc_loss_fn(
+                out['final_posteriors'].repeat(2, 1, 1).transpose(0, 1),
+                targets = label_bank, 
+                input_lengths = torch.LongTensor([N] * 2).to(model.device),
+                target_lengths = label_bank_lengths,
+            ) / total_tokens_in_loss
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step() 
+            ema_leader_model.update()
+            if j ==  epochs - 1:
+                with torch.no_grad(): out = model(audio_signal = audio_chunk)
+                logits = out['final_posteriors'][0].detach().cpu()
+                logits = torch.exp(logits) # convert to prob
+                ds_len = logits.shape[-2]
+                ratio = audio_chunk.shape[-1] / ds_len
+                overlap_ds = int(overlap / ratio)
+                model_outputs[i] = {'logits': logits, 'ds_len': ds_len, 'overlap_ds': overlap_ds}
+
+    logit_position = 0
+    for i in sorted(list(model_outputs.keys())):
+        logits, ds_len, overlap_ds = model_outputs[i]['logits'], model_outputs[i]['ds_len'], model_outputs[i]['overlap_ds']
+        logit_position -= overlap_ds if i != 0 else 0
+        logit_count[:, logit_position:logit_position+ds_len, :] += 1
+        all_logits[:, logit_position:logit_position+ds_len, :] += logits
+        logit_position += ds_len 
+
+    
+    if return_params:
+        updated_model_params = list(model.parameters())
+        updated_model_params = [p.clone().detach().cpu() for p in updated_model_params]
+
+    # reset model parameters
+    for p, p_orig in zip(model.parameters(), original_model_params):
+        p.data = p_orig.data.to(p.device)
+
+    return logits.squeeze(0).numpy() if not return_params else (logits.squeeze(0).numpy(), updated_model_params)           
                     
             
 
