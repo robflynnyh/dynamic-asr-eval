@@ -14,25 +14,28 @@ sweep_config = {
     },
     "parameters": {
         "optim_lr": {
-            "values": [1e-6,1e-05, 5e-05, 9e-05, 0.0001, 0.0002],
+            "values": [1e-7, 1e-6,1e-05, 5e-05, 9e-05, 1e-4, 2e-4],
         },
         "spec_augment_n_time_masks": {
-            "values": [0, 3, 10],
+            "values": [0, 3, 8, 16],
         },
         "spec_augment_n_freq_masks":{
             "min": 0,
-            "max": 15,
+            "max": 10
         },
         "spec_augment_freq_mask_param":{
             "min": 0,
-            "max": 80,
+            "max": 80
         },
         "spec_augment_min_p":{
-            "values": [0.0, 0.1],
+            "values": [0.0, 0.05, 0.1],
+        },
+        "shuffle":{
+            "values": [False],
         },
         "epochs":{
             "min": 1,
-            "max": 9,
+            "max": 8,
         },
     }
 }

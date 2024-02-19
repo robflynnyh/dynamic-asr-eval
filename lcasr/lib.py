@@ -60,6 +60,11 @@ def replace_with_frame(spec):
         spec[i] = spec[i, :, :] * 0 + spec[i, :, random_index, None]
     return spec
 
+def frame_shuffle(spec, time_dimension=False, freq_dimension=False): # shuffles all frames in a spectrogram
+    if time_dimension: spec = spec[:, :, torch.randperm(spec.shape[-1])]
+    if freq_dimension: spec = spec[:, torch.randperm(spec.shape[-2]), :]
+    return spec
+
 def get_specaugment_config_from_args(args):
     spec_augment_args = {k.replace('spec_augment_', ''):v for k,v in args.__dict__.items() if k.startswith('spec_augment')}
     spec_augment_config = {
@@ -71,6 +76,14 @@ def get_specaugment_config_from_args(args):
         'zero_masking': spec_augment_args.get('zero_masking', False),
     }
     return spec_augment_config
+
+def get_frame_shuffle_config_from_args(args):
+    frame_shuffle_args = {k.replace('frame_shuffle_', ''):v for k,v in args.__dict__.items() if k.startswith('frame_shuffle')}
+    frame_shuffle_config = {
+        'time_dimension': frame_shuffle_args.get('time_dimension', False),
+        'freq_dimension': frame_shuffle_args.get('freq_dimension', False),
+    }
+    return frame_shuffle_config
 
 def get_lr_args_from_args(args):
     lr_args = {k.replace('optim_', ''):v for k,v in args.__dict__.items() if k.startswith('optim_')}
@@ -93,6 +106,100 @@ def prepare_chunks(spec, seq_len, overlap):
         training_data[i] = audio_chunk
     return training_data, list(training_data.keys())
 
+
+def AWMC(
+        args,
+        model:nn.Module,
+        spec:torch.Tensor,
+        seq_len:int,
+        overlap:int,
+        tokenizer,
+        use_tqdm:bool=True,
+        optim:optim.Optimizer=madgrad.MADGRAD,
+        optimizer_state:dict=None,  
+        beam_search_fn:Callable=None,
+        return_params:bool=False,
+
+    ):
+    
+    assert beam_search_fn is not None, 'Beam search function must be provided for AWMC'
+    spec_augment_config = get_specaugment_config_from_args(args)
+    lr_args = get_lr_args_from_args(args)
+    frame_shuffle_args = get_frame_shuffle_config_from_args(args)
+    
+    spec_n = spec.shape[-1]
+    downsampling_factor = args.config['model']['subsampling_factor']
+    seq_len = seq_len if seq_len != -1 else args.config['audio_chunking']['size']
+
+    # create copy of model parameters that are not updated
+    original_model_params = list(model.parameters())
+    original_model_params = [p.clone().detach().cpu() for p in original_model_params]
+
+    model.train()
+    ema_leader_model = ExponentialMovingAverage(model.parameters(), decay=0.999)
+    ema_leader_model.update()
+    ema_anchor_model = ExponentialMovingAverage(model.parameters(), decay=1.0) # no decay
+    ema_anchor_model.update()
+
+    ctc_loss_fn = torch.nn.CTCLoss(blank=model.decoder.num_classes-1, reduction='sum')
+    optimizer = optim(model.parameters(), **lr_args)
+    if optimizer_state is not None:
+        optimizer.load_state_dict(optimizer_state)
+        
+    decoder = GreedyCTCDecoder(tokenizer = tokenizer, blank_id = model.decoder.num_classes-1)
+    augmentation = SpecAugment(**spec_augment_config)
+
+    if seq_len > spec_n:
+        seq_len, overlap = spec_n, 0
+    else:
+        overlap = overlap if overlap != -1 else args.config['audio_chunking']['overlap']
+
+    assert args.config['training'].get("max_seq_len", 0) == 0, 'caching is not used anymore'
+    assert overlap / downsampling_factor == overlap // downsampling_factor, 'Overlap must be a multiple of the downsampling factor'
+    print(f'Using seq_len: {seq_len} and overlap: {overlap}')
+
+    all_logits, logit_count = torch.zeros((1, spec_n//4 + seq_len, tokenizer.vocab_size() + 1)), torch.zeros((1, spec_n//4 + seq_len, tokenizer.vocab_size() + 1))
+    
+    training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
+    training_keys = list(training_data.keys())
+    pbar = tqdm(training_keys) if use_tqdm else training_keys
+    for i in pbar:
+        label_bank = [None, None]
+        for j in range(args.__dict__.get('epochs', 1)):
+            audio_chunk = training_data[i].clone()
+            if j == 0:
+                with ema_anchor_model.average_parameters() as anchor_params, torch.no_grad() as g:
+                    out = model(audio_signal = audio_chunk)
+                    pseudo_targets = decoder(out['final_posteriors'][-1].detach().cpu(), decode=False)
+                    label_bank[0] = torch.LongTensor(pseudo_targets).unsqueeze(0).to(model.device)
+
+            with ema_leader_model.average_parameters() as leader_params, torch.no_grad() as g:
+                out = model(audio_signal = audio_chunk)
+                pseudo_targets = decoder(out['final_posteriors'][-1].detach().cpu(), decode=True)
+                pseudo_targets = torch.LongTensor(tokenizer.encode(pseudo_targets)).unsqueeze(0).to(model.device)
+                print(f'Pseudo targets: {pseudo_targets}')
+                label_bank[1] = pseudo_targets
+
+            audio_chunk = augmentation(audio_chunk)
+            audio_chunk = frame_shuffle(audio_chunk, **frame_shuffle_args)
+            out = model(audio_signal = audio_chunk)
+            predictions = decoder(out['final_posteriors'][-1].detach().cpu(), decode=True)
+            print(f'Noisy Predictions: {predictions}')
+            predictions = torch.LongTensor(tokenizer.encode(predictions)).unsqueeze(0).to(model.device)
+
+            # pad label bank to same length
+            print(label_bank[0].shape, label_bank[1].shape)
+            label_bank_lengths = torch.LongTensor([label_bank[0].shape[-1], label_bank[1].shape[-1]])
+            max_length = label_bank_lengths.max()
+            label_bank = torch.nn.utils.rnn.pad_sequence(label_bank, batch_first=True, padding_value=-100)
+            print(label_bank.shape)
+            print(label_bank)
+            exit()           
+
+            
+                    
+            
+
 def dynamic_eval_ctc_loss(
         args, 
         model:nn.Module, 
@@ -109,7 +216,9 @@ def dynamic_eval_ctc_loss(
 
     spec_augment_config = get_specaugment_config_from_args(args)
     lr_args = get_lr_args_from_args(args)
-    print(spec_augment_config, lr_args)
+    frame_shuffle_args = get_frame_shuffle_config_from_args(args)
+    online_mode = args.__dict__.get('online_mode', False)
+    print(spec_augment_config, lr_args, frame_shuffle_args)
     num_negatives = args.__dict__.get('num_negatives', 1)
     
     spec_n = spec.shape[-1]
@@ -151,7 +260,7 @@ def dynamic_eval_ctc_loss(
             audio_chunk = training_data[i].clone()
             audio_chunk = audio_chunk.repeat(num_negatives+1, 1, 1) # [B, C, T]
             audio_chunk[:num_negatives] = augmentation(audio_chunk[:num_negatives]) # apply augmentation to 2 of the 3 copies
- 
+            audio_chunk[:num_negatives] = frame_shuffle(audio_chunk[:num_negatives], **frame_shuffle_args)
 
             u_len = audio_chunk.shape[-1]
             audio_chunk = audio_chunk.to(model.device)

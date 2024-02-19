@@ -44,10 +44,10 @@ wandb:
   use: true
   project_name: earnings22_NST_finetune
   name: rb_n_seq_sched_16384_rp_1
-  id: "dvemrm1l"
+  id: ""
 
 checkpointing:
-  dir: /exp/exp4/acp21rjf/checkpoints/earnings22NSTfinetune2/
+  dir: /store/store5/data/acp21rjf_checkpoints/earnings22NSTfinetune2/
   
 data:
   path: /store/store4/data/earnings-22/earnings_train.json

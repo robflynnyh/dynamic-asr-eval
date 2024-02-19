@@ -78,7 +78,7 @@ def main(args):
         
         all_texts.append(out)
         all_golds.append(gold_text)
-        break
+        
         
             
 
