@@ -136,7 +136,7 @@ def AWMC(
     original_model_params = [p.clone().detach().cpu() for p in original_model_params]
 
     model.train()
-    ema_leader_model = ExponentialMovingAverage(model.parameters(), decay=0.999)
+    ema_leader_model = ExponentialMovingAverage(model.parameters(), decay=args.__dict__.get('ema_decay', 0.999))
     ema_leader_model.update()
     ema_anchor_model = ExponentialMovingAverage(model.parameters(), decay=1.0) # no decay
     ema_anchor_model.update()
@@ -165,7 +165,7 @@ def AWMC(
     pbar = tqdm(training_keys) if use_tqdm else training_keys
 
     model_outputs = {}
-    
+    model.eval()
     for i in pbar:
         label_bank = [None, None]
         for j in range(epochs):
@@ -173,32 +173,41 @@ def AWMC(
             if j == 0:
                 with ema_anchor_model.average_parameters() as anchor_params, torch.no_grad() as g:
                     out = model(audio_signal = audio_chunk)
-                    pseudo_targets = decoder(out['final_posteriors'][-1].detach().cpu(), decode=False)
-                    label_bank[0] = torch.LongTensor(pseudo_targets).unsqueeze(0).transpose(0, 1).to(model.device)
-
+                    pseudo_targets = decoder(out['final_posteriors'][-1].detach().cpu(), decode=True)
+                    #print(f'Pseudo targets: {pseudo_targets}')
+                    pseudo_targets = torch.LongTensor(tokenizer.encode(pseudo_targets)).unsqueeze(0).to(model.device)
+                    label_bank[0] = pseudo_targets.transpose(0, 1) 
+                    
             with ema_leader_model.average_parameters() as leader_params, torch.no_grad() as g:
                 out = model(audio_signal = audio_chunk)
                 pseudo_targets = decoder(out['final_posteriors'][-1].detach().cpu(), decode=True)
+                #print(f'Pseudo targets: {pseudo_targets}')
                 pseudo_targets = torch.LongTensor(tokenizer.encode(pseudo_targets)).unsqueeze(0).to(model.device)
-                print(f'Pseudo targets: {pseudo_targets}')
+              
                 label_bank[1] = pseudo_targets.transpose(0, 1)
-
+              
             audio_chunk = augmentation(audio_chunk)
             audio_chunk = frame_shuffle(audio_chunk, **frame_shuffle_args)
+
             out = model(audio_signal = audio_chunk)
             predictions = decoder(out['final_posteriors'][-1].detach().cpu(), decode=True)
             print(f'Noisy Predictions: {predictions}')
             predictions = torch.LongTensor(tokenizer.encode(predictions)).unsqueeze(0).to(model.device)
             
-            label_bank_lengths = torch.LongTensor([label_bank[0].shape[-1], label_bank[1].shape[-1]]).to(model.device)
-            label_bank = torch.nn.utils.rnn.pad_sequence(sequences=label_bank, batch_first=False, padding_value=-100).squeeze(2).transpose(0, 1)
+            labels = [el for el in label_bank if el.shape[0] > 0]
+            
+            label_bank_lengths = torch.LongTensor([el.shape[0] for el in labels]).to(model.device)
+            
+            labels = torch.nn.utils.rnn.pad_sequence(sequences=labels, batch_first=False, padding_value=0).squeeze(2).transpose(0, 1)
             N, B = out['final_posteriors'].shape[1], out['final_posteriors'].shape[0]
             total_tokens_in_loss = N * B * 2
 
+            #print(label_bank)
+
             loss = ctc_loss_fn(
-                out['final_posteriors'].repeat(2, 1, 1).transpose(0, 1),
-                targets = label_bank, 
-                input_lengths = torch.LongTensor([N] * 2).to(model.device),
+                out['final_posteriors'].repeat(label_bank_lengths.shape[0], 1, 1).transpose(0, 1),
+                targets = labels, 
+                input_lengths = torch.LongTensor([N] * labels.shape[0]).to(model.device),
                 target_lengths = label_bank_lengths,
             ) / total_tokens_in_loss
 
@@ -206,6 +215,7 @@ def AWMC(
             loss.backward()
             optimizer.step() 
             ema_leader_model.update()
+            #ema_anchor_model.update()
             if j ==  epochs - 1:
                 with torch.no_grad(): out = model(audio_signal = audio_chunk)
                 logits = out['final_posteriors'][0].detach().cpu()
@@ -677,6 +687,7 @@ def apply_args(parser):
     parser.add_argument('-dfa', '--disable_flash_attention', action='store_true', help='disable flash attention')
     parser.add_argument('-beamsearch', '--beamsearch', action='store_true', help='use beam search')
     parser.add_argument('-kwargs', '--kwargs', nargs='+', help='kwargs')
+    parser.add_argument('-awmc', '--awmc', action='store_true', help='Use AWMC method from https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=10389640&tag=1 instead of dynamic eval')
 
     args = parser.parse_args()
 

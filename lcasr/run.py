@@ -128,7 +128,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', '-d', type=str, default='earnings22', choices=datasets_functions.keys())
     parser.add_argument('--repeats', '-r', type=int, default=1, help='Number of times to repeat the evaluation')
     parser.add_argument('--save_path', '-s', type=str, default='', help='path to save')
-    parser.add_argument('-awmc', '--awmc', action='store_true', help='Use AWMC method from https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=10389640&tag=1 instead of dynamic eval')
+
     args = lib.apply_args(parser)
     main(args)
     
