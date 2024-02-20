@@ -217,12 +217,15 @@ def AWMC(
             ema_leader_model.update()
             #ema_anchor_model.update()
             if j ==  epochs - 1:
+                audio_chunk = training_data[i].clone().to(model.device)
                 with torch.no_grad(): out = model(audio_signal = audio_chunk)
                 logits = out['final_posteriors'][0].detach().cpu()
                 logits = torch.exp(logits) # convert to prob
+                
                 ds_len = logits.shape[-2]
                 ratio = audio_chunk.shape[-1] / ds_len
                 overlap_ds = int(overlap / ratio)
+          
                 model_outputs[i] = {'logits': logits, 'ds_len': ds_len, 'overlap_ds': overlap_ds}
 
     logit_position = 0
@@ -233,6 +236,14 @@ def AWMC(
         all_logits[:, logit_position:logit_position+ds_len, :] += logits
         logit_position += ds_len 
 
+    B,N,C = all_logits.shape
+    all_logits = all_logits[logit_count.sum(dim=-1) != 0]
+    all_logits = all_logits.reshape(B,-1,C)
+    logit_count = logit_count[logit_count.sum(dim=-1) != 0]
+    logit_count = logit_count.reshape(B,-1,C)
+    logits = all_logits / logit_count
+    logits = torch.log(logits) # convert to log 
+    
     
     if return_params:
         updated_model_params = list(model.parameters())
@@ -293,13 +304,21 @@ def dynamic_eval_ctc_loss(
     print(f'Using seq_len: {seq_len} and overlap: {overlap}')
 
     all_logits, logit_count = torch.zeros((1, spec_n//4 + seq_len, tokenizer.vocab_size() + 1)), torch.zeros((1, spec_n//4 + seq_len, tokenizer.vocab_size() + 1))
-    
+
+    epochs = args.__dict__.get('epochs', 1)
+    shuffle = args.__dict__.get('shuffle', False)
+    online = args.__dict__.get('online', False)
+    epochs = 1 if online else epochs
+    shuffle = False if online else shuffle
+    model_outputs = {}
+
+
     model.eval() # don't update batchrenorm
     training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
     for epoch in range(args.__dict__.get('epochs', 1)):
-        print(f'Epoch {epoch + 1} / {args.__dict__.get("epochs", 1)}')
+        print(f'Epoch {epoch + 1} / {epochs}')
         training_keys = list(training_data.keys())
-        training_keys = random.sample(training_keys, len(training_keys)) if args.__dict__.get('shuffle', False) else training_keys
+        training_keys = random.sample(training_keys, len(training_keys)) if shuffle else training_keys
       
         pbar = tqdm(training_keys) if use_tqdm else training_keys
         for i in pbar:
@@ -335,23 +354,33 @@ def dynamic_eval_ctc_loss(
             loss.backward()
             #torch.nn.utils.clip_grad_norm_(model.parameters(), 0.8) # add clip value to args
             optimizer.step()
+
+            if online:
+                logits = out['final_posteriors'][-1].detach().cpu() 
+                logits = torch.exp(logits) # convert to prob
+                ds_len = logits.shape[-2]
+                ratio = u_len / ds_len
+                overlap_ds = int(overlap / ratio)
+                model_outputs[i] = {'logits': logits, 'ds_len': ds_len, 'overlap_ds': overlap_ds}
+
+
         
-    model.eval()
-    training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
-    model_outputs = {}
-    pbar = tqdm(training_keys) if use_tqdm else training_keys
-    for i in pbar:
-        audio_chunk = training_data[i].clone()
-        u_len = audio_chunk.shape[-1]
-        audio_chunk = audio_chunk.to(model.device)
-        with torch.no_grad(): out = model(audio_signal = audio_chunk)
-        logits = out['final_posteriors'][0].detach().cpu()
-        logits = torch.exp(logits) # convert to prob
-        ds_len = logits.shape[-2]
-        ratio = u_len / ds_len
-        overlap_ds = int(overlap / ratio)
-        model_outputs[i] = {'logits': logits, 'ds_len': ds_len, 'overlap_ds': overlap_ds}
-    model.train()
+    if not online:
+        model.eval()
+        training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
+        pbar = tqdm(training_keys) if use_tqdm else training_keys
+        for i in pbar:
+            audio_chunk = training_data[i].clone()
+            u_len = audio_chunk.shape[-1]
+            audio_chunk = audio_chunk.to(model.device)
+            with torch.no_grad(): out = model(audio_signal = audio_chunk)
+            logits = out['final_posteriors'][0].detach().cpu()
+            logits = torch.exp(logits) # convert to prob
+            ds_len = logits.shape[-2]
+            ratio = u_len / ds_len
+            overlap_ds = int(overlap / ratio)
+            model_outputs[i] = {'logits': logits, 'ds_len': ds_len, 'overlap_ds': overlap_ds}
+        model.train()
 
            
     logit_position = 0

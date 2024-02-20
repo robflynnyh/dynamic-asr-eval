@@ -2,35 +2,9 @@ import argparse
 import wandb
 import lib
 from functools import partial
-
+from omegaconf import OmegaConf
 from run import main
 
-sweep_config = {
-    'method': 'bayes',
-    'name': 'sweep',
-    'metric': {
-        'name': 'WER',
-        'goal': 'minimize'
-    },
-    "parameters": {
-        "optim_lr": {
-            "values": [1e-9, 5e-9, 1e-8, 1e-7, 5e-7, 1e-6,1e-05, 5e-05, 1e-4],
-        },
-        "spec_augment_n_freq_masks":{
-            "values": [0.0],
-        },
-        "spec_augment_min_p":{
-            "values": [0.0],
-        },
-        "ema_decay":{
-            "values": [0.9, 0.99, 0.999, 0.9999, 0.99999],
-        },
-        "epochs":{
-            "min": 1,
-            "max": 4,
-        },
-    }
-}
 
 
 def launch_agent(args):
@@ -56,11 +30,17 @@ def launch_agent(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-sweep_id','-sweep_id', type=str, default='', help='Sweep ID to launch an agent')
-    parser.add_argument('-d','--dataset', type=str, default='earnings22', help='Dataset to use', choices=['chime6', 'earnings22', 'tedlium'])
+    parser.add_argument('-d','--dataset', type=str, default='tedlium', help='Dataset to use', choices=['chime6', 'earnings22', 'tedlium'])
     parser.add_argument('--repeats', '-r', type=int, default=1, help='Number of times to repeat the evaluation')
+    parser.add_argument('-sc', '--sweep_config', required=True, help="Path to sweep config file")
    
     args = lib.apply_args(parser)
+    if args.split == 'test': print(f'Split set to test set, but sweeps are only performed on dev, setting split to dev.')
+    args.split = 'dev' # only run sweep on dev set
 
+    sweep_config = OmegaConf.load(args.sweep_config)
+    sweep_config = OmegaConf.to_container(sweep_config, resolve=True)
+    
     if args.sweep_id == '':
         sweep_id = wandb.sweep(sweep_config, project='dynamic-eval-sweep')
         print(f'Sweep ID: {sweep_id}')
