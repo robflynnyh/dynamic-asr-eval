@@ -22,8 +22,16 @@ from matplotlib import pyplot as plt
 from torch_ema import ExponentialMovingAverage
 from torch.nn import functional as F
 from lcasr.utils.lm_tools import add_eos, token_lens_to_mask, mark_padding
+from apex.normalization import FusedLayerNorm
+from lcasr.components.batchrenorm import BatchRenorm1d
 
-def load_beamsearch(path):
+def load_beamsearch(
+        path:str,
+        alpha:float=0.45,
+        beta:float=1.53,
+        prune_less_than_val:float=3.17,
+        top_am_threshold:float=-6,
+    ):
     checkpoint = torch.load(path, map_location='cpu')
     checkpoint['model'] = general.convert_from_ddp(checkpoint['model'])
     model_config = checkpoint['config']
@@ -43,13 +51,13 @@ def load_beamsearch(path):
         beam_search.BeamSearch,
         language_model = language_model,
         tokenizer = tokenizer,
-        beam_width = 3,
+        #beam_width = 3,
         blank_id = tokenizer.vocab_size(),
-        alpha = 0.45,
-        beta = 1.53,
+        alpha = alpha,
+        beta = beta,
         debug = False,
-        prune_less_than_val = 3.17,
-        top_am_threshold = -6,
+        prune_less_than_val = prune_less_than_val,
+        top_am_threshold = top_am_threshold,
     )
     return BeamSearch
 
@@ -107,6 +115,19 @@ def prepare_chunks(spec, seq_len, overlap):
     return training_data, list(training_data.keys())
 
 
+def bitfit(model):
+    for param in model.parameters():
+        param.requires_grad = False
+    for module in model.modules():
+        if isinstance(module, FusedLayerNorm) or isinstance(module, torch.nn.LayerNorm):
+            module.bias.requires_grad = True
+        if isinstance(module, torch.nn.Linear) and module.bias is not None:
+            module.bias.requires_grad = True
+        if isinstance(module, BatchRenorm1d):
+            module.bias.requires_grad = True
+
+    return model
+
 def AWMC(
         args,
         model:nn.Module,
@@ -135,6 +156,9 @@ def AWMC(
     original_model_params = list(model.parameters())
     original_model_params = [p.clone().detach().cpu() for p in original_model_params]
 
+    if args.__dict__.get('bitfit', False):
+        model = bitfit(model)
+
     model.train()
     ema_leader_model = ExponentialMovingAverage(model.parameters(), decay=args.__dict__.get('ema_decay', 0.999))
     ema_leader_model.update()
@@ -142,6 +166,7 @@ def AWMC(
     ema_anchor_model.update()
 
     ctc_loss_fn = torch.nn.CTCLoss(blank=model.decoder.num_classes-1, reduction='sum')
+    
     optimizer = optim(model.parameters(), **lr_args)
     if optimizer_state is not None:
         optimizer.load_state_dict(optimizer_state)
@@ -287,6 +312,7 @@ def dynamic_eval_ctc_loss(
     original_model_params = [p.clone().detach().cpu() for p in original_model_params]
  
     ctc_loss_fn = torch.nn.CTCLoss(blank=model.decoder.num_classes-1, reduction='sum')
+    
     optimizer = optim(model.parameters(), **lr_args)
     if optimizer_state is not None:
         optimizer.load_state_dict(optimizer_state)
@@ -308,6 +334,7 @@ def dynamic_eval_ctc_loss(
     epochs = args.__dict__.get('epochs', 1)
     shuffle = args.__dict__.get('shuffle', False)
     online = args.__dict__.get('online', False)
+    beams = args.__dict__.get('lm_tta_beams', 3)
     epochs = 1 if online else epochs
     shuffle = False if online else shuffle
     model_outputs = {}
@@ -334,7 +361,7 @@ def dynamic_eval_ctc_loss(
             if beam_search_fn is None:
                 pseudo_targets = decoder(out['final_posteriors'][-1].detach().cpu())
             else:
-                beam_search = beam_search_fn(log_probs = out['final_posteriors'][-1].detach().cpu())
+                beam_search = beam_search_fn(log_probs = out['final_posteriors'][-1].detach().cpu(), beam_width = beams)
                 beam_search.run_search(use_tqdm = True)
                 pseudo_targets = beam_search.return_text(idx = 0)
 

@@ -57,7 +57,15 @@ def main(args):
     data = datasets_functions[args.dataset](args.split)
     
     beamsearch = None
-    if args.beamsearch: beamsearch = lib.load_beamsearch(path = lib.paths.checkpoints.lm)
+    if args.beamsearch: 
+        beamsearch = lib.load_beamsearch(
+            path = lib.paths.checkpoints.lm,
+            alpha = args.__dict__.get('lm_alpha', 0.45),
+            beta = args.__dict__.get('lm_beta', 1.53),
+            prune_less_than_val = args.__dict__.get('lm_prune_less_than_val', 3.17),
+            top_am_threshold = args.__dict__.get('lm_top_am_threshold', -6),
+        )
+    beams = args.__dict__.get('lm_eval_beams', 20)
 
     all_texts, all_golds = [],[]
     eval_fn = dynamic_eval if not args.awmc else AWMC
@@ -83,8 +91,15 @@ def main(args):
             )
 
             ds_factor = audio_spec.shape[-1] / logits.shape[0]
-            decoded, bo = decode_beams_lm([logits], decoder, beam_width=1, ds_factor=ds_factor)
-            out = normalize(decoded[0]['text']).lower()
+            if beamsearch is None:
+                decoded, bo = decode_beams_lm([logits], decoder, beam_width=1, ds_factor=ds_factor)
+                out_text = decoded[0]['text']
+            else:
+                run_beam_search = beamsearch(log_probs = out['final_posteriors'][-1].detach().cpu(), beam_width = beams)
+                run_beam_search.run_search(use_tqdm = True)
+                out_text = run_beam_search.return_text(idx = 0)
+
+            out = normalize(out_text).lower()
             
             print(gold_text, '\n', out, '\n\n')
             

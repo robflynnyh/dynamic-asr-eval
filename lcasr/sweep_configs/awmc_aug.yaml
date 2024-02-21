@@ -8,13 +8,17 @@ parameters:
   bitfit: 
     values: [true, false]
   optim_lr:
-    values: [5e-9, 1e-8, 1e-7, 5e-7, 1e-6,1e-05, 5e-05, 9e-5, 1e-4, 2e-4, 5e-4]
-  spec_augment_n_freq_masks:
-    values: [0.0]
+    values: [1e-9, 1e-8, 1e-7, 5e-7, 1e-6,1e-05, 5e-05, 9e-5, 1e-4, 2e-4, 5e-4]
   spec_augment_min_p:
     values: [0.0]
   ema_decay:
     values: [0.999]
+  spec_augment_freq_mask_param:
+    min: 0
+    max: 80
+  spec_augment_n_freq_masks:
+    min: 0
+    max: 14
   epochs:
     min: 1
-    max: 5
+    max: 6
