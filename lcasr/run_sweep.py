@@ -4,7 +4,12 @@ import lib
 from functools import partial
 from omegaconf import OmegaConf
 from run import main
+from enc_dec_ctc_beam_inference_test import main as enc_dec_ctc_beam_inference_test
 
+run_scripts = {
+    "main": main,
+    "enc_dec_ctc_beam_inference_test": enc_dec_ctc_beam_inference_test
+}
 
 
 def launch_agent(args):
@@ -18,7 +23,7 @@ def launch_agent(args):
         
     args = argparse.Namespace(**args_dict)
     
-    wer = main(args)
+    wer = run_scripts[args.run_script](args)
     
     if wer == None:
         raise ValueError('WER is None - something went wrong')
@@ -29,6 +34,7 @@ def launch_agent(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('-run_script', type=str, default='main', help='Script to run', choices=run_scripts.keys())
     parser.add_argument('-sweep_id','-sweep_id', type=str, default='', help='Sweep ID to launch an agent')
     parser.add_argument('-d','--dataset', type=str, default='tedlium', help='Dataset to use', choices=['chime6', 'earnings22', 'tedlium'])
     parser.add_argument('--repeats', '-r', type=int, default=1, help='Number of times to repeat the evaluation')

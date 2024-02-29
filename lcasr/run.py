@@ -95,7 +95,7 @@ def main(args):
                 decoded, bo = decode_beams_lm([logits], decoder, beam_width=1, ds_factor=ds_factor)
                 out_text = decoded[0]['text']
             else:
-                run_beam_search = beamsearch(log_probs = out['final_posteriors'][-1].detach().cpu(), beam_width = beams)
+                run_beam_search = beamsearch(log_probs = logits, beam_width = beams)
                 run_beam_search.run_search(use_tqdm = True)
                 out_text = run_beam_search.return_text(idx = 0)
 

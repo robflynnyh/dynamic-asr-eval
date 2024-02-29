@@ -14,7 +14,8 @@ from lcasr.decoding.greedy import GreedyCTCDecoder
 from lcasr.optim import madgrad
 import random
 from einops import rearrange
-from lcasr.decoding import ctc_beam_search as beam_search
+import ctc_beam_search as beam_search
+#from lcasr.decoding import ctc_beam_search as beam_search
 from lming.utils import general
 import lcasr
 from functools import partial
@@ -58,6 +59,7 @@ def load_beamsearch(
         debug = False,
         prune_less_than_val = prune_less_than_val,
         top_am_threshold = top_am_threshold,
+        max_cache_length = 128
     )
     return BeamSearch
 
@@ -340,6 +342,7 @@ def dynamic_eval_ctc_loss(
     model_outputs = {}
 
 
+    entropy = []
     model.eval() # don't update batchrenorm
     training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
     for epoch in range(args.__dict__.get('epochs', 1)):
@@ -357,8 +360,14 @@ def dynamic_eval_ctc_loss(
             u_len = audio_chunk.shape[-1]
             audio_chunk = audio_chunk.to(model.device)
             out = model(audio_signal = audio_chunk)
+            # #entrop = torch.distributions.Categorical(probs = out['final_posteriors'][-1].detach().cpu().exp().mean()).entropy()
+            # entrop = out['final_posteriors'][-1].detach().cpu().exp().max(-1).values
+            # print(f'Entropy: {entrop.mean()}')
+            # entropy.append(entrop.mean().item())
+            # plt.plot(entropy)
+            # plt.savefig('entropy.png')
 
-            if beam_search_fn is None:
+            if beam_search_fn is None or beams == 0: 
                 pseudo_targets = decoder(out['final_posteriors'][-1].detach().cpu())
             else:
                 beam_search = beam_search_fn(log_probs = out['final_posteriors'][-1].detach().cpu(), beam_width = beams)
@@ -465,62 +474,134 @@ def enc_dec_inference(
     transcript = " ".join(output_sequences).replace('  ', ' ').strip()
     return transcript
 
+def enc_dec_ctc_beamsearch_inference(
+        model:nn.Module,
+        spec:int,
+        seq_len:int,
+        overlap:int,
+        tokenizer,
+        alpha:float = 0.45,
+        beta:float = 1.53,
+        prune_less_than_val:float=3.17,
+        use_tqdm:bool=True,
+        beam_width:int=10,
+    ):
+    assert overlap == 0, 'Overlap not implemented for encoder-decoder model (yet)'
+    training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
+    training_keys_idx = [i for i in range(len(training_keys))]
+    output_sequences = [None] * len(training_keys)
+    pbar = tqdm(training_keys_idx) if use_tqdm else training_keys_idx
+ 
+    for idx in pbar:
+        audio_chunk = training_data[training_keys[idx]].to(model.device)
+        with torch.no_grad(): text = model.ctc_beam_search(
+            audio_signal = audio_chunk,
+            tokenizer = tokenizer,
+            alpha = alpha,
+            beta = beta,
+            prune_less_than_val = prune_less_than_val,
+            beam_width = beam_width,
+        ).strip()
+            
+        print(f'Generated text: {text}')
+        output_sequences[idx] = text
+
+    transcript = " ".join(output_sequences).replace('  ', ' ').strip()
+    return transcript
+
 
 @torch.no_grad()
-def generate_enc_dec(model, audio_signal, max_generate=256, bos_id=0, eos_id=0):
+def generate_enc_dec(
+        model, 
+        audio_signal, 
+        max_generate=256, 
+        bos_id=0, 
+        eos_id=0,
+        sample=1,
+        greedy=True,
+        temperature=1.0,
+    ):
     '''
-    greedy generation, audio_signal should be a single batch
+    sample: use multinomial sampling
     '''
     encoder_out = model.forward(audio_signal=audio_signal)
     a_hidden, length = encoder_out['a_hidden'], encoder_out['length']
-    text_sequence = torch.LongTensor([[bos_id]]).to(a_hidden.device)
+    a_hidden = a_hidden.repeat(sample, 1, 1)
+    text_sequence = torch.LongTensor([[bos_id]]).to(a_hidden.device).repeat(sample, 1)
+    finised_sequences = []
     finished = False
     #generated = 0
-    output_probs = []
     while not finished:
         decoder_logits = model.language_model_decoder(
             tokens = text_sequence,
             a_hidden = a_hidden,
             a_lengths = length,
         )
-        probs = decoder_logits[0, -1, :].softmax(dim=-1)
-        output_probs.append(probs)
-        decoder_pred = probs.argmax(dim=-1)
-        
-        #generated += 1
-        #print(f'Generated {generated} tokens: {decoder_pred.item()}')
-        if decoder_pred == eos_id or text_sequence.shape[1] > max_generate:
-            finished = True
+        probs = (decoder_logits[:, -1, :] * temperature).softmax(dim=-1)
+        if sample == 1 and greedy:
+            decoder_pred = probs.argmax(dim=-1)[None]
         else:
-            text_sequence = torch.cat([text_sequence, decoder_pred.unsqueeze(0).unsqueeze(0)], dim=1)
+            decoder_pred = torch.multinomial(probs, num_samples=1)
+        
+        indices_to_drop = 0
+        new_text_sequences = []
+        for i in range(sample):
+            if decoder_pred[i] == eos_id or text_sequence[i].shape[0] > max_generate:
+                finised_sequences.append(text_sequence[i])
+                indices_to_drop += 1
+            else:
+                new_text_sequences.append(torch.cat([text_sequence[i, None], decoder_pred[i, None]], dim=1))
+        if indices_to_drop > 0: a_hidden = a_hidden[:-indices_to_drop]
+        if len(new_text_sequences) > 0: text_sequence = torch.cat(new_text_sequences, dim=0)
+        sample = a_hidden.shape[0]
+        if sample == 0: finished = True
 
-    output_probs = torch.stack(output_probs, dim=0)
-    text_sequence = text_sequence[:, 1:] # remove bos
     
-    return text_sequence, encoder_out, output_probs
+    text_lengths = torch.LongTensor([el.shape[0] for el in finised_sequences])
+    text_sequence = torch.nn.utils.rnn.pad_sequence(finised_sequences, batch_first=True, padding_value=0)
+        
+    text_sequence = text_sequence[:, 1:] # remove bos
+    text_lengths -= 1
+    
+    return text_sequence, encoder_out, text_lengths
 
 def calc_loss_enc_dec(
         model,
         audio_signal,
         text_sequence,
-        teacher_probs,
         a_lengths,
         t_lengths,
+        tokenizer,
+        token_swap_prob=0.2,
         bos_id=0, 
         eos_id=0,
-        label_smoothing=0.0
+        label_smoothing=0.0,
     ):
     # add bos to text sequence
     print(text_sequence.shape)
     text_sequence_bos = F.pad(text_sequence, (1, 0), value=bos_id)
     target_lengths_bos = t_lengths + 1
+
+    targets = text_sequence_bos.clone()
+    targets[:, :-1] = text_sequence_bos[:, 1:].clone()
     
+    # if token_swap_prob > 0.0:
+    #     swap_mask = (torch.rand(text_sequence_bos.shape) < token_swap_prob).to(text_sequence_bos.device)
+    #     swap_mask[:, 0] = False # don't swap bos
+    #     text_sequence_bos[swap_mask] = 
+
     out = model.forward(audio_signal, text_sequence_bos, a_lengths)
     ctc_out, lm_out, a_length_out = out['final_posteriors_ctc'], out['final_posteriors_lm'], out['length']
 
     if model.ctc_loss_weight > 0.0:
+        print(ctc_out.shape, a_length_out.shape, text_sequence.shape, t_lengths.shape)
+        ctc_out = rearrange(ctc_out.repeat(t_lengths.shape[0], 1, 1), 'b n c -> n b c')
+        a_length_out = a_length_out.repeat(t_lengths.shape[0])
+        # print(ctc_out.shape, a_length_out.shape, text_sequence.shape, t_lengths.shape)
+        # print(t_lengths.max())
+        # print(text_sequence)
         ctc_loss = F.ctc_loss(
-            log_probs = rearrange(ctc_out, 'b n c -> n b c'),
+            log_probs = ctc_out,
             targets = text_sequence,
             input_lengths = a_length_out,
             target_lengths = t_lengths,
@@ -533,8 +614,7 @@ def calc_loss_enc_dec(
     else:
         ctc_loss_to_show, ctc_loss_to_bwd = 0, 0
 
-    targets = text_sequence_bos.clone()
-    targets[:, :-1] = text_sequence_bos[:, 1:]
+
 
     if target_lengths_bos.max() == target_lengths_bos.min(): targets[:, -1] = 0
     else:
@@ -543,12 +623,14 @@ def calc_loss_enc_dec(
     mask = token_lens_to_mask(target_lengths_bos)
     targets = mark_padding(targets, mask, pad_id = -100)
     predictions = lm_out
-
+   
     #pred = predictions.squeeze(0)[:-1] # remove eos
-    print(predictions.shape, teacher_probs.shape)
+  
     #ce = -torch.sum(teacher_probs * F.log_softmax(predictions, dim=-1), dim=-1)
     #lm_loss = torch.sum(ce * mask) / mask.sum()
     #print(lm_loss)
+
+
     lm_loss = F.cross_entropy(
         input = rearrange(predictions, 'b n c -> (b n) c'),
         target = rearrange(targets, 'b n -> (b n)'),
@@ -581,7 +663,7 @@ def calc_loss_enc_dec(
 def get_ema_from_args(args):
     ema_args = {k.replace('ema_', ''):v for k,v in args.__dict__.items() if k.startswith('ema_')}
     ema = ema_args.get('ema', 0.9)
-    print(ema)
+    print(f'ema: {ema}')
     return ema  
 
 def enc_dec_dynamic_eval(
@@ -600,7 +682,7 @@ def enc_dec_dynamic_eval(
 
     spec_augment_config = get_specaugment_config_from_args(args)
     lr_args = get_lr_args_from_args(args)
-    print(spec_augment_config, lr_args)
+    #print(spec_augment_config, lr_args)
     num_negatives = 1 # only coded for 1 negative
 
     ###
@@ -617,11 +699,22 @@ def enc_dec_dynamic_eval(
     # freeze params
     modules_to_freeze = [
         model.language_model_decoder.pos_enc,
-        #model.language_model_decoder.embed,
         model.pos_enc,
-        #model.subsampling
-        #model.language_model_decoder
     ]
+
+    dropout_emb = args.__dict__.get('dropout_emb', 0.0)
+    dropout_post_ff = args.__dict__.get('dropout_post_ff', 0.0) 
+    dropout_attn = args.__dict__.get('dropout_attn', 0.0)
+
+
+    model.language_model_decoder.dropout_emb = dropout_emb
+    model.language_model_decoder.ff_out_dropout = dropout_post_ff
+        # layer[0].fn.flash_attn_fn.dropout_p = dropout_attn
+        # layer[0].fn.flash_attn_c_fn.drop.p = dropout_attn
+    for layer in model.language_model_decoder.layers:
+        layer[0].fn.dropout_p = 0
+
+    #model.language_model_decoder
 
     for module in modules_to_freeze:
         for param in module.parameters():
@@ -665,23 +758,40 @@ def enc_dec_dynamic_eval(
             audio_chunk[:num_negatives] = augmentation(audio_chunk[:num_negatives]) # apply augmentation to 2 of the 3 copies
 
             with ema.average_parameters():
-                teacher_pred, teacher_encoder_out, output_probs = generate_enc_dec(model, audio_chunk[-1, None])
+                teacher_pred, teacher_encoder_out, text_lengths = generate_enc_dec(
+                    model, 
+                    audio_chunk[-1, None],
+                    max_generate = 256,
+                    sample = args.__dict__.get('enc_dec_sample', 1),
+                    greedy = args.__dict__.get('enc_dec_greedy', True),
+                    temperature = args.__dict__.get('enc_dec_temperature', 1.0),
+                )
 
-            teacher_pred_text = tokenizer.decode(teacher_pred.squeeze().tolist()).strip()
+            teacher_pred_text = tokenizer.decode(teacher_pred[0].tolist()).strip()
             print(f'Teacher pred: {teacher_pred_text}')
-            teacher_lengths = torch.LongTensor([teacher_pred.shape[-1]]).to(model.device)
+            teacher_lengths = text_lengths.to(model.device)
             acoustic_length = torch.LongTensor([audio_chunk.shape[-1]]).to(model.device)
             #print(audio_chunk[:num_negatives].shape, teacher_pred.shape)
 
-
+            for layer in model.language_model_decoder.layers:
+                layer[0].fn.dropout_p = dropout_attn
+                
+            model.language_model_decoder.train() # for dropout
             student_out = calc_loss_enc_dec(
                 model = model,
                 audio_signal = audio_chunk[:num_negatives], 
                 text_sequence = teacher_pred, 
-                teacher_probs = output_probs,
                 a_lengths = acoustic_length, 
                 t_lengths = teacher_lengths,
+                tokenizer = tokenizer
             )
+            model.language_model_decoder.eval()
+
+            for layer in model.language_model_decoder.layers:
+                layer[0].fn.dropout_p = 0
+
+
+
             loss = student_out['loss']
             
             optimizer.zero_grad()
@@ -706,7 +816,6 @@ def enc_dec_dynamic_eval(
         p.data = p_orig.data.to(p.device)
 
     return final_out if not return_params else (final_out, updated_model_params)
-
 
 
 

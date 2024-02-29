@@ -1,0 +1,34 @@
+method: 'bayes'
+name: 'sweep'
+metric:
+  name: 'WER'
+  goal: 'minimize'
+
+parameters:
+  optim_lr:
+    values: [1e-5, 5e-5, 0.00009, 1e-4, 2e-4]
+  spec_augment_freq_mask_param:
+    min: 5
+    max: 80
+  spec_augment_n_freq_masks:
+    min: 1
+    max: 18
+  spec_augment_min_p:
+    values: [0.0]
+  epochs:
+    min: 1
+    max: 9
+  beamsearch:
+    values: [true]
+  lm_alpha:
+    values: [0.4016]
+  lm_beta: 
+    values: [1.625]
+  lm_prune_less_than_val:
+    values: [3.221]
+  lm_eval_beams:
+    values: [20]
+  lm_tta_beams:
+    values: [1]
+
+    

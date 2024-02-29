@@ -8,7 +8,7 @@ from pyctcdecode import build_ctcdecoder
 from lcasr.eval.wer import word_error_rate_detail 
 #from lcasr.eval.dynamic_eval import dynamic_eval
 from whisper.normalizers import EnglishTextNormalizer
-
+import pickle
 normalize = EnglishTextNormalizer()
 
 import sys
@@ -79,7 +79,7 @@ def main(args):
         all_texts.append(out)
         all_golds.append(gold_text)
         
-        
+
             
 
     wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=all_texts, references=all_golds)
@@ -90,12 +90,31 @@ def main(args):
         with open(args.log, 'a') as f:
             f.write(f'{args.checkpoint}\t overlap: {args.overlap}\t seq_len: {args.seq_len}\t WER: {wer}\n')
 
+    if args.save_path != '':
+        save_data = {
+            'wer': wer,
+            'words': words,
+            'ins_rate': ins_rate,
+            'del_rate': del_rate,
+            'sub_rate': sub_rate,
+            'model_output': all_texts,
+            'gold': all_golds,
+            'args_dict': vars(args),
+            'repeat': f'{1}/{1}' # no need for repeats on deterministic eval
+        }
+        save_path = args.save_path
+        if save_path.endswith('.pkl'): save_path = save_path.replace('.pkl', f'_{1}.pkl')
+        else: save_path = save_path + f'_{1}.pkl'
+        with open(save_path, 'wb') as f:
+            pickle.dump(save_data, f)
+
     return wer
     
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', '-d', type=str, default='earnings22', choices=datasets_functions.keys())
+    parser.add_argument('--save_path', '-s', type=str, default='', help='path to save')
     args = lib.apply_args(parser)
     main(args)
     

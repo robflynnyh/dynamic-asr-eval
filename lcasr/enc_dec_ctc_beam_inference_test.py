@@ -15,7 +15,7 @@ import sys
 import os.path
 
 import lib
-from lib import enc_dec_dynamic_eval
+from lib import enc_dec_ctc_beamsearch_inference
 
 from earnings22.run import get_text_and_audio as get_text_and_audio_earnings22
 from chime6.run import get_text_and_audio as get_text_and_audio_chime6
@@ -63,14 +63,15 @@ def main(args):
     
         audio_spec, gold_text = data[rec]['process_fn'](data[rec])
         
-        model_out = enc_dec_dynamic_eval(
-            args = args,
+        model_out = enc_dec_ctc_beamsearch_inference(
             model = model,
             spec = audio_spec,
             seq_len = args.seq_len,
             overlap = 0,
             tokenizer = tokenizer,
-            use_tqdm = True
+            use_tqdm = True,
+            alpha = args.alpha,
+            beta = args.beta,
         )
 
         out = normalize(model_out).lower()
@@ -79,8 +80,9 @@ def main(args):
         
         all_texts.append(out)
         all_golds.append(gold_text)
-        break
         
+        
+            
 
     wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=all_texts, references=all_golds)
 
@@ -95,6 +97,8 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('-alpha', type=float, default=0.45, help='LM weight')
+    parser.add_argument('-beta', type=float, default=1.53, help='non-blank bonus')
     parser.add_argument('--dataset', '-d', type=str, default='earnings22', choices=datasets_functions.keys())
     args = lib.apply_args(parser)
     main(args)
@@ -102,4 +106,3 @@ if __name__ == '__main__':
 
 #python run.py -d earnings22 -r 3 -dfa -epochs 5 -kwargs optim_lr=0.00009 spec_augment_freq_mask_param=34 spec_augment_min_p=0.1879883950862319 spec_augment_n_time_masks=0 spec_augment_n_freq_masks=6
 
-#CUDA_VISIBLE_DEVICES="3" python enc_dec_dynamic_eval_test.py -dfa -d tedlium -split dev -seq 2048 -o 0 -c /store/store5/data/acp21rjf_checkpoints/lcasr/enc_dec/3e3/step_105360.pt 
