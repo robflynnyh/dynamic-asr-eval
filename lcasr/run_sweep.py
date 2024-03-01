@@ -39,6 +39,7 @@ if __name__ == '__main__':
     parser.add_argument('-d','--dataset', type=str, default='tedlium', help='Dataset to use', choices=['chime6', 'earnings22', 'tedlium'])
     parser.add_argument('--repeats', '-r', type=int, default=1, help='Number of times to repeat the evaluation')
     parser.add_argument('-sc', '--sweep_config', required=True, help="Path to sweep config file")
+    parser.add_argument('-pn', '--project_name', type=str, default='dynamic-eval-sweep', help='Wandb project name')
    
     args = lib.apply_args(parser)
     if args.split == 'test': print(f'Split set to test set, but sweeps are only performed on dev, setting split to dev.')
@@ -48,12 +49,12 @@ if __name__ == '__main__':
     sweep_config = OmegaConf.to_container(sweep_config, resolve=True)
     
     if args.sweep_id == '':
-        sweep_id = wandb.sweep(sweep_config, project='dynamic-eval-sweep')
+        sweep_id = wandb.sweep(sweep_config, project=args.project_name)
         print(f'Sweep ID: {sweep_id}')
     else:
         sweep_id = args.sweep_id
     
-    wandb.agent(sweep_id, partial(launch_agent, args), project='dynamic-eval-sweep')
+    wandb.agent(sweep_id, partial(launch_agent, args), project=args.project_name)
 
 #CUDA_VISIBLE_DEVICES="3" python run_sweep.py -dfa -split 'dev' -seq 16384 -o 14336 -sweep_id x07cbzxv
     #2o6bcj0f

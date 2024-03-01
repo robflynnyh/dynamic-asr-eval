@@ -222,10 +222,16 @@ def AWMC(
             predictions = torch.LongTensor(tokenizer.encode(predictions)).unsqueeze(0).to(model.device)
             
             labels = [el for el in label_bank if el.shape[0] > 0]
-            
+   
             label_bank_lengths = torch.LongTensor([el.shape[0] for el in labels]).to(model.device)
-            
-            labels = torch.nn.utils.rnn.pad_sequence(sequences=labels, batch_first=False, padding_value=0).squeeze(2).transpose(0, 1)
+
+            if len(labels) == 0:
+                labels = [torch.LongTensor([[]]).T.to(model.device)]
+                label_bank_lengths = torch.LongTensor([0]).to(model.device)
+      
+            labels = torch.nn.utils.rnn.pad_sequence(sequences=labels, batch_first=False, padding_value=0)
+      
+            labels = labels.squeeze(2).transpose(0, 1)
             N, B = out['final_posteriors'].shape[1], out['final_posteriors'].shape[0]
             total_tokens_in_loss = N * B * 2
 

@@ -16,6 +16,7 @@ import os.path
 
 import lib
 from lib import enc_dec_inference
+from lib import enc_dec_ctc_beamsearch_inference
 
 from earnings22.run import get_text_and_audio as get_text_and_audio_earnings22
 from chime6.run import get_text_and_audio as get_text_and_audio_chime6
@@ -29,7 +30,10 @@ datasets_functions = {
     'rev16': get_text_and_audio_rev16
 }
 
-
+decoding_modes = {
+    'default': enc_dec_inference,
+    'joint': enc_dec_ctc_beamsearch_inference
+}
 
 def main(args):
     assert args.split in ['test', 'dev'], f'Split must be either test or dev (got {args.split})'
@@ -54,6 +58,8 @@ def main(args):
 
     data = datasets_functions[args.dataset](args.split)
 
+    decoding_args = {'alpha':args.alpha,'beta':args.beta,} if args.decoding_mode == "joint" else {}
+
     all_texts, all_golds = [],[]
   
     for rec in tqdm(range(len(data)), total=len(data)):
@@ -63,13 +69,14 @@ def main(args):
     
         audio_spec, gold_text = data[rec]['process_fn'](data[rec])
         
-        model_out = enc_dec_inference(
+        model_out = decoding_modes[args.decoding_mode](
             model = model,
             spec = audio_spec,
             seq_len = args.seq_len,
             overlap = 0,
             tokenizer = tokenizer,
-            use_tqdm = True
+            use_tqdm = True,
+            **decoding_args
         )
 
         out = normalize(model_out).lower()
@@ -114,7 +121,10 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', '-d', type=str, default='earnings22', choices=datasets_functions.keys())
+    parser.add_argument('-mode', '--decoding_mode', type=str, default='default', choices=decoding_modes.keys())
     parser.add_argument('--save_path', '-s', type=str, default='', help='path to save')
+    parser.add_argument('-alpha', type=float, default=0.816, help='LM weight')
+    parser.add_argument('-beta', type=float, default=1.11, help='non-blank bonus')
     args = lib.apply_args(parser)
     main(args)
     
