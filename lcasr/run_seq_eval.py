@@ -15,7 +15,7 @@ import os.path
 
 import lib
 import time
-from lib import dynamic_eval, AWMC
+from lib import dynamic_eval, AWMC, prepare_chunks
 
 from earnings22.run import get_text_and_audio as get_text_and_audio_earnings22
 from chime6.run import get_text_and_audio as get_text_and_audio_chime6
@@ -54,6 +54,7 @@ def main(args):
 
     vocab = [tokenizer.id_to_piece(id) for id in range(tokenizer.get_piece_size())] + [""]
     decoder = build_ctcdecoder(vocab, kenlm_model_path=None, alpha=None, beta=None)
+    overlap = args.nsti_overlap
 
     data = datasets_functions[args.dataset](args.split)
     
@@ -74,8 +75,8 @@ def main(args):
 
         all_texts, all_golds = [],[]
         wers = []
-        elapsed_times = []
-
+        
+        
         for rec in tqdm(range(len(data)), total=len(data)):
             print(f'Processing {rec+1}/{len(data)}')
             
@@ -83,19 +84,47 @@ def main(args):
         
             audio_spec, gold_text = data[rec]['process_fn'](data[rec])
             
-            stime = time.time()
-            logits = eval_fn(
-                args, 
-                model, 
-                audio_spec, 
-                args.seq_len, 
-                args.overlap, 
-                tokenizer,
-                beam_search_fn = beamsearch
-            )
-            etime = time.time()
-            elapsed = etime - stime
-            elapsed_times.append(elapsed)  
+            spec_n = audio_spec.shape[-1]
+            seq_len = args.nsti_seq_len if args.nsti_seq_len != -1 else spec_n
+            model_outputs = {}
+            all_logits, logit_count = torch.zeros((1, spec_n//4 + seq_len, tokenizer.vocab_size() + 1)), torch.zeros((1, spec_n//4 + seq_len, tokenizer.vocab_size() + 1))
+            training_data, training_keys = prepare_chunks(audio_spec, seq_len, overlap)
+            pbar = tqdm(training_data, total=len(training_data))
+            for i in pbar:
+                cur_spec = training_data[i]
+                logits = eval_fn(
+                    args, 
+                    model, 
+                    cur_spec, 
+                    args.seq_len, 
+                    args.overlap, 
+                    tokenizer,
+                    beam_search_fn = beamsearch
+                )
+                logits = torch.exp(torch.as_tensor(logits)[None]).detach().cpu()
+                
+                ds_len = logits.shape[-2]
+                u_len = cur_spec.shape[-1]
+                ratio = u_len / ds_len
+                overlap_ds = int(overlap / ratio)
+                model_outputs[i] = {'logits': logits, 'ds_len': ds_len, 'overlap_ds': overlap_ds}
+
+            logit_position = 0
+            for i in sorted(list(model_outputs.keys())):
+                logits, ds_len, overlap_ds = model_outputs[i]['logits'], model_outputs[i]['ds_len'], model_outputs[i]['overlap_ds']
+                logit_position -= overlap_ds if i != 0 else 0
+                logit_count[:, logit_position:logit_position+ds_len, :] += 1
+                all_logits[:, logit_position:logit_position+ds_len, :] += logits
+                logit_position += ds_len 
+            B,N,C = all_logits.shape
+            all_logits = all_logits[logit_count.sum(dim=-1) != 0]
+            all_logits = all_logits.reshape(B,-1,C)
+            logit_count = logit_count[logit_count.sum(dim=-1) != 0]
+            logit_count = logit_count.reshape(B,-1,C)
+            logits = all_logits / logit_count
+            logits = torch.log(logits) # convert to log 
+            
+            logits = logits.squeeze(0).numpy()
             
             ds_factor = audio_spec.shape[-1] / logits.shape[0]
             if beamsearch is None:
@@ -113,7 +142,7 @@ def main(args):
             
             all_texts.append(out)
             all_golds.append(gold_text)
-            
+      
 
         wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=all_texts, references=all_golds)
 
@@ -132,7 +161,6 @@ def main(args):
                 'sub_rate': sub_rate,
                 'model_output': all_texts,
                 'gold': all_golds,
-                'elapsed_times': elapsed_times,
                 'args_dict': vars(args),
                 'repeat': f'{repeat+1}/{args.repeats}'
             }
@@ -153,7 +181,7 @@ if __name__ == '__main__':
     parser.add_argument('--repeats', '-r', type=int, default=1, help='Number of times to repeat the evaluation')
     parser.add_argument('--save_path', '-s', type=str, default='', help='path to save')
     parser.add_argument('-nsti_s', '--nsti_seq_len', type=int, default=-1, help='Sequence length for NSTI (-1 for full recording)')
-    parser.add_argument('-nsti_o', '--nsti_overlap', type=int, default=-1, help='Overlap for NSTI')
+    parser.add_argument('-nsti_o', '--nsti_overlap', type=int, default=0, help='Overlap for NSTI')
 
     args = lib.apply_args(parser)
     main(args)
