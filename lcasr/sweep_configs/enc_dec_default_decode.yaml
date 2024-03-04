@@ -1,0 +1,27 @@
+method: 'bayes'
+name: 'sweep'
+metric:
+  name: 'WER'
+  goal: 'minimize'
+
+parameters:
+  optim_lr:
+    values: [1e-10, 1e-9, 5e-9, 1e-8, 2e-8, 5e-8, 9e-8, 1e-7, 5e-7, 9e-7]
+  spec_augment_freq_mask_param:
+    min: 0
+    max: 80
+  spec_augment_n_freq_masks:
+    min: 0
+    max: 14
+  spec_augment_time_mask_param:
+    min: 0
+    max: 8
+  spec_augment_min_p:
+    values: [0.0, 0.05]
+  epochs:
+    min: 1
+    max: 2
+  dropout_emb:
+    values: [0.0, 0.1, 0.2]
+
+    

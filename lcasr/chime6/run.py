@@ -114,7 +114,7 @@ def get_text_and_audio(split):
     data_path = DATA[split]
     audio_files, text_files, stimes, etimes = fetch_data(data=data_path)
     return_data = []
-    print(audio_files.keys(), text_files.keys(), stimes.keys(), etimes.keys())
+    
     for rec in list(audio_files.keys()):
         return_data.append({
             'id': rec,

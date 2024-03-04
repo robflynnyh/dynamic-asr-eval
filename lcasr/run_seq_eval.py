@@ -152,6 +152,8 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', '-d', type=str, default='earnings22', choices=datasets_functions.keys())
     parser.add_argument('--repeats', '-r', type=int, default=1, help='Number of times to repeat the evaluation')
     parser.add_argument('--save_path', '-s', type=str, default='', help='path to save')
+    parser.add_argument('-nsti_s', '--nsti_seq_len', type=int, default=-1, help='Sequence length for NSTI (-1 for full recording)')
+    parser.add_argument('-nsti_o', '--nsti_overlap', type=int, default=-1, help='Overlap for NSTI')
 
     args = lib.apply_args(parser)
     main(args)

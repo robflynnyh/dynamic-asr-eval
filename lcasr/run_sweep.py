@@ -5,10 +5,12 @@ from functools import partial
 from omegaconf import OmegaConf
 from run import main
 from enc_dec_ctc_beam_inference_test import main as enc_dec_ctc_beam_inference_test
+from enc_dec_dynamic_eval_test import main as enc_dec_dynamic_eval_test
 
 run_scripts = {
     "main": main,
-    "enc_dec_ctc_beam_inference_test": enc_dec_ctc_beam_inference_test
+    "enc_dec_ctc_beam_inference_test": enc_dec_ctc_beam_inference_test,
+    "enc_dec_dynamic_eval_test": enc_dec_dynamic_eval_test
 }
 
 
@@ -58,4 +60,4 @@ if __name__ == '__main__':
 
 #CUDA_VISIBLE_DEVICES="3" python run_sweep.py -dfa -split 'dev' -seq 16384 -o 14336 -sweep_id x07cbzxv
     #2o6bcj0f
-#CUDA_VISIBLE_DEVICES="3" python run_sweep.py -dfa -seq 16384 -o 14336 -split dev -sweep_id 2o6bcj0f
+#CUDA_VISIBLE_DEVICES="2" python run_sweep.py -dfa -seq 16384 -o 14336 -split dev -sweep_id 2o6bcj0f

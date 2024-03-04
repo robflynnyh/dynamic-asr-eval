@@ -25,7 +25,6 @@ from torch.nn import functional as F
 from lcasr.utils.lm_tools import add_eos, token_lens_to_mask, mark_padding
 from apex.normalization import FusedLayerNorm
 from lcasr.components.batchrenorm import BatchRenorm1d
-import time
 
 def load_beamsearch(
         path:str,
@@ -79,8 +78,8 @@ def frame_shuffle(spec, time_dimension=False, freq_dimension=False): # shuffles 
 def get_specaugment_config_from_args(args):
     spec_augment_args = {k.replace('spec_augment_', ''):v for k,v in args.__dict__.items() if k.startswith('spec_augment')}
     spec_augment_config = {
-        'n_time_masks': spec_augment_args.get('n_time_masks', 0),
-        'n_freq_masks': spec_augment_args.get('n_freq_masks', 0),
+        'n_time_masks': spec_augment_args.get('n_time_masks', 2),
+        'n_freq_masks': spec_augment_args.get('n_freq_masks', 3),
         'freq_mask_param': spec_augment_args.get('freq_mask_param', 42),
         'time_mask_param': spec_augment_args.get('time_mask_param', -1),
         'min_p': spec_augment_args.get('min_p', 0.05),
@@ -192,10 +191,6 @@ def AWMC(
     training_keys = list(training_data.keys())
     pbar = tqdm(training_keys) if use_tqdm else training_keys
 
-    print_runtimes = args.__dict__.get('print_runtimes', False)
-    if print_runtimes: print('Spectrogram length:', spec_n)
-    stime = time.time()
-
     model_outputs = {}
     model.eval()
     for i in pbar:
@@ -266,9 +261,6 @@ def AWMC(
           
                 model_outputs[i] = {'logits': logits, 'ds_len': ds_len, 'overlap_ds': overlap_ds}
 
-    etime = time.time()
-    if print_runtimes: print(f'Runtime: {etime - stime}')
-            
     logit_position = 0
     for i in sorted(list(model_outputs.keys())):
         logits, ds_len, overlap_ds = model_outputs[i]['logits'], model_outputs[i]['ds_len'], model_outputs[i]['overlap_ds']
@@ -296,51 +288,7 @@ def AWMC(
 
     return logits.squeeze(0).numpy() if not return_params else (logits.squeeze(0).numpy(), updated_model_params)           
                     
-
-def add_random_noise(spec, noise_factor):
-    if noise_factor == 0: return spec
-    noise = torch.normal(0, std=spec.std(), size=spec.shape).to(spec.device)
-    return spec + noise * noise_factor
-
-def cutout(spec, cutout_val='mean', num_rectangles=5, max_width=100, max_height=10):
-    '''
-    cutout_val: 'mean', 'mean_recording', 'zero'
-    assumes a batch size of 1 (rearange to (F, B*N) if batch size > 1)
-    '''
-    if num_rectangles == 0: return spec
-    widths = torch.randint(1, max_width, (num_rectangles,))
-    heights = torch.randint(1, max_height, (num_rectangles,))
-    start_positions_x = torch.randint(0, spec.shape[-1], (num_rectangles,))
-    end_positions_x = (start_positions_x + widths).clamp(max=spec.shape[-1])
-    start_positions_y = torch.randint(0, spec.shape[-2], (num_rectangles,))
-    end_positions_y = (start_positions_y + heights).clamp(max=spec.shape[-2])
-    
-    if cutout_val == 'mean_recording':
-        mask_value = spec.mean()
-    elif cutout_val == 'mean':
-        mask_values = []
-        for i in range(num_rectangles):
-            mask_values.append(spec[:, start_positions_y[i]:end_positions_y[i], start_positions_x[i]:end_positions_x[i]].mean())
-
-    for i in range(num_rectangles):
-        #print(start_positions_x[i], end_positions_x[i], start_positions_y[i], end_positions_y[i])
-        if cutout_val == 'mean':
-            spec[:, start_positions_y[i]:end_positions_y[i], start_positions_x[i]:end_positions_x[i]] = mask_values[i]
-        elif cutout_val == 'mean_recording':
-            spec[:, start_positions_y[i]:end_positions_y[i], start_positions_x[i]:end_positions_x[i]] = mask_value
-        elif cutout_val == 'zero':
-            spec[:, start_positions_y[i]:end_positions_y[i], start_positions_x[i]:end_positions_x[i]].zero_()
-    return spec
-
-def get_cutout_params_from_args(args):
-    cutout_args = {k.replace('cutout_', ''):v for k,v in args.__dict__.items() if k.startswith('cutout')}
-    cutout_config = {
-        'cutout_val': cutout_args.get('value', 'mean'),
-        'num_rectangles': cutout_args.get('num_rectangles', 0),
-        'max_width': cutout_args.get('max_width', 100),
-        'max_height': cutout_args.get('max_height', 10),
-    }
-    return cutout_config
+            
 
 def dynamic_eval_ctc_loss(
         args, 
@@ -357,15 +305,11 @@ def dynamic_eval_ctc_loss(
     ):
 
     spec_augment_config = get_specaugment_config_from_args(args)
-    random_noise = args.__dict__.get('random_noise', 0.0)
-
     lr_args = get_lr_args_from_args(args)
     frame_shuffle_args = get_frame_shuffle_config_from_args(args)
-
-    cutout_args = get_cutout_params_from_args(args)
-    
-    print(spec_augment_config, lr_args, frame_shuffle_args, cutout_args)
-    num_negatives = 1
+    online_mode = args.__dict__.get('online_mode', False)
+    print(spec_augment_config, lr_args, frame_shuffle_args)
+    num_negatives = args.__dict__.get('num_negatives', 1)
     
     spec_n = spec.shape[-1]
     downsampling_factor = args.config['model']['subsampling_factor']
@@ -403,9 +347,6 @@ def dynamic_eval_ctc_loss(
     shuffle = False if online else shuffle
     model_outputs = {}
 
-    print_runtimes = args.__dict__.get('print_runtimes', False)
-
-    if print_runtimes: print('Spectrogram length:', spec_n)
 
     entropy = []
     model.eval() # don't update batchrenorm
@@ -414,18 +355,13 @@ def dynamic_eval_ctc_loss(
         print(f'Epoch {epoch + 1} / {epochs}')
         training_keys = list(training_data.keys())
         training_keys = random.sample(training_keys, len(training_keys)) if shuffle else training_keys
-
-        epochs_stime = time.time()
+      
         pbar = tqdm(training_keys) if use_tqdm else training_keys
         for i in pbar:
             audio_chunk = training_data[i].clone()
             audio_chunk = audio_chunk.repeat(num_negatives+1, 1, 1) # [B, C, T]
-            print(audio_chunk[:num_negatives].shape)
             audio_chunk[:num_negatives] = augmentation(audio_chunk[:num_negatives]) # apply augmentation to 2 of the 3 copies
             audio_chunk[:num_negatives] = frame_shuffle(audio_chunk[:num_negatives], **frame_shuffle_args)
-            audio_chunk[:num_negatives] = add_random_noise(audio_chunk[:num_negatives], noise_factor = random_noise)
-            audio_chunk[:num_negatives] = cutout(audio_chunk[:num_negatives], **cutout_args)
-           
 
             u_len = audio_chunk.shape[-1]
             audio_chunk = audio_chunk.to(model.device)
@@ -468,14 +404,12 @@ def dynamic_eval_ctc_loss(
                 ratio = u_len / ds_len
                 overlap_ds = int(overlap / ratio)
                 model_outputs[i] = {'logits': logits, 'ds_len': ds_len, 'overlap_ds': overlap_ds}
-        epochs_etime = time.time()
-        if print_runtimes: print(f'Epoch runtime: {epochs_etime - epochs_stime}')
+
 
         
     if not online:
         model.eval()
         training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
-        final_pass_stime = time.time()
         pbar = tqdm(training_keys) if use_tqdm else training_keys
         for i in pbar:
             audio_chunk = training_data[i].clone()
@@ -488,8 +422,6 @@ def dynamic_eval_ctc_loss(
             ratio = u_len / ds_len
             overlap_ds = int(overlap / ratio)
             model_outputs[i] = {'logits': logits, 'ds_len': ds_len, 'overlap_ds': overlap_ds}
-        final_pass_etime = time.time()
-        if print_runtimes: print(f'Final pass runtime: {final_pass_etime - final_pass_stime}')
         model.train()
 
            
@@ -610,7 +542,8 @@ def generate_enc_dec(
             tokens = text_sequence,
             a_hidden = a_hidden,
             a_lengths = length,
-        )
+        )['logits']
+        
         probs = (decoder_logits[:, -1, :] * temperature).softmax(dim=-1)
         if sample == 1 and greedy:
             decoder_pred = probs.argmax(dim=-1)[None]
@@ -646,30 +579,29 @@ def calc_loss_enc_dec(
         a_lengths,
         t_lengths,
         tokenizer,
-        token_swap_prob=0.0,
+        token_swap_prob=0.2,
         bos_id=0, 
         eos_id=0,
         label_smoothing=0.0,
     ):
     # add bos to text sequence
+    #print(text_sequence.shape)
     text_sequence_bos = F.pad(text_sequence, (1, 0), value=bos_id)
     target_lengths_bos = t_lengths + 1
 
     targets = text_sequence_bos.clone()
     targets[:, :-1] = text_sequence_bos[:, 1:].clone()
     
-    if token_swap_prob > 0.0:
-        swap_mask = (torch.rand(text_sequence_bos.shape) < token_swap_prob).to(text_sequence_bos.device)
-        
-        vocab_size = len(tokenizer)
-        to_generate = torch.randint(1, 2, (swap_mask.sum(),)).to(text_sequence_bos.device)
-
-        text_sequence_bos[swap_mask] = to_generate
+    # if token_swap_prob > 0.0:
+    #     swap_mask = (torch.rand(text_sequence_bos.shape) < token_swap_prob).to(text_sequence_bos.device)
+    #     swap_mask[:, 0] = False # don't swap bos
+    #     text_sequence_bos[swap_mask] = 
 
     out = model.forward(audio_signal, text_sequence_bos, a_lengths)
     ctc_out, lm_out, a_length_out = out['final_posteriors_ctc'], out['final_posteriors_lm'], out['length']
 
     if model.ctc_loss_weight > 0.0:
+        #print(ctc_out.shape, a_length_out.shape, text_sequence.shape, t_lengths.shape)
         ctc_out = rearrange(ctc_out.repeat(t_lengths.shape[0], 1, 1), 'b n c -> n b c')
         a_length_out = a_length_out.repeat(t_lengths.shape[0])
         # print(ctc_out.shape, a_length_out.shape, text_sequence.shape, t_lengths.shape)
@@ -781,21 +713,6 @@ def enc_dec_dynamic_eval(
     dropout_post_ff = args.__dict__.get('dropout_post_ff', 0.0) 
     dropout_attn = args.__dict__.get('dropout_attn', 0.0)
 
-    ctc_joint_decoding = args.__dict__.get('ctc_joint_decoding', False)
-    alpha = args.__dict__.get('alpha', 0.816)
-    beta = args.__dict__.get('beta', 1.11)
-    prune_less_than_val = args.__dict__.get('prune_less_than_val', 3.17)
-    beam_width = args.__dict__.get('beam_width', 10)
-
-    if ctc_joint_decoding:
-        generate_fn = partial(model.ctc_beam_search, tokenizer = tokenizer, alpha = alpha, beta = beta, prune_less_than_val = prune_less_than_val, beam_width = beam_width)
-        decoding_args = {'alpha': alpha, 'beta': beta, 'prune_less_than_val': prune_less_than_val, 'beam_width': beam_width}
-        decode_fn = enc_dec_ctc_beamsearch_inference
-    else: 
-        generate_fn = model.generate
-        decoding_args = {}
-        decode_fn = enc_dec_inference
-
 
     model.language_model_decoder.dropout_emb = dropout_emb
     model.language_model_decoder.ff_out_dropout = dropout_post_ff
@@ -848,20 +765,19 @@ def enc_dec_dynamic_eval(
             audio_chunk[:num_negatives] = augmentation(audio_chunk[:num_negatives]) # apply augmentation to 2 of the 3 copies
 
             with ema.average_parameters():
-                teacher_pred = generate_fn(audio_chunk[-1, None])
-                if not ctc_joint_decoding:
-                    teacher_pred_text = tokenizer.decode(teacher_pred[0].tolist()).strip()
-                else:
-                    teacher_pred_text = teacher_pred.strip()
-                    teacher_pred = tokenizer.encode(teacher_pred_text) 
-                    teacher_pred = torch.LongTensor(teacher_pred).to(model.device)[None]
+                teacher_pred, teacher_encoder_out, text_lengths = generate_enc_dec(
+                    model, 
+                    audio_chunk[-1, None],
+                    max_generate = 256,
+                    sample = args.__dict__.get('enc_dec_sample', 1),
+                    greedy = args.__dict__.get('enc_dec_greedy', True),
+                    temperature = args.__dict__.get('enc_dec_temperature', 1.0),
+                )
 
-                text_lengths = torch.LongTensor([teacher_pred.shape[1]]).to(model.device)
-
-                
-                print(f'Teacher pred: {teacher_pred_text}')
-                teacher_lengths = text_lengths.to(model.device)
-                acoustic_length = torch.LongTensor([audio_chunk.shape[-1]]).to(model.device)
+            teacher_pred_text = tokenizer.decode(teacher_pred[0].tolist()).strip()
+            print(f'Teacher pred: {teacher_pred_text}')
+            teacher_lengths = text_lengths.to(model.device)
+            acoustic_length = torch.LongTensor([audio_chunk.shape[-1]]).to(model.device)
             #print(audio_chunk[:num_negatives].shape, teacher_pred.shape)
 
             for layer in model.language_model_decoder.layers:
@@ -888,17 +804,15 @@ def enc_dec_dynamic_eval(
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            ema.update()
 
     model.eval()
-    final_out = decode_fn(
+    final_out = enc_dec_inference(
         model = model,
         spec = spec,
         seq_len = seq_len,
         overlap = overlap,
         tokenizer = tokenizer,
-        use_tqdm = use_tqdm,
-        **decoding_args
+        use_tqdm = use_tqdm
     )
     if return_params:
         updated_model_params = list(model.parameters())

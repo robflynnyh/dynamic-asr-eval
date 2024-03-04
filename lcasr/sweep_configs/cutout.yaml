@@ -1,0 +1,24 @@
+method: 'bayes'
+name: 'sweep'
+metric:
+  name: 'WER'
+  goal: 'minimize'
+
+parameters:
+  optim_lr:
+    values: [1e-7, 5e-7, 1e-6, 1e-05, 5e-05, 9e-5, 1e-4, 2e-4, 3e-4, 5e-4]
+  cutout_max_width:
+    min: 50
+    max: 16384
+  cutout_max_height:
+    min: 5
+    max: 80
+  cutout_num_rectangles:
+    min: 1
+    max: 500
+  cutout_value:
+    values: ['mean', 'zero', 'mean_recording']
+  epochs:
+    min: 1
+    max: 8
+    
