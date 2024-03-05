@@ -105,6 +105,10 @@ def get_lr_args_from_args(args):
 def prepare_chunks(spec, seq_len, overlap):
     spec_n = spec.shape[-1]
     last_ulen, kill_next = None, False
+
+    if spec_n <= seq_len:
+        return {0: spec}, [0]
+
     training_data = {}
     for i in range(0, spec_n, seq_len-overlap):
         audio_chunk = spec[:, :, i:i+seq_len] # [B, C, T]
@@ -302,12 +306,17 @@ def add_random_noise(spec, noise_factor):
     noise = torch.normal(0, std=spec.std(), size=spec.shape).to(spec.device)
     return spec + noise * noise_factor
 
-def cutout(spec, cutout_val='mean', num_rectangles=5, max_width=100, max_height=10):
+def cutout(spec, seq_len, cutout_val=' -r $REPEAT', num_rectangles=5, max_width=100, max_height=10):
     '''
     cutout_val: 'mean', 'mean_recording', 'zero'
     assumes a batch size of 1 (rearange to (F, B*N) if batch size > 1)
     '''
     if num_rectangles == 0: return spec
+
+    spec_n = spec.shape[-1]
+    ratio = spec_n / seq_len
+    num_rectangles = int(num_rectangles * ratio) # if this spectrogram is shorter than the sequence lentgth used for tuning reduce the number of rectangles
+
     widths = torch.randint(1, max_width, (num_rectangles,))
     heights = torch.randint(1, max_height, (num_rectangles,))
     start_positions_x = torch.randint(0, spec.shape[-1], (num_rectangles,))
@@ -332,9 +341,10 @@ def cutout(spec, cutout_val='mean', num_rectangles=5, max_width=100, max_height=
             spec[:, start_positions_y[i]:end_positions_y[i], start_positions_x[i]:end_positions_x[i]].zero_()
     return spec
 
-def get_cutout_params_from_args(args):
+def get_cutout_params_from_args(args, seq_len):
     cutout_args = {k.replace('cutout_', ''):v for k,v in args.__dict__.items() if k.startswith('cutout')}
     cutout_config = {
+        'seq_len': seq_len, 
         'cutout_val': cutout_args.get('value', 'mean'),
         'num_rectangles': cutout_args.get('num_rectangles', 0),
         'max_width': cutout_args.get('max_width', 100),
@@ -355,6 +365,9 @@ def dynamic_eval_ctc_loss(
         beam_search_fn:Callable=None,
         return_params:bool=False,
     ):
+    spec_n = spec.shape[-1]
+    downsampling_factor = args.config['model']['subsampling_factor']
+    seq_len = seq_len if seq_len != -1 else args.config['audio_chunking']['size']
 
     spec_augment_config = get_specaugment_config_from_args(args)
     random_noise = args.__dict__.get('random_noise', 0.0)
@@ -362,14 +375,12 @@ def dynamic_eval_ctc_loss(
     lr_args = get_lr_args_from_args(args)
     frame_shuffle_args = get_frame_shuffle_config_from_args(args)
 
-    cutout_args = get_cutout_params_from_args(args)
     
+    cutout_args = get_cutout_params_from_args(args, seq_len)
     print(spec_augment_config, lr_args, frame_shuffle_args, cutout_args)
     num_negatives = 1
     
-    spec_n = spec.shape[-1]
-    downsampling_factor = args.config['model']['subsampling_factor']
-    seq_len = seq_len if seq_len != -1 else args.config['audio_chunking']['size']
+
 
     # create copy of model parameters that are not updated
     original_model_params = list(model.parameters())

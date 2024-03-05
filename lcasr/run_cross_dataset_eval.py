@@ -15,8 +15,7 @@ import os.path
 
 import lib
 import time
-from lib import dynamic_eval, AWMC, prepare_chunks
-import ffmpeg
+from lib import dynamic_eval, AWMC
 
 from earnings22.run import get_text_and_audio as get_text_and_audio_earnings22
 from chime6.run import get_text_and_audio as get_text_and_audio_chime6
@@ -30,13 +29,10 @@ datasets_functions = {
     'rev16': get_text_and_audio_rev16
 }
 
-def get_audio_length(fname:str) -> float:
-    dur = ffmpeg.probe(fname)['format']['duration']
-    return float(dur)
+
 
 def main(args):
     assert args.split in ['test', 'dev'], f'Split must be either test or dev (got {args.split})'
-    assert args.dataset != 'chime6', 'will throw an error when checking length of each audio file on chime6 (i.e not implemented for this dataset, the eval in the paper looks at earnings22)'
     if args.dataset == 'rev16': assert args.split == 'test', 'Split must be test for rev16'
     
     checkpoint = torch.load(args.checkpoint, map_location='cpu')
@@ -58,14 +54,9 @@ def main(args):
 
     vocab = [tokenizer.id_to_piece(id) for id in range(tokenizer.get_piece_size())] + [""]
     decoder = build_ctcdecoder(vocab, kenlm_model_path=None, alpha=None, beta=None)
-    overlap = args.nsti_overlap
 
-    data_test = datasets_functions[args.dataset]("test")
-    data_dev = datasets_functions[args.dataset]("dev")
-    data_all = data_test + data_dev
-    data = [el for el in data_all if get_audio_length(el['audio'])/60 >= 60.0]
-
-    print([get_audio_length(data[i]['audio']) / 60 for i in range(len(data))])
+    data = datasets_functions[args.dataset](args.split)
+    data2 = datasets_functions[args.dataset2](args.split) 
     
     beamsearch = None
     if args.beamsearch: 
@@ -80,70 +71,47 @@ def main(args):
 
     eval_fn = dynamic_eval if not args.awmc else AWMC
 
+    print(f'Dataset 1: {args.dataset}, Dataset 2: {args.dataset2}')
     for repeat in range(args.repeats):
-
-        all_texts, all_golds = [],[]
-        wers = []
         
+        rec = 0
+        audio_spec, gold_text = data[rec]['process_fn'](data[rec])
+        _, updated_parameters = eval_fn(
+            args, 
+            model, 
+            audio_spec, 
+            args.seq_len, 
+            args.overlap, 
+            tokenizer,
+            beam_search_fn = beamsearch,
+            return_params = True
+        )
+  
+        for p, u in zip(model.parameters(), updated_parameters):
+            p.data = u.data.to(p.device)
+   
+        all_texts, all_golds, wers = [],[],[]
+        # convert args to dict
+        args_dict = vars(args).copy()
+        args_dict['epochs'] = 0
+        d2_args = argparse.Namespace(**args_dict)
+
+
+        for rec in tqdm(range(len(data2)), total=len(data2)):
+            print(f'Processing {rec+1}/{len(data2)}')
+            print('\n-------\n'+data2[rec]['id']+'\n-------\n')
         
-        for rec in tqdm(range(len(data)), total=len(data)):
-          
-            print(f'Processing {rec+1}/{len(data)}')
+            audio_spec, gold_text = data2[rec]['process_fn'](data2[rec])
             
-            print('\n-------\n'+data[rec]['id']+'\n-------\n')
-        
-            audio_spec, gold_text = data[rec]['process_fn'](data[rec])
-            
-            spec_n = audio_spec.shape[-1]
-            seq_len = args.nsti_seq_len if args.nsti_seq_len != -1 else spec_n
-            
-            if args.epochs == 0: # just eval over whole sequence if not performing NSTI
-                seq_len = spec_n
-                overlap = 0 
-
-            model_outputs = {}
-            all_logits, logit_count = torch.zeros((1, spec_n//4 + seq_len, tokenizer.vocab_size() + 1)), torch.zeros((1, spec_n//4 + seq_len, tokenizer.vocab_size() + 1))
-            
-            training_data, training_keys = prepare_chunks(audio_spec, seq_len, overlap)
-            training_keys = list(training_data.keys())
-    
-            pbar = tqdm(training_keys, total=len(training_keys))
-            for i in pbar:
-                cur_spec = training_data[i]
-                logits = eval_fn(
-                    args, 
-                    model, 
-                    cur_spec, 
-                    args.seq_len, 
-                    args.overlap, 
-                    tokenizer,
-                    beam_search_fn = beamsearch
-                )
-                logits = torch.exp(torch.as_tensor(logits)[None]).detach().cpu()
-              
-                ds_len = logits.shape[-2]
-                u_len = cur_spec.shape[-1]
-                ratio = u_len / ds_len
-                overlap_ds = int(overlap / ratio)
-                model_outputs[i] = {'logits': logits, 'ds_len': ds_len, 'overlap_ds': overlap_ds}
-
-            logit_position = 0
-            for i in sorted(list(model_outputs.keys())):
-                logits, ds_len, overlap_ds = model_outputs[i]['logits'], model_outputs[i]['ds_len'], model_outputs[i]['overlap_ds']
-                logit_position -= overlap_ds if i != 0 else 0
-                logit_count[:, logit_position:logit_position+ds_len, :] += 1
-                all_logits[:, logit_position:logit_position+ds_len, :] += logits
-                logit_position += ds_len
-
-            B,N,C = all_logits.shape
-            all_logits = all_logits[logit_count.sum(dim=-1) != 0]
-            all_logits = all_logits.reshape(B,-1,C)
-            logit_count = logit_count[logit_count.sum(dim=-1) != 0]
-            logit_count = logit_count.reshape(B,-1,C)
-            logits = all_logits / logit_count
-            logits = torch.log(logits) # convert to log 
-            
-            logits = logits.squeeze(0).numpy()
+            logits = eval_fn(
+                d2_args, 
+                model, 
+                audio_spec, 
+                args.seq_len, 
+                args.overlap, 
+                tokenizer,
+                beam_search_fn = beamsearch
+            )
             
             ds_factor = audio_spec.shape[-1] / logits.shape[0]
             if beamsearch is None:
@@ -161,7 +129,7 @@ def main(args):
             
             all_texts.append(out)
             all_golds.append(gold_text)
-      
+            
 
         wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=all_texts, references=all_golds)
 
@@ -196,11 +164,10 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', type=str, default='earnings22', choices=datasets_functions.keys())
+    parser.add_argument('--dataset', '-d', type=str, default='earnings22', choices=datasets_functions.keys(), required=True)
+    parser.add_argument('--dataset2', '-d2',  type=str, default='', choices=datasets_functions.keys(), required=True)
     parser.add_argument('--repeats', '-r', type=int, default=1, help='Number of times to repeat the evaluation')
     parser.add_argument('--save_path', '-s', type=str, default='', help='path to save')
-    parser.add_argument('-nsti_s', '--nsti_seq_len', type=int, default=-1, help='Sequence length for NSTI (-1 for full recording)')
-    parser.add_argument('-nsti_o', '--nsti_overlap', type=int, default=0, help='Overlap for NSTI')
 
     args = lib.apply_args(parser)
     main(args)

@@ -96,8 +96,10 @@ def process_text_and_audio_fn(rec_dict):
     return audio_spec, normalize(gold_text).lower()
 
 def get_text_and_audio(split):
-    assert split in ['test', 'dev'], f'Split must be either test or dev (got {args.split})'
+    assert split in ['test', 'dev', 'train'], f'Split must be either test or dev train (got {args.split})'
     data_path = TEST_PATH if split == 'test' else DEV_PATH
+    if split == 'train': data_path = lib.paths.datasets.tedlium.train
+    
     audio_files, text_files = fetch_data(path=data_path)
     return_data = []
     for rec in range(len(audio_files)):
@@ -113,10 +115,13 @@ def get_text_and_audio(split):
 
 
 def main(args):
-    assert args.split in ['test', 'dev'], f'Split must be either test or dev (got {args.split})'
-    data_path = TEST_PATH if args.split == 'test' else DEV_PATH
-
+    assert args.split in ['test', 'dev', 'train'], f'Split must be either test or dev or train (got {args.split})'
     
+    if args.split == 'test': data_path = TEST_PATH
+    elif args.split == 'dev': data_path = DEV_PATH
+    elif args.split == 'train': data_path = lib.paths.datasets.tedlium.train
+    else: raise ValueError(f'Invalid split: {args.split}')
+ 
     checkpoint = torch.load(args.checkpoint, map_location='cpu')
     model_config = checkpoint['config']
     args.config = model_config
