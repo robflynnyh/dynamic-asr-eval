@@ -10,13 +10,16 @@ from typing import Dict, List, Callable
 import torch.optim as optim
 
 from lcasr.utils.augmentation import SpecAugment
-from lcasr.decoding.greedy import GreedyCTCDecoder
+from lcasr.decoding.greedy import GreedyCTCDecoder, SamplingCTCDecoder
 from lcasr.optim import madgrad
 import random
 from einops import rearrange
-import ctc_beam_search as beam_search
+try: import ctc_beam_search as beam_search
+except: beam_search = None
 #from lcasr.decoding import ctc_beam_search as beam_search
+
 from lming.utils import general
+
 import lcasr
 from functools import partial
 from matplotlib import pyplot as plt
@@ -75,6 +78,22 @@ def frame_shuffle(spec, time_dimension=False, freq_dimension=False): # shuffles 
     if time_dimension: spec = spec[:, :, torch.randperm(spec.shape[-1])]
     if freq_dimension: spec = spec[:, torch.randperm(spec.shape[-2]), :]
     return spec
+
+def entropy_augmentation(spec, model, **kwargs):
+    if kwargs.get('enabled', False):
+        audio = spec.to(model.device).requires_grad_()
+        out = model(audio_signal = audio)
+        log_probs = out['final_posteriors']
+        argmax_preds = torch.argmax(log_probs, dim=-1)
+        blank_id = model.decoder.num_classes - 1
+        
+        entropy = torch.distributions.Categorical(probs = log_probs.exp()).entropy()
+     
+        grad = torch.autograd.grad(outputs=entropy.mean(), inputs=audio, create_graph=False)[0] * 0.001
+     
+        spec = (audio + grad).detach()
+    return spec
+
 
 def get_specaugment_config_from_args(args):
     spec_augment_args = {k.replace('spec_augment_', ''):v for k,v in args.__dict__.items() if k.startswith('spec_augment')}
@@ -352,6 +371,26 @@ def get_cutout_params_from_args(args, seq_len):
     }
     return cutout_config
 
+
+def interleave_sequence(seq):
+    n = len(seq)
+    # Split the sequence into two halves
+    first_half = list(range(1, (n // 2) + 1))
+    second_half = list(range((n // 2) + 1, n + 1))
+
+    # Interleave the two halves
+    interleaved = []
+    for a, b in zip(first_half, second_half):
+        interleaved.append(a)
+        interleaved.append(b)
+
+    # If n is odd, add the remaining element from the first half
+    if len(first_half) > len(second_half):
+        interleaved.append(first_half[-1])
+    
+    seq = [seq[i - 1] for i in interleaved]
+    return seq
+
 def dynamic_eval_ctc_loss(
         args, 
         model:nn.Module, 
@@ -375,6 +414,7 @@ def dynamic_eval_ctc_loss(
     lr_args = get_lr_args_from_args(args)
     frame_shuffle_args = get_frame_shuffle_config_from_args(args)
 
+    entropy_args = {k.replace('entropy_augmentation_', ''):v for k,v in args.__dict__.items() if k.startswith('entropy_augmentation_')}
     
     cutout_args = get_cutout_params_from_args(args, seq_len)
     print(spec_augment_config, lr_args, frame_shuffle_args, cutout_args)
@@ -421,11 +461,14 @@ def dynamic_eval_ctc_loss(
     entropy = []
     model.eval() # don't update batchrenorm
     training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
+    #print('USING INTERLEAVE AS A TEST DONT FORGET TO REMOVE!')
     for epoch in range(args.__dict__.get('epochs', 1)):
         print(f'Epoch {epoch + 1} / {epochs}')
         training_keys = list(training_data.keys())
         training_keys = random.sample(training_keys, len(training_keys)) if shuffle else training_keys
 
+        #training_keys = interleave_sequence(training_keys)
+        
         epochs_stime = time.time()
         pbar = tqdm(training_keys) if use_tqdm else training_keys
         for i in pbar:
@@ -436,13 +479,14 @@ def dynamic_eval_ctc_loss(
             audio_chunk[:num_negatives] = frame_shuffle(audio_chunk[:num_negatives], **frame_shuffle_args)
             audio_chunk[:num_negatives] = add_random_noise(audio_chunk[:num_negatives], noise_factor = random_noise)
             audio_chunk[:num_negatives] = cutout(audio_chunk[:num_negatives], **cutout_args)
-           
+            audio_chunk[:num_negatives] = entropy_augmentation(audio_chunk[:num_negatives], model, **entropy_args)
 
+            
             u_len = audio_chunk.shape[-1]
             audio_chunk = audio_chunk.to(model.device)
             out = model(audio_signal = audio_chunk)
-            # #entrop = torch.distributions.Categorical(probs = out['final_posteriors'][-1].detach().cpu().exp().mean()).entropy()
-            # entrop = out['final_posteriors'][-1].detach().cpu().exp().max(-1).values
+            
+            # entrop = torch.distributions.Categorical(probs = out['final_posteriors'][-1,None].detach().cpu().exp()).entropy()
             # print(f'Entropy: {entrop.mean()}')
             # entropy.append(entrop.mean().item())
             # plt.plot(entropy)
@@ -467,6 +511,7 @@ def dynamic_eval_ctc_loss(
  
             loss = ctc_loss_fn(augmented_outs.transpose(0, 1), pseudo_targets, torch.LongTensor([N] * augmented_outs.shape[0]).to(model.device), torch.LongTensor([pseudo_targets.shape[1]] * pseudo_targets.shape[0]).to(model.device)) / total_tokens_in_loss
 
+    
             optimizer.zero_grad()
             loss.backward()
             #torch.nn.utils.clip_grad_norm_(model.parameters(), 0.8) # add clip value to args
@@ -533,6 +578,456 @@ def dynamic_eval_ctc_loss(
 
 
 dynamic_eval = dynamic_eval_ctc_loss
+
+
+def dynamic_eval_consistency_ctc_loss(
+        args, 
+        model:nn.Module, 
+        spec:torch.Tensor, 
+        seq_len:int, 
+        overlap:int, 
+        tokenizer, 
+        use_tqdm=True,
+        optim:optim.Optimizer=optim.Adafactor,
+        optimizer_state:dict=None,
+        beam_search_fn:Callable=None,
+        return_params:bool=False,
+    ):
+    spec_n = spec.shape[-1]
+    downsampling_factor = args.config['model']['subsampling_factor']
+    seq_len = seq_len if seq_len != -1 else args.config['audio_chunking']['size']
+
+    spec_augment_config = get_specaugment_config_from_args(args)
+    random_noise = args.__dict__.get('random_noise', 0.0)
+
+    lr_args = get_lr_args_from_args(args)
+    frame_shuffle_args = get_frame_shuffle_config_from_args(args)
+
+    
+    cutout_args = get_cutout_params_from_args(args, seq_len)
+    print(spec_augment_config, lr_args, frame_shuffle_args, cutout_args)
+    num_negatives = 1
+    
+
+
+    # create copy of model parameters that are not updated
+    original_model_params = list(model.parameters())
+    original_model_params = [p.clone().detach().cpu() for p in original_model_params]
+ 
+    ctc_loss_fn = torch.nn.CTCLoss(blank=model.decoder.num_classes-1, reduction='sum')
+    
+    #optimizer = optim(model.parameters(), **lr_args)
+ 
+        
+    decoder = GreedyCTCDecoder(tokenizer = tokenizer, blank_id = model.decoder.num_classes-1)
+    sampling_decoder = SamplingCTCDecoder(tokenizer = tokenizer, blank_id = model.decoder.num_classes-1)
+    augmentation = SpecAugment(**spec_augment_config)
+
+    if seq_len > spec_n:
+        seq_len, overlap = spec_n, 0
+    else:
+        overlap = overlap if overlap != -1 else args.config['audio_chunking']['overlap']
+
+    assert args.config['training'].get("max_seq_len", 0) == 0, 'caching is not used anymore'
+    assert overlap / downsampling_factor == overlap // downsampling_factor, 'Overlap must be a multiple of the downsampling factor'
+    print(f'Using seq_len: {seq_len} and overlap: {overlap}')
+
+    all_logits, logit_count = torch.zeros((1, spec_n//4 + seq_len, tokenizer.vocab_size() + 1)), torch.zeros((1, spec_n//4 + seq_len, tokenizer.vocab_size() + 1))
+
+    epochs = args.__dict__.get('epochs', 1)
+    shuffle = args.__dict__.get('shuffle', False)
+    online = args.__dict__.get('online', False)
+    beams = args.__dict__.get('lm_tta_beams', 3)
+    epochs = 1 if online else epochs
+    shuffle = False if online else shuffle
+    model_outputs = {}
+    
+ 
+    print_runtimes = args.__dict__.get('print_runtimes', False)
+
+    if print_runtimes: print('Spectrogram length:', spec_n)
+
+    entropy = []
+    model.eval() # don't update batchrenorm
+    training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
+
+    num_training_samples = len(training_keys)
+    print(training_keys)
+
+    # bf16
+    precision = torch.float32
+    model = model.to(precision)
+    #optimizer = optim(model.parameters(), **lr_args)
+
+    param_collections = {key:list((p.to('cpu').detach().clone().requires_grad_()for p in list(model.parameters()))) for key in training_keys}
+
+    optim_collections = {key:optim(param_collections[key], **lr_args) for key in training_keys}
+
+    forward_precision = torch.float32
+    model = model.to(forward_precision)
+
+    for epoch in range(args.__dict__.get('epochs', 1)):
+        print(f'Epoch {epoch + 1} / {epochs}')
+        training_keys = list(training_data.keys())
+        training_keys = random.sample(training_keys, len(training_keys)) if shuffle else training_keys
+
+        epochs_stime = time.time()
+        pbar = tqdm(training_keys) if use_tqdm else training_keys
+        
+        
+        for i in pbar:
+            audio_chunk = training_data[i].clone()
+            audio_chunk = audio_chunk.repeat(num_negatives+1, 1, 1) # [B, C, T]
+            print(audio_chunk[:num_negatives].shape)
+            audio_chunk[:num_negatives] = augmentation(audio_chunk[:num_negatives]) # apply augmentation to 2 of the 3 copies
+            audio_chunk[:num_negatives] = frame_shuffle(audio_chunk[:num_negatives], **frame_shuffle_args)
+            audio_chunk[:num_negatives] = add_random_noise(audio_chunk[:num_negatives], noise_factor = random_noise)
+            audio_chunk[:num_negatives] = cutout(audio_chunk[:num_negatives], **cutout_args)
+           
+
+            u_len = audio_chunk.shape[-1]
+            audio_chunk = audio_chunk.to(model.device, dtype=forward_precision)
+
+         
+            for p, p_cur in zip(model.parameters(), list(param_collections[i])):
+                p.data = p_cur.data.to(p.device, dtype=forward_precision)
+
+            out = model(audio_signal = audio_chunk)
+
+            
+          
+            if beam_search_fn is None or beams == 0: 
+                pseudo_targets = decoder(out['final_posteriors'][-1].detach().cpu())
+            else:
+                beam_search = beam_search_fn(log_probs = out['final_posteriors'][-1].detach().cpu(), beam_width = beams)
+                beam_search.run_search(use_tqdm = True)
+                pseudo_targets = beam_search.return_text(idx = 0)
+
+            noisy_predictions = decoder(out['final_posteriors'][0].detach().cpu())
+            print(f'Pseudo targets: {pseudo_targets}')
+            print(f'Noisy predictions: {noisy_predictions}')
+            print('\n--\n')
+            pseudo_targets = torch.LongTensor(tokenizer.encode(pseudo_targets)).unsqueeze(0).to(model.device).repeat(num_negatives, 1)
+            #print(f'Sampled targets: {sampled_targets.shape} -- Pseudo targets: {pseudo_targets.shape}')
+            augmented_outs = out['final_posteriors'][:num_negatives]            
+            
+            N, B = augmented_outs.shape[1], augmented_outs.shape[0]
+            total_tokens_in_loss = N * B
+
+            augmented_outs = augmented_outs.to(torch.float32) # ctc loss doesn't support bfloat16
+            loss = ctc_loss_fn(augmented_outs.transpose(0, 1), pseudo_targets, torch.LongTensor([N] * augmented_outs.shape[0]).to(model.device), torch.LongTensor([pseudo_targets.shape[1]] * pseudo_targets.shape[0]).to(model.device)) / total_tokens_in_loss
+
+            
+            loss.backward()
+
+            for p, p_at_i in zip(model.parameters(), param_collections[i]):
+                p_at_i.grad = p.grad.clone().to(p_at_i.device, dtype=precision)
+                p.grad.zero_() 
+                
+            # #torch.nn.utils.clip_grad_norm_(model.parameters(), 0.8) # add clip value to args
+            # optim_collections[i].step()
+            # optim_collections[i].zero_grad()
+
+            if online:
+                logits = out['final_posteriors'][-1].detach().cpu() 
+                logits = torch.exp(logits) # convert to prob
+                ds_len = logits.shape[-2]
+                ratio = u_len / ds_len
+                overlap_ds = int(overlap / ratio)
+                model_outputs[i] = {'logits': logits, 'ds_len': ds_len, 'overlap_ds': overlap_ds}
+        epochs_etime = time.time()
+        if print_runtimes: print(f'Epoch runtime: {epochs_etime - epochs_stime}')
+
+        training_keys = sorted(training_keys)
+        decay_per_distance = 0.95
+        
+        with torch.no_grad():
+            for i, key_i in enumerate(training_keys):
+                cur_params = param_collections[key_i]
+                for z, param in enumerate(cur_params):
+                    cur_grad = param.grad.clone().to(dtype=torch.float64)
+                    total_sum = 1
+
+                    for q, key_q in enumerate(training_keys):
+                        if key_i == key_q: continue
+                        cur_distance = abs(i-q)
+                        decay = decay_per_distance ** cur_distance
+                        total_sum += decay
+
+                        q_params = param_collections[key_q]
+                        for q_i, q_param in enumerate(q_params):
+                            if z == q_i:
+                                cur_grad += (decay * q_param.grad.clone()).to(dtype=torch.float64)
+                    param.grad.data = (cur_grad / total_sum).to(dtype=precision)
+                    del cur_grad
+
+                            
+
+        for i, optim in enumerate(optim_collections.values()):
+            print(f'Updating model parameters for chunk {i}')
+            optim.step()
+            optim.zero_grad()
+            
+                
+        
+    if not online:
+        model.eval()
+        training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
+        final_pass_stime = time.time()
+        pbar = tqdm(training_keys) if use_tqdm else training_keys
+        for i in pbar:
+            
+
+            for p, p_cur in zip(model.parameters(), list(param_collections[i])):
+                p_cur.data.to(p.device, dtype=forward_precision)        
+
+            audio_chunk = training_data[i].clone()
+            u_len = audio_chunk.shape[-1]
+            audio_chunk = audio_chunk.to(model.device, dtype=forward_precision)
+            with torch.no_grad(): out = model(audio_signal = audio_chunk)
+            logits = out['final_posteriors'][0].detach().cpu()
+            logits = torch.exp(logits) # convert to prob
+            ds_len = logits.shape[-2]
+            ratio = u_len / ds_len
+            overlap_ds = int(overlap / ratio)
+            model_outputs[i] = {'logits': logits, 'ds_len': ds_len, 'overlap_ds': overlap_ds}
+        final_pass_etime = time.time()
+        if print_runtimes: print(f'Final pass runtime: {final_pass_etime - final_pass_stime}')
+        model.train()
+
+           
+    logit_position = 0
+    for i in sorted(list(model_outputs.keys())):
+        logits, ds_len, overlap_ds = model_outputs[i]['logits'], model_outputs[i]['ds_len'], model_outputs[i]['overlap_ds']
+        logit_position -= overlap_ds if i != 0 else 0
+        logit_count[:, logit_position:logit_position+ds_len, :] += 1
+        all_logits[:, logit_position:logit_position+ds_len, :] += logits
+        logit_position += ds_len 
+
+    B,N,C = all_logits.shape
+    all_logits = all_logits[logit_count.sum(dim=-1) != 0]
+    all_logits = all_logits.reshape(B,-1,C)
+    logit_count = logit_count[logit_count.sum(dim=-1) != 0]
+    logit_count = logit_count.reshape(B,-1,C)
+    logits = all_logits / logit_count
+    logits = torch.log(logits) # convert to log 
+
+    if return_params:
+        updated_model_params = list(model.parameters())
+        updated_model_params = [p.clone().detach().cpu() for p in updated_model_params]
+
+    # reset model parameters
+    for p, p_orig in zip(model.parameters(), original_model_params):
+        p.data = p_orig.data.to(p.device)
+
+
+    return logits.squeeze(0).numpy() if not return_params else (logits.squeeze(0).numpy(), updated_model_params)
+
+
+
+# def dynamic_eval_consistency_ctc_loss(
+#         args, 
+#         model:nn.Module, 
+#         spec:torch.Tensor, 
+#         seq_len:int, 
+#         overlap:int, 
+#         tokenizer, 
+#         use_tqdm=True,
+#         optim:optim.Optimizer=madgrad.MADGRAD,
+#         optimizer_state:dict=None,
+#         beam_search_fn:Callable=None,
+#         return_params:bool=False,
+#     ):
+#     spec_n = spec.shape[-1]
+#     downsampling_factor = args.config['model']['subsampling_factor']
+#     seq_len = seq_len if seq_len != -1 else args.config['audio_chunking']['size']
+
+#     spec_augment_config = get_specaugment_config_from_args(args)
+#     random_noise = args.__dict__.get('random_noise', 0.0)
+
+#     lr_args = get_lr_args_from_args(args)
+#     frame_shuffle_args = get_frame_shuffle_config_from_args(args)
+
+    
+#     cutout_args = get_cutout_params_from_args(args, seq_len)
+#     print(spec_augment_config, lr_args, frame_shuffle_args, cutout_args)
+#     num_negatives = 1
+    
+
+
+#     # create copy of model parameters that are not updated
+#     original_model_params = list(model.parameters())
+#     original_model_params = [p.clone().detach().cpu() for p in original_model_params]
+ 
+#     ctc_loss_fn = torch.nn.CTCLoss(blank=model.decoder.num_classes-1, reduction='sum')
+    
+#     optimizer = optim(model.parameters(), **lr_args)
+#     if optimizer_state is not None:
+#         optimizer.load_state_dict(optimizer_state)
+        
+#     decoder = GreedyCTCDecoder(tokenizer = tokenizer, blank_id = model.decoder.num_classes-1)
+#     sampling_decoder = SamplingCTCDecoder(tokenizer = tokenizer, blank_id = model.decoder.num_classes-1)
+#     augmentation = SpecAugment(**spec_augment_config)
+
+#     if seq_len > spec_n:
+#         seq_len, overlap = spec_n, 0
+#     else:
+#         overlap = overlap if overlap != -1 else args.config['audio_chunking']['overlap']
+
+#     assert args.config['training'].get("max_seq_len", 0) == 0, 'caching is not used anymore'
+#     assert overlap / downsampling_factor == overlap // downsampling_factor, 'Overlap must be a multiple of the downsampling factor'
+#     print(f'Using seq_len: {seq_len} and overlap: {overlap}')
+
+#     all_logits, logit_count = torch.zeros((1, spec_n//4 + seq_len, tokenizer.vocab_size() + 1)), torch.zeros((1, spec_n//4 + seq_len, tokenizer.vocab_size() + 1))
+
+#     epochs = args.__dict__.get('epochs', 1)
+#     shuffle = args.__dict__.get('shuffle', False)
+#     online = args.__dict__.get('online', False)
+#     beams = args.__dict__.get('lm_tta_beams', 3)
+#     epochs = 1 if online else epochs
+#     shuffle = False if online else shuffle
+#     model_outputs = {}
+    
+ 
+#     print_runtimes = args.__dict__.get('print_runtimes', False)
+
+#     if print_runtimes: print('Spectrogram length:', spec_n)
+
+#     entropy = []
+#     model.eval() # don't update batchrenorm
+#     training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
+#     for epoch in range(args.__dict__.get('epochs', 1)):
+#         print(f'Epoch {epoch + 1} / {epochs}')
+#         training_keys = list(training_data.keys())
+#         training_keys = random.sample(training_keys, len(training_keys)) if shuffle else training_keys
+
+#         epochs_stime = time.time()
+#         pbar = tqdm(training_keys) if use_tqdm else training_keys
+#         for i in pbar:
+#             audio_chunk = training_data[i].clone()
+#             audio_chunk = audio_chunk.repeat(num_negatives+1, 1, 1) # [B, C, T]
+#             print(audio_chunk[:num_negatives].shape)
+#             audio_chunk[:num_negatives] = augmentation(audio_chunk[:num_negatives]) # apply augmentation to 2 of the 3 copies
+#             audio_chunk[:num_negatives] = frame_shuffle(audio_chunk[:num_negatives], **frame_shuffle_args)
+#             audio_chunk[:num_negatives] = add_random_noise(audio_chunk[:num_negatives], noise_factor = random_noise)
+#             audio_chunk[:num_negatives] = cutout(audio_chunk[:num_negatives], **cutout_args)
+           
+
+#             u_len = audio_chunk.shape[-1]
+#             audio_chunk = audio_chunk.to(model.device)
+#             out = model(audio_signal = audio_chunk)
+
+#             entrop = torch.distributions.Categorical(probs = out['final_posteriors'][-1,None].cpu().exp()).entropy()
+#             print(f'Entropy: {entrop.mean()}')
+#             entropy.append(entrop.mean().item())
+#             plt.plot(entropy)
+#             plt.savefig('entropy.png')
+
+#             if beam_search_fn is None or beams == 0: 
+#                 pseudo_targets = decoder(out['final_posteriors'][-1].detach().cpu())
+#                 #sampled_targets = sampling_decoder(out['final_posteriors'][-1].detach().cpu(), samples=100)
+#                 #sampled_targets = [torch.LongTensor(tokenizer.encode(t)).to(model.device) for t in sampled_targets]
+        
+#                 #sampled_targets_lengths = [el.shape[0] for el in sampled_targets]
+#                 #sampled_targets = torch.nn.utils.rnn.pad_sequence(sequences=sampled_targets, batch_first=True, padding_value=0)
+        
+#             else:
+#                 beam_search = beam_search_fn(log_probs = out['final_posteriors'][-1].detach().cpu(), beam_width = beams)
+#                 beam_search.run_search(use_tqdm = True)
+#                 pseudo_targets = beam_search.return_text(idx = 0)
+
+#             noisy_predictions = decoder(out['final_posteriors'][0].detach().cpu())
+#             print(f'Pseudo targets: {pseudo_targets}')
+#             print(f'Noisy predictions: {noisy_predictions}')
+#             print('\n--\n')
+#             pseudo_targets = torch.LongTensor(tokenizer.encode(pseudo_targets)).unsqueeze(0).to(model.device).repeat(num_negatives, 1)
+#             #print(f'Sampled targets: {sampled_targets.shape} -- Pseudo targets: {pseudo_targets.shape}')
+#             augmented_outs = out['final_posteriors'][:num_negatives]            
+            
+#             N, B = augmented_outs.shape[1], augmented_outs.shape[0]
+#             total_tokens_in_loss = N * B
+ 
+#             loss = ctc_loss_fn(augmented_outs.transpose(0, 1), pseudo_targets, torch.LongTensor([N] * augmented_outs.shape[0]).to(model.device), torch.LongTensor([pseudo_targets.shape[1]] * pseudo_targets.shape[0]).to(model.device)) / total_tokens_in_loss
+
+#             # augmented_outs = augmented_outs.expand(len(sampled_targets), -1, -1)
+#             # N, B = augmented_outs.shape[1], augmented_outs.shape[0]
+#             # total_tokens_in_loss = N * B
+#             # aux_loss = ctc_loss_fn(
+#             #     augmented_outs.transpose(0, 1), 
+#             #     sampled_targets, input_lengths = torch.LongTensor([N] * sampled_targets.shape[0]).to(model.device),
+#             #     target_lengths = torch.LongTensor(sampled_targets_lengths).to(model.device)
+#             # ) / total_tokens_in_loss
+
+#             w = 0.
+#             entrop_loss = entrop.mean()*0.1
+#             if entrop.mean() > 0.2:
+#                 entrop_loss = 0.0 # don't use entropy loss if entropy is too high
+#             print(f'Entropy loss: {entrop_loss}')
+#             loss = loss - entrop_loss
+
+#             optimizer.zero_grad()
+#             loss.backward()
+#             #torch.nn.utils.clip_grad_norm_(model.parameters(), 0.8) # add clip value to args
+#             optimizer.step()
+
+#             if online:
+#                 logits = out['final_posteriors'][-1].detach().cpu() 
+#                 logits = torch.exp(logits) # convert to prob
+#                 ds_len = logits.shape[-2]
+#                 ratio = u_len / ds_len
+#                 overlap_ds = int(overlap / ratio)
+#                 model_outputs[i] = {'logits': logits, 'ds_len': ds_len, 'overlap_ds': overlap_ds}
+#         epochs_etime = time.time()
+#         if print_runtimes: print(f'Epoch runtime: {epochs_etime - epochs_stime}')
+
+        
+#     if not online:
+#         model.eval()
+#         training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
+#         final_pass_stime = time.time()
+#         pbar = tqdm(training_keys) if use_tqdm else training_keys
+#         for i in pbar:
+#             audio_chunk = training_data[i].clone()
+#             u_len = audio_chunk.shape[-1]
+#             audio_chunk = audio_chunk.to(model.device)
+#             with torch.no_grad(): out = model(audio_signal = audio_chunk)
+#             logits = out['final_posteriors'][0].detach().cpu()
+#             logits = torch.exp(logits) # convert to prob
+#             ds_len = logits.shape[-2]
+#             ratio = u_len / ds_len
+#             overlap_ds = int(overlap / ratio)
+#             model_outputs[i] = {'logits': logits, 'ds_len': ds_len, 'overlap_ds': overlap_ds}
+#         final_pass_etime = time.time()
+#         if print_runtimes: print(f'Final pass runtime: {final_pass_etime - final_pass_stime}')
+#         model.train()
+
+           
+#     logit_position = 0
+#     for i in sorted(list(model_outputs.keys())):
+#         logits, ds_len, overlap_ds = model_outputs[i]['logits'], model_outputs[i]['ds_len'], model_outputs[i]['overlap_ds']
+#         logit_position -= overlap_ds if i != 0 else 0
+#         logit_count[:, logit_position:logit_position+ds_len, :] += 1
+#         all_logits[:, logit_position:logit_position+ds_len, :] += logits
+#         logit_position += ds_len 
+
+#     B,N,C = all_logits.shape
+#     all_logits = all_logits[logit_count.sum(dim=-1) != 0]
+#     all_logits = all_logits.reshape(B,-1,C)
+#     logit_count = logit_count[logit_count.sum(dim=-1) != 0]
+#     logit_count = logit_count.reshape(B,-1,C)
+#     logits = all_logits / logit_count
+#     logits = torch.log(logits) # convert to log 
+
+#     if return_params:
+#         updated_model_params = list(model.parameters())
+#         updated_model_params = [p.clone().detach().cpu() for p in updated_model_params]
+
+#     # reset model parameters
+#     for p, p_orig in zip(model.parameters(), original_model_params):
+#         p.data = p_orig.data.to(p.device)
+
+
+#     return logits.squeeze(0).numpy() if not return_params else (logits.squeeze(0).numpy(), updated_model_params)
 
 
 def enc_dec_inference(
@@ -957,6 +1452,7 @@ def apply_args(parser):
     parser.add_argument('-beamsearch', '--beamsearch', action='store_true', help='use beam search')
     parser.add_argument('-kwargs', '--kwargs', nargs='+', help='kwargs')
     parser.add_argument('-awmc', '--awmc', action='store_true', help='Use AWMC method from https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=10389640&tag=1 instead of dynamic eval')
+    parser.add_argument('--consistency', '--consistency', action='store_true', help='Use consistency training')
 
     args = parser.parse_args()
 

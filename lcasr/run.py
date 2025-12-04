@@ -15,7 +15,8 @@ import os.path
 
 import lib
 import time
-from lib import dynamic_eval, AWMC
+from lib import dynamic_eval, AWMC, dynamic_eval_consistency_ctc_loss
+from lcasr.decoding.greedy import GreedyCTCDecoder
 
 from earnings22.run import get_text_and_audio as get_text_and_audio_earnings22
 from chime6.run import get_text_and_audio as get_text_and_audio_chime6
@@ -53,7 +54,8 @@ def main(args):
     model.eval()
 
     vocab = [tokenizer.id_to_piece(id) for id in range(tokenizer.get_piece_size())] + [""]
-    decoder = build_ctcdecoder(vocab, kenlm_model_path=None, alpha=None, beta=None)
+    #decoder = build_ctcdecoder(vocab, kenlm_model_path=None, alpha=None, beta=None)
+    decoder = GreedyCTCDecoder(tokenizer = tokenizer, blank_id = model.decoder.num_classes-1)
 
     data = datasets_functions[args.dataset](args.split)
     
@@ -68,7 +70,12 @@ def main(args):
         )
     beams = args.__dict__.get('lm_eval_beams', 20)
 
-    eval_fn = dynamic_eval if not args.awmc else AWMC
+    if args.awmc:
+        eval_fn = AWMC
+    elif args.consistency:
+        eval_fn = dynamic_eval_consistency_ctc_loss
+    else:
+        eval_fn = dynamic_eval 
 
     for repeat in range(args.repeats):
 
@@ -99,8 +106,9 @@ def main(args):
             
             ds_factor = audio_spec.shape[-1] / logits.shape[0]
             if beamsearch is None:
-                decoded, bo = decode_beams_lm([logits], decoder, beam_width=1, ds_factor=ds_factor)
-                out_text = decoded[0]['text']
+                out_text = decoder(torch.as_tensor(logits))
+                # decoded, bo = decode_beams_lm([logits], decoder, beam_width=1, ds_factor=ds_factor)
+                # out_text = decoded[0]['text']
             else:
                 run_beam_search = beamsearch(log_probs = logits, beam_width = beams)
                 run_beam_search.run_search(use_tqdm = True)
@@ -113,6 +121,7 @@ def main(args):
             
             all_texts.append(out)
             all_golds.append(gold_text)
+            break
             
 
         wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=all_texts, references=all_golds)
