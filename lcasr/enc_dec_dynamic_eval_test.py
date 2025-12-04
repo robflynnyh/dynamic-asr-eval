@@ -4,7 +4,6 @@ from typing import Tuple
 from lcasr.utils.audio_tools import processing_chain
 from lcasr.eval.utils import fetch_logits, decode_beams_lm
 from lcasr.utils.general import load_model, get_model_class
-from pyctcdecode import build_ctcdecoder
 from lcasr.eval.wer import word_error_rate_detail 
 #from lcasr.eval.dynamic_eval import dynamic_eval
 from whisper.normalizers import EnglishTextNormalizer
@@ -35,7 +34,7 @@ def main(args):
     assert args.split in ['test', 'dev'], f'Split must be either test or dev (got {args.split})'
     if args.dataset == 'rev16': assert args.split == 'test', 'Split must be test for rev16'
     
-    checkpoint = torch.load(args.checkpoint, map_location='cpu')
+    checkpoint = torch.load(args.checkpoint, map_location='cpu', weights_only=False)
     model_config = checkpoint['config']
     args.config = model_config
 
@@ -79,7 +78,9 @@ def main(args):
         
         all_texts.append(out)
         all_golds.append(gold_text)
-        #break
+
+        if args.breaks:
+            break
         
 
     wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=all_texts, references=all_golds)
@@ -96,6 +97,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', '-d', type=str, default='earnings22', choices=datasets_functions.keys())
+    parser.add_argument('--breaks', action='store_true', help='Break after first sample (for debugging)')
     args = lib.apply_args(parser)
     main(args)
     

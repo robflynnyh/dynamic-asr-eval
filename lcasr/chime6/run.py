@@ -6,7 +6,7 @@ from lcasr.eval.utils import zero_out_spectogram
 from lcasr.eval.utils import fetch_logits, decode_beams_lm
 
 from lcasr.utils.general import load_model
-from pyctcdecode import build_ctcdecoder
+# from pyctcdecode import build_ctcdecoder
 from lcasr.eval.wer import word_error_rate_detail 
 from whisper.normalizers import EnglishTextNormalizer
 import torchaudio
@@ -130,81 +130,81 @@ def get_text_and_audio(split):
 
 
 
-def main(args):
-    assert args.split in ['test', 'dev'], 'Split must be either test or dev'
-    data_path = DATA[args.split]
+# def main(args):
+#     assert args.split in ['test', 'dev'], 'Split must be either test or dev'
+#     data_path = DATA[args.split]
     
-    checkpoint = torch.load(args.checkpoint, map_location='cpu')
-    model_config = checkpoint['config']
-    args.config = model_config
-    if args.disable_flash_attention:
-        args.config.model.flash_attn = False
+#     checkpoint = torch.load(args.checkpoint, map_location='cpu')
+#     model_config = checkpoint['config']
+#     args.config = model_config
+#     if args.disable_flash_attention:
+#         args.config.model.flash_attn = False
 
-    tokenizer = lcasr.utils.audio_tools.load_tokenizer()
-    model = load_model(args.config, tokenizer.vocab_size())
-    tparams = model.print_total_params()
-    model.load_state_dict(checkpoint['model'], strict=False)
-    print(f'Loaded model from {args.checkpoint}')
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model.device = device
-    model = model.to(device)
-    model.eval()
+#     tokenizer = lcasr.utils.audio_tools.load_tokenizer()
+#     model = load_model(args.config, tokenizer.vocab_size())
+#     tparams = model.print_total_params()
+#     model.load_state_dict(checkpoint['model'], strict=False)
+#     print(f'Loaded model from {args.checkpoint}')
+#     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+#     model.device = device
+#     model = model.to(device)
+#     model.eval()
 
-    vocab = [tokenizer.id_to_piece(id) for id in range(tokenizer.get_piece_size())] + [""]
-    decoder = build_ctcdecoder(vocab, kenlm_model_path=None, alpha=None, beta=None)
+#     vocab = [tokenizer.id_to_piece(id) for id in range(tokenizer.get_piece_size())] + [""]
+#     decoder = build_ctcdecoder(vocab, kenlm_model_path=None, alpha=None, beta=None)
 
-    audio_files, text_files, stimes, etimes = fetch_data(data=data_path)
-    meetings_keys = list(audio_files.keys())
+#     audio_files, text_files, stimes, etimes = fetch_data(data=data_path)
+#     meetings_keys = list(audio_files.keys())
     
-    # spec_augment_config={ Default
-    #     'n_time_masks': 2,
-    #     'n_freq_masks': 3,
-    #     'freq_mask_param': 42,
-    #     'time_mask_param': -1,
-    #     'min_p': 0.05,
-    #     'zero_masking': True,
-    # }
+#     # spec_augment_config={ Default
+#     #     'n_time_masks': 2,
+#     #     'n_freq_masks': 3,
+#     #     'freq_mask_param': 42,
+#     #     'time_mask_param': -1,
+#     #     'min_p': 0.05,
+#     #     'zero_masking': True,
+#     # }
 
 
 
-    all_texts = []
-    all_golds = []
-    for rec in tqdm(range(len(meetings_keys)), total=len(audio_files)):
-        cur_meeting = meetings_keys[rec]
-        print(f'Processing {rec+1}/{len(audio_files)}')
-        print('\n-------\n'+cur_meeting+'\n-------\n')
+#     all_texts = []
+#     all_golds = []
+#     for rec in tqdm(range(len(meetings_keys)), total=len(audio_files)):
+#         cur_meeting = meetings_keys[rec]
+#         print(f'Processing {rec+1}/{len(audio_files)}')
+#         print('\n-------\n'+cur_meeting+'\n-------\n')
 
-        cur_audio_files = audio_files[cur_meeting]
+#         cur_audio_files = audio_files[cur_meeting]
         
-        cur_text = normalize(text_files[cur_meeting]).lower()
+#         cur_text = normalize(text_files[cur_meeting]).lower()
         
-        audio_spec = combine_and_load_audio(cur_audio_files, stimes[cur_meeting], etimes[cur_meeting])
+#         audio_spec = combine_and_load_audio(cur_audio_files, stimes[cur_meeting], etimes[cur_meeting])
         
-        logits = dynamic_eval(args, model, audio_spec, args.seq_len, args.overlap, tokenizer)#, spec_augment_config=spec_augment_config)
+#         logits = dynamic_eval(args, model, audio_spec, args.seq_len, args.overlap, tokenizer)#, spec_augment_config=spec_augment_config)
 
-        ds_factor = audio_spec.shape[-1] / logits.shape[0]
-        decoded, bo = decode_beams_lm([logits], decoder, beam_width=1, ds_factor=ds_factor)
-        out = normalize(decoded[0]['text']).lower()
+#         ds_factor = audio_spec.shape[-1] / logits.shape[0]
+#         decoded, bo = decode_beams_lm([logits], decoder, beam_width=1, ds_factor=ds_factor)
+#         out = normalize(decoded[0]['text']).lower()
         
-        print(cur_text, '\n', out, '\n\n')
+#         print(cur_text, '\n', out, '\n\n')
         
-        all_texts.append(out)
-        all_golds.append(cur_text)
-        #break
+#         all_texts.append(out)
+#         all_golds.append(cur_text)
+#         #break
     
-    wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=all_texts, references=all_golds)
+#     wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=all_texts, references=all_golds)
 
-    print(f'WER: {wer}')
+#     print(f'WER: {wer}')
 
-    if args.log != '':
-        with open(args.log, 'a') as f:
-            f.write(f'{args.checkpoint}\t overlap: {args.overlap}\t seq_len: {args.seq_len}\t WER: {wer}\n')
+#     if args.log != '':
+#         with open(args.log, 'a') as f:
+#             f.write(f'{args.checkpoint}\t overlap: {args.overlap}\t seq_len: {args.seq_len}\t WER: {wer}\n')
 
-    return wer, model_config
+#     return wer, model_config
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    args = lib.apply_args(parser)
+# if __name__ == '__main__':
+#     parser = argparse.ArgumentParser()
+#     args = lib.apply_args(parser)
 
-    main(args)
+#     main(args)
     

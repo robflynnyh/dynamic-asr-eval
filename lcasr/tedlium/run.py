@@ -7,7 +7,7 @@ from lcasr.utils.general import load_model
 from lcasr.eval.utils import zero_out_spectogram, decode_beams_lm, fetch_logits
 #from lcasr.eval.dynamic_eval import dynamic_eval
 from lcasr.eval.wer import word_error_rate_detail 
-from pyctcdecode import build_ctcdecoder
+# from pyctcdecode import build_ctcdecoder
 import time
 
 import sys
@@ -114,93 +114,93 @@ def get_text_and_audio(split):
 
 
 
-def main(args):
-    assert args.split in ['test', 'dev', 'train'], f'Split must be either test or dev or train (got {args.split})'
+# def main(args):
+#     assert args.split in ['test', 'dev', 'train'], f'Split must be either test or dev or train (got {args.split})'
     
-    if args.split == 'test': data_path = TEST_PATH
-    elif args.split == 'dev': data_path = DEV_PATH
-    elif args.split == 'train': data_path = lib.paths.datasets.tedlium.train
-    else: raise ValueError(f'Invalid split: {args.split}')
+#     if args.split == 'test': data_path = TEST_PATH
+#     elif args.split == 'dev': data_path = DEV_PATH
+#     elif args.split == 'train': data_path = lib.paths.datasets.tedlium.train
+#     else: raise ValueError(f'Invalid split: {args.split}')
  
-    checkpoint = torch.load(args.checkpoint, map_location='cpu')
-    model_config = checkpoint['config']
-    args.config = model_config
-    if args.disable_flash_attention:
-        args.config.model.flash_attn = False
+#     checkpoint = torch.load(args.checkpoint, map_location='cpu')
+#     model_config = checkpoint['config']
+#     args.config = model_config
+#     if args.disable_flash_attention:
+#         args.config.model.flash_attn = False
     
 
-    tokenizer = lcasr.utils.audio_tools.load_tokenizer()
-    model = load_model(args.config, tokenizer.vocab_size())
-    tparams = model.print_total_params()
-    model.load_state_dict(checkpoint['model'], strict=False)
-    print(f'Loaded model from {args.checkpoint}')
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model.device = device
-    model = model.to(device)
-    model.eval()
+#     tokenizer = lcasr.utils.audio_tools.load_tokenizer()
+#     model = load_model(args.config, tokenizer.vocab_size())
+#     tparams = model.print_total_params()
+#     model.load_state_dict(checkpoint['model'], strict=False)
+#     print(f'Loaded model from {args.checkpoint}')
+#     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+#     model.device = device
+#     model = model.to(device)
+#     model.eval()
 
-    vocab = [tokenizer.id_to_piece(id) for id in range(tokenizer.get_piece_size())] + [""]
-    decoder = build_ctcdecoder(vocab, kenlm_model_path=None, alpha=None, beta=None)
+#     vocab = [tokenizer.id_to_piece(id) for id in range(tokenizer.get_piece_size())] + [""]
+#     decoder = build_ctcdecoder(vocab, kenlm_model_path=None, alpha=None, beta=None)
 
 
-    audio_files, text_files = fetch_data(path=data_path)
-    paired = dict(zip(audio_files, text_files))
+#     audio_files, text_files = fetch_data(path=data_path)
+#     paired = dict(zip(audio_files, text_files))
     
-    all_texts = []
-    all_golds = []
+#     all_texts = []
+#     all_golds = []
 
-    beamsearch = None
-    if args.beamsearch:
-        beamsearch = lib.load_beamsearch(path = lib.paths.checkpoints.lm)
+#     beamsearch = None
+#     if args.beamsearch:
+#         beamsearch = lib.load_beamsearch(path = lib.paths.checkpoints.lm)
 
-    for rec in tqdm(range(len(audio_files)), total=len(audio_files)):
-        print(f'Processing {rec+1}/{len(audio_files)}') if args.verbose else None   
+#     for rec in tqdm(range(len(audio_files)), total=len(audio_files)):
+#         print(f'Processing {rec+1}/{len(audio_files)}') if args.verbose else None   
 
-        audio_spec = processing_chain(audio_files[rec])
-        print('\n\n'+paired[audio_files[rec]]+'\n\n') if args.verbose else None
-        stm_path = paired[audio_files[rec]]
-        gold_text, timings, remove_timings = proc_stm_and_timings(stm_path=stm_path)
+#         audio_spec = processing_chain(audio_files[rec])
+#         print('\n\n'+paired[audio_files[rec]]+'\n\n') if args.verbose else None
+#         stm_path = paired[audio_files[rec]]
+#         gold_text, timings, remove_timings = proc_stm_and_timings(stm_path=stm_path)
 
-        audio_spec = zero_out_spectogram(spec = audio_spec, remove_timings = remove_timings)
+#         audio_spec = zero_out_spectogram(spec = audio_spec, remove_timings = remove_timings)
         
-        stime = time.time()
-        logits = dynamic_eval(
-            args, 
-            model, 
-            audio_spec, 
-            args.seq_len, 
-            args.overlap, 
-            tokenizer,
-            beam_search_fn = beamsearch
-        )
+#         stime = time.time()
+#         logits = dynamic_eval(
+#             args, 
+#             model, 
+#             audio_spec, 
+#             args.seq_len, 
+#             args.overlap, 
+#             tokenizer,
+#             beam_search_fn = beamsearch
+#         )
 
-        etime = time.time()
-        print(f'Inference time: {etime-stime}')
-        ds_factor = audio_spec.shape[-1] / logits.shape[0]
-        decoded, bo = decode_beams_lm([logits], decoder, beam_width=1, ds_factor=ds_factor)
+#         etime = time.time()
+#         print(f'Inference time: {etime-stime}')
+#         ds_factor = audio_spec.shape[-1] / logits.shape[0]
+#         decoded, bo = decode_beams_lm([logits], decoder, beam_width=1, ds_factor=ds_factor)
 
-        all_text = normalize(decoded[0]['text']).lower()
-        all_text = all_text[:-1].strip() if all_text.endswith('.') else all_text.strip()
-        gold_text = normalize(gold_text).lower()    
-        print(gold_text) if args.verbose else None
-        print(all_text) if args.verbose else None
-        all_texts.append(all_text)
-        all_golds.append(gold_text)
-        #break
+#         all_text = normalize(decoded[0]['text']).lower()
+#         all_text = all_text[:-1].strip() if all_text.endswith('.') else all_text.strip()
+#         gold_text = normalize(gold_text).lower()    
+#         print(gold_text) if args.verbose else None
+#         print(all_text) if args.verbose else None
+#         all_texts.append(all_text)
+#         all_golds.append(gold_text)
+#         #break
 
         
-    wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=all_texts, references=all_golds)
+#     wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=all_texts, references=all_golds)
 
-    print(f'WER: {wer}')
+#     print(f'WER: {wer}')
 
-    if args.log != '':
-        with open(args.log, 'a') as f:
-            f.write(f'{args.checkpoint}\t overlap: {args.overlap}\t seq_len: {args.seq_len}\t WER: {wer}\n')
+#     if args.log != '':
+#         with open(args.log, 'a') as f:
+#             f.write(f'{args.checkpoint}\t overlap: {args.overlap}\t seq_len: {args.seq_len}\t WER: {wer}\n')
 
-    return wer
+#     return wer
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    args = lib.apply_args(parser)
-    main(args)
+# if __name__ == '__main__':
+#     parser = argparse.ArgumentParser()
+#     args = lib.apply_args(parser)
+#     main(args)
     

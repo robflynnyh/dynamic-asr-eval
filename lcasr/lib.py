@@ -10,7 +10,7 @@ from typing import Dict, List, Callable
 import torch.optim as optim
 
 from lcasr.utils.augmentation import SpecAugment
-from lcasr.decoding.greedy import GreedyCTCDecoder, SamplingCTCDecoder
+from lcasr.decoding.greedy import GreedyCTCDecoder
 from lcasr.optim import madgrad
 import random
 from einops import rearrange
@@ -26,7 +26,10 @@ from matplotlib import pyplot as plt
 from torch_ema import ExponentialMovingAverage
 from torch.nn import functional as F
 from lcasr.utils.lm_tools import add_eos, token_lens_to_mask, mark_padding
-from apex.normalization import FusedLayerNorm
+try:
+    from apex.normalization import FusedLayerNorm
+except ImportError:
+    FusedLayerNorm = None
 from lcasr.components.batchrenorm import BatchRenorm1d
 import time
 
@@ -145,8 +148,9 @@ def bitfit(model):
     for param in model.parameters():
         param.requires_grad = False
     for module in model.modules():
-        if isinstance(module, FusedLayerNorm) or isinstance(module, torch.nn.LayerNorm):
-            module.bias.requires_grad = True
+        if FusedLayerNorm is not None:
+            if isinstance(module, FusedLayerNorm) or isinstance(module, torch.nn.LayerNorm):
+                module.bias.requires_grad = True
         if isinstance(module, torch.nn.Linear) and module.bias is not None:
             module.bias.requires_grad = True
         if isinstance(module, BatchRenorm1d):
@@ -620,7 +624,7 @@ def dynamic_eval_consistency_ctc_loss(
  
         
     decoder = GreedyCTCDecoder(tokenizer = tokenizer, blank_id = model.decoder.num_classes-1)
-    sampling_decoder = SamplingCTCDecoder(tokenizer = tokenizer, blank_id = model.decoder.num_classes-1)
+    # sampling_decoder = SamplingCTCDecoder(tokenizer = tokenizer, blank_id = model.decoder.num_classes-1)
     augmentation = SpecAugment(**spec_augment_config)
 
     if seq_len > spec_n:
@@ -1047,7 +1051,7 @@ def enc_dec_inference(
     for idx in pbar:
         audio_chunk = training_data[training_keys[idx]].to(model.device)
         with torch.no_grad(): output = model.generate(audio_chunk)
-        text = tokenizer.decode(output.squeeze().tolist()).strip()
+        text = tokenizer.decode(output["text_sequence"]).strip()
         print(f'Generated text: {text}')
         output_sequences[idx] = text
 
