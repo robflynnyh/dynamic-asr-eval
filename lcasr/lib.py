@@ -32,6 +32,7 @@ except ImportError:
     FusedLayerNorm = None
 from lcasr.components.batchrenorm import BatchRenorm1d
 import time
+from enc_dec_teacher_filters import should_skip_faulty_teacher_prediction
 
 def load_beamsearch(
         path:str,
@@ -122,44 +123,6 @@ def get_lr_args_from_args(args):
     lr_args = {k.replace('optim_', ''):v for k,v in args.__dict__.items() if k.startswith('optim_')}
     lr_args['lr'] = lr_args.get('lr', 9e-5)
     return lr_args
-
-def should_skip_faulty_teacher_prediction(args, teacher_pred_tokens, spec_frames):
-    if not args.__dict__.get('filter_faulty_teacher_preds', False):
-        return False, ''
-
-    min_frames_per_token = args.__dict__.get('teacher_min_frames_per_token', 8)
-    if min_frames_per_token > 0:
-        max_teacher_tokens = spec_frames / min_frames_per_token
-        if len(teacher_pred_tokens) > max_teacher_tokens:
-            return True, (
-                f'too many teacher tokens ({len(teacher_pred_tokens)} tokens for {spec_frames} frames; '
-                f'max {max_teacher_tokens:.2f})'
-            )
-
-    max_consecutive_repeat = args.__dict__.get('teacher_max_consecutive_repeat', 3)
-    current_repeat = 0
-    longest_repeat = 0
-    longest_repeat_token = None
-    previous_token = None
-
-    for token in teacher_pred_tokens:
-        if token == previous_token:
-            current_repeat += 1
-        else:
-            previous_token = token
-            current_repeat = 1
-
-        if current_repeat > longest_repeat:
-            longest_repeat = current_repeat
-            longest_repeat_token = token
-
-    if longest_repeat > max_consecutive_repeat:
-        return True, (
-            f'teacher token {longest_repeat_token} repeated {longest_repeat} times consecutively '
-            f'(limit {max_consecutive_repeat})'
-        )
-
-    return False, ''
 
 
 def prepare_chunks(spec, seq_len, overlap):
@@ -1467,6 +1430,10 @@ def enc_dec_dynamic_eval(
     assert overlap == 0, 'Overlap > 0 not implemented for encoder-decoder model'
     print(f'Using seq_len: {seq_len}')# and overlap: {overlap}')
 
+    ctc_decoder = None
+    if args.__dict__.get('teacher_filter_ctc_agreement', False):
+        ctc_decoder = GreedyCTCDecoder(tokenizer=tokenizer, blank_id=model.decoder.num_classes - 1)
+
     model.eval() # don't update batchrenorm
     training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
     for epoch in range(args.__dict__.get('epochs', 1)):
@@ -1490,19 +1457,48 @@ def enc_dec_dynamic_eval(
                 teacher_pred_text = tokenizer.decode(teacher_pred_tokens).strip()
 
                 text_lengths = torch.LongTensor([teacher_pred.shape[-1]]).to(model.device)
+                acoustic_length = torch.LongTensor([audio_chunk.shape[-1]]).to(model.device)
+                teacher_mean_max_prob, teacher_mean_entropy = None, None
+                agreement_tokens, ctc_text = None, None
+
+                if args.__dict__.get('teacher_filter_low_confidence', False) or args.__dict__.get('teacher_filter_ctc_agreement', False):
+                    teacher_inputs = F.pad(teacher_pred[None, :], (1, 0), value=0)
+                    with torch.no_grad():
+                        teacher_forward_out = model.forward(audio_chunk[-1, None], teacher_inputs, acoustic_length)
+
+                    if args.__dict__.get('teacher_filter_low_confidence', False) and teacher_pred.shape[-1] > 0:
+                        teacher_probs = teacher_forward_out['final_posteriors_lm'][0, :teacher_pred.shape[-1], :].softmax(dim=-1)
+                        teacher_mean_max_prob = teacher_probs.max(dim=-1).values.mean().item()
+                        teacher_mean_entropy = torch.distributions.Categorical(probs=teacher_probs).entropy().mean().item()
+
+                    if args.__dict__.get('teacher_filter_ctc_agreement', False) and ctc_decoder is not None:
+                        ctc_text = ctc_decoder(teacher_forward_out['final_posteriors_ctc'][0].detach().cpu()).strip()
+
+                if args.__dict__.get('teacher_filter_decode_agreement', False):
+                    agreement_tokens = generate_enc_dec(
+                        model=model,
+                        audio_signal=audio_chunk[-1, None],
+                        sample=1,
+                        greedy=False,
+                        temperature=args.teacher_decode_agreement_temperature,
+                    )[0].squeeze(0).tolist()
                 
                 print(f'Teacher pred: {teacher_pred_text}')
                 skip_teacher_step, skip_reason = should_skip_faulty_teacher_prediction(
                     args=args,
                     teacher_pred_tokens=teacher_pred_tokens,
+                    teacher_pred_text=teacher_pred_text,
                     spec_frames=audio_chunk.shape[-1],
+                    agreement_tokens=agreement_tokens,
+                    teacher_mean_max_prob=teacher_mean_max_prob,
+                    teacher_mean_entropy=teacher_mean_entropy,
+                    ctc_text=ctc_text,
                 )
                 if skip_teacher_step:
                     print(f'Skipping teacher update: {skip_reason}')
                     continue
 
                 teacher_lengths = text_lengths.to(model.device)
-                acoustic_length = torch.LongTensor([audio_chunk.shape[-1]]).to(model.device)
                 #print(audio_chunk[:num_negatives].shape, teacher_pred.shape)
 
                 for layer in model.language_model_decoder.layers:
@@ -1615,9 +1611,6 @@ def apply_args(parser):
     parser.add_argument('-kwargs', '--kwargs', nargs='+', help='kwargs')
     parser.add_argument('-awmc', '--awmc', action='store_true', help='Use AWMC method from https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=10389640&tag=1 instead of dynamic eval')
     parser.add_argument('--consistency', '--consistency', action='store_true', help='Use consistency training')
-    parser.add_argument('--filter_faulty_teacher_preds', action='store_true', help='Skip encoder-decoder teacher updates when the generated teacher sequence looks clearly faulty')
-    parser.add_argument('--teacher_min_frames_per_token', type=int, default=8, help='Skip teacher updates when generated token count exceeds spectrogram frames divided by this value')
-    parser.add_argument('--teacher_max_consecutive_repeat', type=int, default=3, help='Skip teacher updates when a teacher token repeats more than this many times consecutively')
 
     args = parser.parse_args()
 

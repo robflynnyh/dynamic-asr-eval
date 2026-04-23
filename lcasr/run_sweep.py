@@ -6,6 +6,7 @@ from omegaconf import OmegaConf
 from run import main
 from enc_dec_ctc_beam_inference_test import main as enc_dec_ctc_beam_inference_test
 from enc_dec_dynamic_eval_test import main as enc_dec_dynamic_eval_test
+from enc_dec_teacher_filters import add_enc_dec_teacher_filter_args
 
 run_scripts = {
     "main": main,
@@ -42,7 +43,10 @@ if __name__ == '__main__':
     parser.add_argument('--repeats', '-r', type=int, default=1, help='Number of times to repeat the evaluation')
     parser.add_argument('-sc', '--sweep_config', required=True, help="Path to sweep config file")
     parser.add_argument('-pn', '--project_name', type=str, default='dynamic-eval-sweep', help='Wandb project name')
-   
+    pre_args, _ = parser.parse_known_args()
+    if pre_args.run_script == 'enc_dec_dynamic_eval_test':
+        add_enc_dec_teacher_filter_args(parser)
+
     args = lib.apply_args(parser)
     if args.split == 'test': print(f'Split set to test set, but sweeps are only performed on dev, setting split to dev.')
     args.split = 'dev' # only run sweep on dev set

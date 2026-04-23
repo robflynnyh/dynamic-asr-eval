@@ -15,6 +15,7 @@ import os.path
 
 import lib
 from lib import enc_dec_dynamic_eval
+from enc_dec_teacher_filters import add_enc_dec_teacher_filter_args
 
 from earnings22.run import get_text_and_audio as get_text_and_audio_earnings22
 from chime6.run import get_text_and_audio as get_text_and_audio_chime6
@@ -98,6 +99,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', '-d', type=str, default='earnings22', choices=datasets_functions.keys())
     parser.add_argument('--breaks', action='store_true', help='Break after first sample (for debugging)')
+    add_enc_dec_teacher_filter_args(parser)
     args = lib.apply_args(parser)
     main(args)
     
