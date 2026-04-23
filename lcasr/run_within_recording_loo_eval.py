@@ -167,31 +167,44 @@ def main(args):
 
     for repeat in range(args.repeats):
         print(f'\n=== Repeat {repeat + 1}/{args.repeats} ===')
-        all_texts, all_golds, meta = [], [], []
+        all_texts, baseline_texts, all_golds, meta = [], [], [], []
 
         for rec_idx in tqdm(range(len(data)), total=len(data), desc='records'):
             rec = data[rec_idx]
             print(f'\n-------\n{rec["id"]}\n-------')
             audio_spec, gold_text = rec['process_fn'](rec)
+
+            restore_original_params()
+            baseline_log_logits = windowed_inference(audio_spec)
+            baseline_pred = transcribe_from_logits(baseline_log_logits)
+            print(f'BASELINE: {baseline_pred}')
+
             stitched_logits, info = loo_eval(audio_spec)
             pred = transcribe_from_logits(stitched_logits)
-            print(f'GOLD: {gold_text}')
-            print(f'PRED: {pred}')
+            print(f'GOLD:     {gold_text}')
+            print(f'LOO PRED: {pred}')
+
             all_texts.append(pred)
+            baseline_texts.append(baseline_pred)
             all_golds.append(gold_text)
             meta.append({'id': rec['id'], **info})
 
-        wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=all_texts, references=all_golds)
-        print(f'\nRepeat {repeat + 1} WER: {wer}')
+        def scores(preds, refs):
+            wer, words, ins, dele, sub = word_error_rate_detail(hypotheses=preds, references=refs)
+            return {'wer': wer, 'words': words, 'ins_rate': ins, 'del_rate': dele, 'sub_rate': sub}
+
+        loo = scores(all_texts, all_golds)
+        base = scores(baseline_texts, all_golds)
+        print(f'\nRepeat {repeat + 1} baseline WER: {base["wer"]}')
+        print(f'Repeat {repeat + 1} LOO WER:      {loo["wer"]}')
+        print(f'Repeat {repeat + 1} delta:        {loo["wer"] - base["wer"]:+.4f}')
 
         if args.save_path != '':
             save_data = {
-                'wer': wer,
-                'words': words,
-                'ins_rate': ins_rate,
-                'del_rate': del_rate,
-                'sub_rate': sub_rate,
+                'loo': loo,
+                'baseline': base,
                 'model_output': all_texts,
+                'baseline_model_output': baseline_texts,
                 'gold': all_golds,
                 'per_recording_meta': meta,
                 'dataset': args.dataset,
