@@ -1,4 +1,4 @@
-import torch, argparse, lcasr
+import torch, argparse, lcasr, copy
 from tqdm import tqdm
 from lcasr.utils.general import load_model
 from lcasr.decoding.greedy import GreedyCTCDecoder
@@ -48,7 +48,10 @@ def main(args):
 
     data = datasets_functions[args.dataset](args.split)
     print(f'Dataset {args.dataset} ({args.split}): {len(data)} records')
-    print(f'LOO chunking: seq_len={args.seq_len}, overlap={args.overlap}')
+    print(f'Outer LOO chunking: loo_seq_len={args.loo_seq_len}, loo_overlap={args.loo_overlap}')
+    print(f'Inner eval_fn windowing: seq_len={args.seq_len}, overlap={args.overlap}')
+    assert args.loo_seq_len > args.loo_overlap, 'loo_seq_len must be greater than loo_overlap'
+    assert args.loo_seq_len >= args.seq_len, 'loo_seq_len should be >= inner seq_len so inner windowing fits in each outer chunk'
 
     beamsearch = None
     if args.beamsearch:
@@ -81,27 +84,36 @@ def main(args):
             out_text = run_beam_search.return_text(idx=0)
         return normalize(out_text).lower()
 
-    def single_pass_logits(audio_spec):
-        audio_chunk = audio_spec.clone().to(model.device)
-        model.eval()
-        with torch.no_grad():
-            out = model(audio_signal=audio_chunk)
-        logits = torch.exp(out['final_posteriors'][0].detach().cpu())
-        return torch.log(logits).numpy()
+    baseline_args = copy.copy(args)
+    baseline_args.epochs = 0
+
+    def windowed_inference(spec_chunk):
+        """Run normal windowed inference (epochs=0) with inner seq_len/overlap; returns log-probs numpy."""
+        return eval_fn(
+            baseline_args,
+            model,
+            spec_chunk,
+            args.seq_len,
+            args.overlap,
+            tokenizer,
+            use_tqdm=False,
+            beam_search_fn=beamsearch,
+        )
 
     def loo_eval(audio_spec):
         spec_n = audio_spec.shape[-1]
-        chunks, chunk_keys = prepare_chunks(audio_spec, args.seq_len, args.overlap)
+        chunks, chunk_keys = prepare_chunks(audio_spec, args.loo_seq_len, args.loo_overlap)
         chunk_keys = sorted(chunk_keys)
         n_chunks = len(chunk_keys)
 
         if n_chunks <= 1:
-            print(f'  Only {n_chunks} chunk(s) at seq_len={args.seq_len}; falling back to single no-adapt forward pass.')
-            return single_pass_logits(audio_spec), {'n_chunks': n_chunks, 'mode': 'fallback_single_pass'}
+            print(f'  Only {n_chunks} LOO chunk(s) at loo_seq_len={args.loo_seq_len}; falling back to windowed no-adapt eval on full recording.')
+            log_logits = windowed_inference(audio_spec)
+            return log_logits, {'n_chunks': n_chunks, 'mode': 'fallback_windowed_eval'}
 
-        print(f'  {n_chunks} chunks -> {n_chunks} adaptations + {n_chunks * (n_chunks - 1)} forward passes')
+        print(f'  {n_chunks} LOO chunks -> {n_chunks} adaptations + {n_chunks * (n_chunks - 1)} windowed inferences')
 
-        all_logits = torch.zeros((1, spec_n // downsampling_factor + args.seq_len, vocab_size_plus))
+        all_logits = torch.zeros((1, spec_n // downsampling_factor + args.loo_seq_len, vocab_size_plus))
         logit_count = torch.zeros_like(all_logits)
 
         adapt_pbar = tqdm(chunk_keys, desc='  adapt-i', leave=False)
@@ -114,25 +126,24 @@ def main(args):
                 model,
                 adapt_chunk,
                 args.seq_len,
-                0,
+                args.overlap,
                 tokenizer,
+                use_tqdm=False,
                 beam_search_fn=beamsearch,
                 return_params=True,
             )
             for p, u in zip(model.parameters(), updated_params):
                 p.data = u.data.to(p.device)
 
-            model.eval()
             for eval_j in chunk_keys:
                 if eval_j == adapt_i:
                     continue
-                audio_chunk = chunks[eval_j].clone().to(model.device)
-                with torch.no_grad():
-                    out = model(audio_signal=audio_chunk)
-                logits = torch.exp(out['final_posteriors'][0].detach().cpu())
-                ds_len = logits.shape[-2]
+                eval_chunk = chunks[eval_j]
+                log_logits_j = windowed_inference(eval_chunk)
+                probs_j = torch.exp(torch.as_tensor(log_logits_j)[None])
+                ds_len = probs_j.shape[-2]
                 ds_pos = eval_j // downsampling_factor
-                all_logits[:, ds_pos:ds_pos + ds_len, :] += logits
+                all_logits[:, ds_pos:ds_pos + ds_len, :] += probs_j
                 logit_count[:, ds_pos:ds_pos + ds_len, :] += 1
 
         restore_original_params()
@@ -202,6 +213,8 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', '-d', type=str, default='earnings22', choices=datasets_functions.keys())
     parser.add_argument('--repeats', '-r', type=int, default=1, help='Number of times to repeat the evaluation')
     parser.add_argument('--save_path', '-s', type=str, default='', help='path to save')
+    parser.add_argument('--loo_seq_len', '-loo_s', type=int, default=65536, help='Outer LOO chunk length (over which we iterate leave-one-out).')
+    parser.add_argument('--loo_overlap', '-loo_o', type=int, default=57344, help='Outer LOO chunk overlap (stride = loo_seq_len - loo_overlap).')
 
     args = lib.apply_args(parser)
     main(args)
@@ -209,6 +222,7 @@ if __name__ == '__main__':
 
 # Example:
 # CUDA_VISIBLE_DEVICES="0" python run_within_recording_loo_eval.py \
-#   -dfa -epochs 1 -seq 65536 -o 57344 -split test -d earnings22 -r 1 \
+#   -dfa -epochs 1 -seq 16384 -o 14336 -loo_s 65536 -loo_o 57344 \
+#   -split test -d earnings22 -r 1 \
 #   -s "./results/within_loo/earnings22-test.pkl" \
 #   -kwargs optim_lr=0.00009 spec_augment_n_freq_masks=6 spec_augment_freq_mask_param=34 spec_augment_n_time_masks=0
