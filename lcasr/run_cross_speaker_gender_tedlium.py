@@ -2,10 +2,9 @@ import torch, argparse, lcasr, os, re, json
 from tqdm import tqdm
 from typing import Tuple
 from lcasr.utils.audio_tools import processing_chain
-from lcasr.eval.utils import fetch_logits, decode_beams_lm
 from lcasr.utils.general import load_model
-from pyctcdecode import build_ctcdecoder
-from lcasr.eval.wer import word_error_rate_detail 
+from lcasr.decoding.greedy import GreedyCTCDecoder
+from lcasr.eval.wer import word_error_rate_detail
 #from lcasr.eval.dynamic_eval import dynamic_eval
 from whisper.normalizers import EnglishTextNormalizer
 normalize = EnglishTextNormalizer()
@@ -34,7 +33,7 @@ def main(args):
     assert args.split in ['test', 'dev'], f'Split must be either test or dev (got {args.split})'
     if args.dataset == 'rev16': assert args.split == 'test', 'Split must be test for rev16'
     
-    checkpoint = torch.load(args.checkpoint, map_location='cpu')
+    checkpoint = torch.load(args.checkpoint, map_location='cpu', weights_only=False)
     model_config = checkpoint['config']
     args.config = model_config
 
@@ -51,8 +50,7 @@ def main(args):
     model = model.to(device)
     model.eval()
 
-    vocab = [tokenizer.id_to_piece(id) for id in range(tokenizer.get_piece_size())] + [""]
-    decoder = build_ctcdecoder(vocab, kenlm_model_path=None, alpha=None, beta=None)
+    decoder = GreedyCTCDecoder(tokenizer=tokenizer, blank_id=model.decoder.num_classes-1)
 
     test = datasets_functions["tedlium"]("test")
     dev = datasets_functions["tedlium"]("dev")
@@ -81,14 +79,16 @@ def main(args):
 
     eval_fn = dynamic_eval if not args.awmc else AWMC
 
+    adapt_overlap = args.adapt_overlap if args.adapt_overlap is not None else args.overlap
+    if adapt_overlap != args.overlap:
+        print(f'Using adapt_overlap={adapt_overlap} for adaptation (eval overlap={args.overlap})')
+
     original_model_params = list(model.parameters())
     original_model_params = [p.clone().detach().cpu() for p in original_model_params]
 
     def transcribe_from_logits(logits, audio_spec):
-        ds_factor = audio_spec.shape[-1] / logits.shape[0]
         if beamsearch is None:
-            decoded, bo = decode_beams_lm([logits], decoder, beam_width=1, ds_factor=ds_factor)
-            out_text = decoded[0]['text']
+            out_text = decoder(torch.as_tensor(logits))
         else:
             run_beam_search = beamsearch(log_probs = logits, beam_width = beams)
             run_beam_search.run_search(use_tqdm = True)
@@ -96,165 +96,32 @@ def main(args):
         out = normalize(out_text).lower()
         return out
 
-    male_baseline = None
-    female_baseline = None
-    male_to_male = []
-    female_to_female = []
-    male_to_female = []
-    female_to_male = []
-
-    # clone 
+    # clone
     args_dict = vars(args).copy()
     args_dict['epochs'] = 0
     baseline_args = argparse.Namespace(**args_dict)
 
-    male_idxs = [i for i in range(len(males))]
-    golds, preds = [], []
-    print('Male baseline')
-    for male_idx in tqdm(male_idxs, total=len(male_idxs)):
-        audio_spec, gold_text = males[male_idx]['process_fn'](males[male_idx])
-        logits = eval_fn(
-            baseline_args, 
-            model, 
-            audio_spec, 
-            args.seq_len, 
-            args.overlap, 
-            tokenizer,
-            beam_search_fn = beamsearch
-        )
-        pred = transcribe_from_logits(logits, audio_spec)
-        golds.append(gold_text)
-        preds.append(pred)
-    wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=preds, references=golds)
-    male_baseline = {"wer": wer, "words": words, "ins_rate": ins_rate, "del_rate": del_rate, "sub_rate": sub_rate}
-    print(f'Male baseline WER: {wer}')
+    for repeat in range(args.repeats):
+        print(f'\n=== Repeat {repeat+1}/{args.repeats} ===')
 
-    print('Female baseline')
-    female_idxs = [i for i in range(len(females))]
-    golds, preds = [], []
-    for female_idx in tqdm(female_idxs, total=len(female_idxs)):
-        audio_spec, gold_text = females[female_idx]['process_fn'](females[female_idx])
-        logits = eval_fn(
-            baseline_args, 
-            model, 
-            audio_spec, 
-            args.seq_len, 
-            args.overlap, 
-            tokenizer,
-            beam_search_fn = beamsearch
-        )
-        pred = transcribe_from_logits(logits, audio_spec)
-        golds.append(gold_text)
-        preds.append(pred)
-    wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=preds, references=golds)
-    female_baseline = {"wer": wer, "words": words, "ins_rate": ins_rate, "del_rate": del_rate, "sub_rate": sub_rate}
-    print(f'Female baseline WER: {wer}')
-    
-    print("Male-X")
-    male_idxs = [i for i in range(len(males))]
-    for male_idx in tqdm(male_idxs, total=len(male_idxs)):
-        audio_spec, gold_text = males[male_idx]['process_fn'](males[male_idx])
-        print(args.epochs)
-        _, updated_parameters = eval_fn(
-            args, 
-            model, 
-            audio_spec, 
-            args.seq_len, 
-            args.overlap, 
-            tokenizer,
-            beam_search_fn = beamsearch,
-            return_params = True
-        )
-        for p, u in zip(model.parameters(), updated_parameters):
-            p.data = u.data.to(p.device)
-        
-        other_male_idxs = [i for i in range(len(males)) if i != male_idx]
-        golds, preds = [], []
-        for other_male_idx in other_male_idxs:
-            audio_spec, gold_text = males[other_male_idx]['process_fn'](males[male_idx])
-            logits = eval_fn(
-                baseline_args, 
-                model, 
-                audio_spec, 
-                args.seq_len, 
-                args.overlap, 
-                tokenizer,
-                beam_search_fn = beamsearch
-            )
-            pred = transcribe_from_logits(logits, audio_spec)
-            golds.append(gold_text)
-            preds.append(pred)
-        wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=preds, references=golds)
-        male_to_male.append({"wer": wer, "words": words, "ins_rate": ins_rate, "del_rate": del_rate, "sub_rate": sub_rate})
-
-        female_idxs = [i for i in range(len(females))]
-        golds, preds = [], []
-        for female_idx in female_idxs:
-            audio_spec, gold_text = females[female_idx]['process_fn'](females[female_idx])
-            logits = eval_fn(
-                baseline_args, 
-                model, 
-                audio_spec, 
-                args.seq_len, 
-                args.overlap, 
-                tokenizer,
-                beam_search_fn = beamsearch
-            )
-            pred = transcribe_from_logits(logits, audio_spec)
-            golds.append(gold_text)
-            preds.append(pred)
-        wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=preds, references=golds)
-        male_to_female.append({"wer": wer, "words": words, "ins_rate": ins_rate, "del_rate": del_rate, "sub_rate": sub_rate})
-
-        for p, u in zip(model.parameters(), original_model_params):
-            p.data = u.data.to(p.device)
-
-    print("Female-X")
-    female_idxs = [i for i in range(len(females))]
-    for female_idx in tqdm(female_idxs, total=len(female_idxs)):
-        audio_spec, gold_text = females[female_idx]['process_fn'](females[female_idx])
-        _, updated_parameters = eval_fn(
-            args, 
-            model, 
-            audio_spec, 
-            args.seq_len, 
-            args.overlap, 
-            tokenizer,
-            beam_search_fn = beamsearch,
-            return_params = True
-        )
-        for p, u in zip(model.parameters(), updated_parameters):
-            p.data = u.data.to(p.device)
-        
-        other_female_idxs = [i for i in range(len(females)) if i != female_idx]
-        golds, preds = [], []
-        for other_female_idx in other_female_idxs:
-            audio_spec, gold_text = females[other_female_idx]['process_fn'](females[other_female_idx])
-            logits = eval_fn(
-                baseline_args, 
-                model, 
-                audio_spec, 
-                args.seq_len, 
-                args.overlap, 
-                tokenizer,
-                beam_search_fn = beamsearch
-            )
-            pred = transcribe_from_logits(logits, audio_spec)
-            golds.append(gold_text)
-            preds.append(pred)
-        wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=preds, references=golds)
-        female_to_female.append({"wer": wer, "words": words, "ins_rate": ins_rate, "del_rate": del_rate, "sub_rate": sub_rate})
+        male_baseline = None
+        female_baseline = None
+        male_to_male = []
+        female_to_female = []
+        male_to_female = []
+        female_to_male = []
 
         male_idxs = [i for i in range(len(males))]
         golds, preds = [], []
-        for male_idx in male_idxs:
-            audio_spec, gold_text = males[female_idx]['process_fn'](males[male_idx])
+        print('Male baseline')
+        for male_idx in tqdm(male_idxs, total=len(male_idxs)):
+            audio_spec, gold_text = males[male_idx]['process_fn'](males[male_idx])
             logits = eval_fn(
-                baseline_args, 
-                model, 
-                audio_spec, 
-                args.seq_len, 
-                args.overlap, 
+                baseline_args,
+                model,
+                audio_spec,
+                args.seq_len,
+                args.overlap,
                 tokenizer,
                 beam_search_fn = beamsearch
             )
@@ -262,33 +129,172 @@ def main(args):
             golds.append(gold_text)
             preds.append(pred)
         wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=preds, references=golds)
-        female_to_male.append({"wer": wer, "words": words, "ins_rate": ins_rate, "del_rate": del_rate, "sub_rate": sub_rate})
+        male_baseline = {"wer": wer, "words": words, "ins_rate": ins_rate, "del_rate": del_rate, "sub_rate": sub_rate}
+        print(f'Male baseline WER: {wer}')
 
-        for p, u in zip(model.parameters(), original_model_params):
-            p.data = u.data.to(p.device)
+        print('Female baseline')
+        female_idxs = [i for i in range(len(females))]
+        golds, preds = [], []
+        for female_idx in tqdm(female_idxs, total=len(female_idxs)):
+            audio_spec, gold_text = females[female_idx]['process_fn'](females[female_idx])
+            logits = eval_fn(
+                baseline_args,
+                model,
+                audio_spec,
+                args.seq_len,
+                args.overlap,
+                tokenizer,
+                beam_search_fn = beamsearch
+            )
+            pred = transcribe_from_logits(logits, audio_spec)
+            golds.append(gold_text)
+            preds.append(pred)
+        wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=preds, references=golds)
+        female_baseline = {"wer": wer, "words": words, "ins_rate": ins_rate, "del_rate": del_rate, "sub_rate": sub_rate}
+        print(f'Female baseline WER: {wer}')
 
-    results = {
-        'male_baseline': male_baseline,
-        'female_baseline': female_baseline,
-        'male_to_male': male_to_male,
-        'male_to_female': male_to_female,
-        'female_to_female': female_to_female,
-        'female_to_male': female_to_male,
-        'args_dict': vars(args)
-    }
+        print("Male-X")
+        male_idxs = [i for i in range(len(males))]
+        for male_idx in tqdm(male_idxs, total=len(male_idxs)):
+            audio_spec, gold_text = males[male_idx]['process_fn'](males[male_idx])
+            print(args.epochs)
+            _, updated_parameters = eval_fn(
+                args,
+                model,
+                audio_spec,
+                args.seq_len,
+                adapt_overlap,
+                tokenizer,
+                beam_search_fn = beamsearch,
+                return_params = True
+            )
+            for p, u in zip(model.parameters(), updated_parameters):
+                p.data = u.data.to(p.device)
 
-    if args.save_path != '':
-        save_path = args.save_path
-        if save_path.endswith('.pkl'): save_path = save_path.replace('.pkl', f'_{1}.pkl')
-        else: save_path = save_path + f'_{1}.pkl'
-        with open(save_path, 'wb') as f:
-            pickle.dump(results, f)
+            other_male_idxs = [i for i in range(len(males)) if i != male_idx]
+            golds, preds = [], []
+            for other_male_idx in other_male_idxs:
+                audio_spec, gold_text = males[other_male_idx]['process_fn'](males[other_male_idx])
+                logits = eval_fn(
+                    baseline_args,
+                    model,
+                    audio_spec,
+                    args.seq_len,
+                    args.overlap,
+                    tokenizer,
+                    beam_search_fn = beamsearch
+                )
+                pred = transcribe_from_logits(logits, audio_spec)
+                golds.append(gold_text)
+                preds.append(pred)
+            wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=preds, references=golds)
+            male_to_male.append({"wer": wer, "words": words, "ins_rate": ins_rate, "del_rate": del_rate, "sub_rate": sub_rate})
 
-        print(f'Finished and saved to {save_path}')
+            female_idxs = [i for i in range(len(females))]
+            golds, preds = [], []
+            for female_idx in female_idxs:
+                audio_spec, gold_text = females[female_idx]['process_fn'](females[female_idx])
+                logits = eval_fn(
+                    baseline_args,
+                    model,
+                    audio_spec,
+                    args.seq_len,
+                    args.overlap,
+                    tokenizer,
+                    beam_search_fn = beamsearch
+                )
+                pred = transcribe_from_logits(logits, audio_spec)
+                golds.append(gold_text)
+                preds.append(pred)
+            wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=preds, references=golds)
+            male_to_female.append({"wer": wer, "words": words, "ins_rate": ins_rate, "del_rate": del_rate, "sub_rate": sub_rate})
+
+            for p, u in zip(model.parameters(), original_model_params):
+                p.data = u.data.to(p.device)
+
+        print("Female-X")
+        female_idxs = [i for i in range(len(females))]
+        for female_idx in tqdm(female_idxs, total=len(female_idxs)):
+            audio_spec, gold_text = females[female_idx]['process_fn'](females[female_idx])
+            _, updated_parameters = eval_fn(
+                args,
+                model,
+                audio_spec,
+                args.seq_len,
+                adapt_overlap,
+                tokenizer,
+                beam_search_fn = beamsearch,
+                return_params = True
+            )
+            for p, u in zip(model.parameters(), updated_parameters):
+                p.data = u.data.to(p.device)
+
+            other_female_idxs = [i for i in range(len(females)) if i != female_idx]
+            golds, preds = [], []
+            for other_female_idx in other_female_idxs:
+                audio_spec, gold_text = females[other_female_idx]['process_fn'](females[other_female_idx])
+                logits = eval_fn(
+                    baseline_args,
+                    model,
+                    audio_spec,
+                    args.seq_len,
+                    args.overlap,
+                    tokenizer,
+                    beam_search_fn = beamsearch
+                )
+                pred = transcribe_from_logits(logits, audio_spec)
+                golds.append(gold_text)
+                preds.append(pred)
+            wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=preds, references=golds)
+            female_to_female.append({"wer": wer, "words": words, "ins_rate": ins_rate, "del_rate": del_rate, "sub_rate": sub_rate})
+
+            male_idxs = [i for i in range(len(males))]
+            golds, preds = [], []
+            for male_idx in male_idxs:
+                audio_spec, gold_text = males[male_idx]['process_fn'](males[male_idx])
+                logits = eval_fn(
+                    baseline_args,
+                    model,
+                    audio_spec,
+                    args.seq_len,
+                    args.overlap,
+                    tokenizer,
+                    beam_search_fn = beamsearch
+                )
+                pred = transcribe_from_logits(logits, audio_spec)
+                golds.append(gold_text)
+                preds.append(pred)
+            wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=preds, references=golds)
+            female_to_male.append({"wer": wer, "words": words, "ins_rate": ins_rate, "del_rate": del_rate, "sub_rate": sub_rate})
+
+            for p, u in zip(model.parameters(), original_model_params):
+                p.data = u.data.to(p.device)
+
+        results = {
+            'male_baseline': male_baseline,
+            'female_baseline': female_baseline,
+            'male_to_male': male_to_male,
+            'male_to_female': male_to_female,
+            'female_to_female': female_to_female,
+            'female_to_male': female_to_male,
+            'args_dict': vars(args),
+            'repeat': f'{repeat+1}/{args.repeats}'
+        }
+
+        if args.save_path != '':
+            save_path = args.save_path
+            if save_path.endswith('.pkl'): save_path = save_path.replace('.pkl', f'_{repeat+1}.pkl')
+            else: save_path = save_path + f'_{repeat+1}.pkl'
+            with open(save_path, 'wb') as f:
+                pickle.dump(results, f)
+
+            print(f'Finished and saved to {save_path}')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--repeats', '-r', type=int, default=1, help='Number of times to repeat the evaluation')
     parser.add_argument('--save_path', '-s', type=str, default='', help='path to save')
+    parser.add_argument('--adapt_overlap', '-ao', type=int, default=None, help='Overlap used during adaptation passes only. If unset, adaptation uses --overlap (current behavior).')
 
     args = lib.apply_args(parser)
     args.dataset = 'tedlium'

@@ -123,6 +123,44 @@ def get_lr_args_from_args(args):
     lr_args['lr'] = lr_args.get('lr', 9e-5)
     return lr_args
 
+def should_skip_faulty_teacher_prediction(args, teacher_pred_tokens, spec_frames):
+    if not args.__dict__.get('filter_faulty_teacher_preds', False):
+        return False, ''
+
+    min_frames_per_token = args.__dict__.get('teacher_min_frames_per_token', 8)
+    if min_frames_per_token > 0:
+        max_teacher_tokens = spec_frames / min_frames_per_token
+        if len(teacher_pred_tokens) > max_teacher_tokens:
+            return True, (
+                f'too many teacher tokens ({len(teacher_pred_tokens)} tokens for {spec_frames} frames; '
+                f'max {max_teacher_tokens:.2f})'
+            )
+
+    max_consecutive_repeat = args.__dict__.get('teacher_max_consecutive_repeat', 3)
+    current_repeat = 0
+    longest_repeat = 0
+    longest_repeat_token = None
+    previous_token = None
+
+    for token in teacher_pred_tokens:
+        if token == previous_token:
+            current_repeat += 1
+        else:
+            previous_token = token
+            current_repeat = 1
+
+        if current_repeat > longest_repeat:
+            longest_repeat = current_repeat
+            longest_repeat_token = token
+
+    if longest_repeat > max_consecutive_repeat:
+        return True, (
+            f'teacher token {longest_repeat_token} repeated {longest_repeat} times consecutively '
+            f'(limit {max_consecutive_repeat})'
+        )
+
+    return False, ''
+
 
 def prepare_chunks(spec, seq_len, overlap):
     spec_n = spec.shape[-1]
@@ -1050,8 +1088,8 @@ def enc_dec_inference(
  
     for idx in pbar:
         audio_chunk = training_data[training_keys[idx]].to(model.device)
-        with torch.no_grad(): output = model.generate(audio_chunk)
-        text = tokenizer.decode(output["text_sequence"]).strip()
+        with torch.no_grad(): output = generate_enc_dec(model, audio_chunk)[0]
+        text = tokenizer.decode(output.squeeze().tolist()).strip()
         print(f'Generated text: {text}')
         output_sequences[idx] = text
 
@@ -1120,7 +1158,8 @@ def generate_enc_dec(
             tokens = text_sequence,
             a_hidden = a_hidden,
             a_lengths = length,
-        )
+        )["logits"]
+   
         probs = (decoder_logits[:, -1, :] * temperature).softmax(dim=-1)
         if sample == 1 and greedy:
             decoder_pred = probs.argmax(dim=-1)[None]
@@ -1251,6 +1290,104 @@ def get_ema_from_args(args):
     print(f'ema: {ema}')
     return ema  
 
+def calc_rewards(ref: str, hyps: List[str]) -> List[float]:
+    from whisper.normalizers import EnglishTextNormalizer
+    normalize = EnglishTextNormalizer()
+    from lcasr.eval.wer import word_error_rate_detail
+    import sacrebleu
+
+
+    # ref = normalize(ref)
+    # hyps = list(map(normalize, hyps))
+    rewards = []
+    for hyp in hyps:
+        if len(hyp.strip()) == 0 and len(ref.strip()) == 0:
+            rewards.append(1.0)
+            continue
+        elif len(ref.strip()) == 0 and len(hyp.strip()) > 0:
+            rewards.append(len(hyp.strip().split()) * -1.0)
+            continue
+        
+        wer = word_error_rate_detail([hyp], [ref])[0] * -1.0 + 1
+        cer = word_error_rate_detail([hyp], [ref], use_cer=True)[0] * -1.0 + 1
+        bleu = sacrebleu.corpus_bleu([hyp], [[ref]]).score / 100.0
+        error_score = (wer + cer + bleu) / 3.0
+        
+        reward = error_score 
+        rewards.append(reward)
+
+    # if max(rewards) > 0.3:
+    #     rewards = [0.0 for _ in rewards]
+    print(sum(rewards) / len(rewards), "avg reward")
+    return rewards
+
+def update_grpo(
+        model,
+        audio_signal:torch.Tensor,
+        tokenizer,
+        hyps:List[str],
+        rewards:List[float]
+    ):
+
+    batch_size = len(hyps)
+    assert audio_signal.shape[0] == 1, 'Must be bsz of 1 for audio signal'
+    # audio_signal = audio_signal.repeat(batch_size, 1, 1)
+    forcing_text_encodes = [torch.LongTensor(tokenizer.encode(t)).to(model.device) for t in hyps]
+    forcing_text_lengths = torch.LongTensor([el.shape[0] for el in forcing_text_encodes]).to(model.device)
+    forcing_text_encodes = torch.nn.utils.rnn.pad_sequence(forcing_text_encodes, batch_first=True, padding_value=0)
+    forcing_text_encodes_bos = F.pad(forcing_text_encodes, (1, 0), value=0)
+    forcing_text_lengths_bos = forcing_text_lengths + 1
+
+    targets = forcing_text_encodes_bos.clone()
+    targets[:, :-1] = forcing_text_encodes_bos[:, 1:].clone()
+
+    enc_out = model.forward(audio_signal)
+    a_hidden, a_length = enc_out['a_hidden'], enc_out['length']
+    a_hidden = a_hidden.repeat(batch_size, 1, 1)
+    a_length = a_length.repeat(batch_size)
+    
+    decoder_out = model.language_model_decoder(
+        tokens = forcing_text_encodes_bos,
+        a_hidden = a_hidden,
+        a_lengths = a_length,
+        cache = None,
+        text_lengths = forcing_text_lengths_bos,
+    )
+    predictions = decoder_out['logits']
+
+    if forcing_text_lengths_bos.max() == forcing_text_lengths_bos.min(): targets[:, -1] = 0
+    else:
+        targets = add_eos(targets, eos_id = 0, token_lens = forcing_text_lengths_bos)
+
+    mask = token_lens_to_mask(forcing_text_lengths_bos)
+    targets = mark_padding(targets, mask, pad_id = 0)
+    predictions = predictions.log_softmax(-1)
+
+
+    rewards = torch.as_tensor(rewards, dtype=torch.float32, device=predictions.device)
+    mean = rewards.mean()
+    std = rewards.std() 
+    
+    rewards = (rewards - mean) 
+    # / (std + 1e-7)
+    print(rewards)
+    rewards = rewards.unsqueeze(-1)
+    predictions = predictions.gather(-1, targets.unsqueeze(-1)).squeeze(-1)
+
+    
+    per_token_loss = -predictions * rewards
+    # print(per_token_loss.shape, "per_token_loss", predictions.shape, rewards.shape, mask.shape)
+
+    per_token_loss = per_token_loss.masked_fill(~mask, 0)
+    loss = per_token_loss.sum() / mask.sum()
+
+    
+
+    print(loss, "loss")
+
+    return loss
+ 
+
 def enc_dec_dynamic_eval(
         args,
         model:nn.Module,
@@ -1261,12 +1398,14 @@ def enc_dec_dynamic_eval(
         use_tqdm:bool=True,
         optim:optim.Optimizer=madgrad.MADGRAD,
         optimizer_state:dict=None,
-        beam_search_fn:Callable=None,
         return_params:bool=False,
+        **kwargs,
     ):
 
     spec_augment_config = get_specaugment_config_from_args(args)
+    print(spec_augment_config)
     lr_args = get_lr_args_from_args(args)
+    print(lr_args)
     #print(spec_augment_config, lr_args)
     num_negatives = 1 # only coded for 1 negative
 
@@ -1277,34 +1416,21 @@ def enc_dec_dynamic_eval(
     # create copy of model parameters that are not updated
     original_model_params = list(model.parameters())
     original_model_params = [p.clone().detach().cpu() for p in original_model_params]
- 
-    # ctc_loss_fn = torch.nn.CTCLoss(blank=model.decoder.num_classes-1, reduction='sum')
-    # ce_loss_fn = torch.nn.CrossEntropyLoss()
     
     # freeze params
     modules_to_freeze = [
         model.language_model_decoder.pos_enc,
         model.pos_enc,
+        # model.layers,
     ]
 
     dropout_emb = args.__dict__.get('dropout_emb', 0.0)
     dropout_post_ff = args.__dict__.get('dropout_post_ff', 0.0) 
     dropout_attn = args.__dict__.get('dropout_attn', 0.0)
 
-    ctc_joint_decoding = args.__dict__.get('ctc_joint_decoding', False)
-    alpha = args.__dict__.get('alpha', 0.816)
-    beta = args.__dict__.get('beta', 1.11)
-    prune_less_than_val = args.__dict__.get('prune_less_than_val', 3.17)
-    beam_width = args.__dict__.get('beam_width', 10)
-
-    if ctc_joint_decoding:
-        generate_fn = partial(model.ctc_beam_search, tokenizer = tokenizer, alpha = alpha, beta = beta, prune_less_than_val = prune_less_than_val, beam_width = beam_width)
-        decoding_args = {'alpha': alpha, 'beta': beta, 'prune_less_than_val': prune_less_than_val, 'beam_width': beam_width}
-        decode_fn = enc_dec_ctc_beamsearch_inference
-    else: 
-        generate_fn = model.generate
-        decoding_args = {}
-        decode_fn = enc_dec_inference
+    generate_fn = model.generate
+    decoding_args = {}
+    decode_fn = enc_dec_inference
 
 
     model.language_model_decoder.dropout_emb = dropout_emb
@@ -1313,6 +1439,10 @@ def enc_dec_dynamic_eval(
         # layer[0].fn.flash_attn_c_fn.drop.p = dropout_attn
     for layer in model.language_model_decoder.layers:
         layer[0].fn.dropout_p = 0
+        # for param in layer.parameters():
+        #     param.requires_grad = False
+        # for param in layer[0].fn.parameters():
+        #     param.requires_grad = True
 
     #model.language_model_decoder
 
@@ -1321,13 +1451,11 @@ def enc_dec_dynamic_eval(
             param.requires_grad = False
         print(f'Freezing {module}')
 
-    ema = ExponentialMovingAverage(model.parameters(), decay=get_ema_from_args(args))
-
     optimizer = optim(model.parameters(), **lr_args)
 
     if optimizer_state is not None:
         optimizer.load_state_dict(optimizer_state)
-        
+
         
     augmentation = SpecAugment(**spec_augment_config)
 
@@ -1339,10 +1467,6 @@ def enc_dec_dynamic_eval(
     assert overlap == 0, 'Overlap > 0 not implemented for encoder-decoder model'
     print(f'Using seq_len: {seq_len}')# and overlap: {overlap}')
 
-
-    
-    #model.ctc_loss_weight = 1.0
-    ema.update()
     model.eval() # don't update batchrenorm
     training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
     for epoch in range(args.__dict__.get('epochs', 1)):
@@ -1350,55 +1474,89 @@ def enc_dec_dynamic_eval(
         training_keys = list(training_data.keys())
         training_keys_idx = [i for i in range(len(training_keys))]
         training_keys_idx = random.sample(training_keys_idx, len(training_keys_idx)) if args.__dict__.get('shuffle', False) else training_keys_idx
-
+        
         pbar = tqdm(training_keys_idx) if use_tqdm else training_keys_idx
         for idx in pbar:
-            audio_chunk = training_data[training_keys[idx]].clone().to(model.device)
-            audio_chunk = audio_chunk.repeat(num_negatives+1, 1, 1)
-            audio_chunk[:num_negatives] = augmentation(audio_chunk[:num_negatives]) # apply augmentation to 2 of the 3 copies
+            completed = False
+            while not completed:
+                completed = True
+                audio_chunk = training_data[training_keys[idx]].clone().to(model.device)
+                audio_chunk = audio_chunk.repeat(num_negatives+1, 1, 1)
+                audio_chunk[:num_negatives] = augmentation(audio_chunk[:num_negatives]) # apply augmentation to 2 of the 3 copies
 
-            with ema.average_parameters():
-                teacher_pred = generate_fn(audio_chunk[-1, None])
-                if not ctc_joint_decoding:
-                    teacher_pred_text = tokenizer.decode(teacher_pred[0].tolist()).strip()
-                else:
-                    teacher_pred_text = teacher_pred.strip()
-                    teacher_pred = tokenizer.encode(teacher_pred_text) 
-                    teacher_pred = torch.LongTensor(teacher_pred).to(model.device)[None]
+            
+                teacher_pred = torch.tensor(generate_fn(audio_chunk[-1, None])["text_sequence"], dtype=torch.long, device=model.device)
+                teacher_pred_tokens = teacher_pred.tolist()
+                teacher_pred_text = tokenizer.decode(teacher_pred_tokens).strip()
 
-                text_lengths = torch.LongTensor([teacher_pred.shape[1]]).to(model.device)
-
+                text_lengths = torch.LongTensor([teacher_pred.shape[-1]]).to(model.device)
                 
                 print(f'Teacher pred: {teacher_pred_text}')
+                skip_teacher_step, skip_reason = should_skip_faulty_teacher_prediction(
+                    args=args,
+                    teacher_pred_tokens=teacher_pred_tokens,
+                    spec_frames=audio_chunk.shape[-1],
+                )
+                if skip_teacher_step:
+                    print(f'Skipping teacher update: {skip_reason}')
+                    continue
+
                 teacher_lengths = text_lengths.to(model.device)
                 acoustic_length = torch.LongTensor([audio_chunk.shape[-1]]).to(model.device)
-            #print(audio_chunk[:num_negatives].shape, teacher_pred.shape)
+                #print(audio_chunk[:num_negatives].shape, teacher_pred.shape)
 
-            for layer in model.language_model_decoder.layers:
-                layer[0].fn.dropout_p = dropout_attn
+                for layer in model.language_model_decoder.layers:
+                    layer[0].fn.dropout_p = dropout_attn
+                    
+                model.language_model_decoder.train() # for dropout
+                model.ctc_loss_weight = 0.0
+
+
+                student_rollouts = generate_enc_dec(
+                    model = model,
+                    audio_signal = audio_chunk[:num_negatives],
+                    sample=12, 
+                    greedy=False,
+                    temperature=5,
+                )[0]
+
+                student_rollouts_text = [tokenizer.decode(seq.tolist()).strip() for seq in student_rollouts]
                 
-            model.language_model_decoder.train() # for dropout
-            student_out = calc_loss_enc_dec(
-                model = model,
-                audio_signal = audio_chunk[:num_negatives], 
-                text_sequence = teacher_pred, 
-                a_lengths = acoustic_length, 
-                t_lengths = teacher_lengths,
-                tokenizer = tokenizer
-            )
-            model.language_model_decoder.eval()
+                print(f'Student rollouts: {student_rollouts_text} \n--------------------------------\n') 
+                rewards = calc_rewards(teacher_pred_text, student_rollouts_text)
+                print(rewards)
 
-            for layer in model.language_model_decoder.layers:
-                layer[0].fn.dropout_p = 0
+                if sum(rewards) / len(rewards) > 0.95:
+                    completed = True
+                    continue
+          
 
-
-
-            loss = student_out['loss']
+                if all(r == 0.0 for r in rewards) or all(r == rewards[0] for r in rewards):
+                    print('skipping')
+                else:
+                    loss = update_grpo(model, audio_signal=audio_chunk[:num_negatives], tokenizer=tokenizer, hyps=student_rollouts_text, rewards=rewards)
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
             
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            ema.update()
+
+                # student_out = calc_loss_enc_dec(
+                #     model = model,
+                #     audio_signal = audio_chunk[:num_negatives], 
+                #     text_sequence = teacher_pred[None, :], 
+                #     a_lengths = acoustic_length, 
+                #     t_lengths = teacher_lengths,
+                #     tokenizer = tokenizer
+                # )
+                model.language_model_decoder.eval()
+
+                for layer in model.language_model_decoder.layers:
+                    layer[0].fn.dropout_p = 0
+
+
+
+
+           
 
     model.eval()
     final_out = decode_fn(
@@ -1457,6 +1615,9 @@ def apply_args(parser):
     parser.add_argument('-kwargs', '--kwargs', nargs='+', help='kwargs')
     parser.add_argument('-awmc', '--awmc', action='store_true', help='Use AWMC method from https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=10389640&tag=1 instead of dynamic eval')
     parser.add_argument('--consistency', '--consistency', action='store_true', help='Use consistency training')
+    parser.add_argument('--filter_faulty_teacher_preds', action='store_true', help='Skip encoder-decoder teacher updates when the generated teacher sequence looks clearly faulty')
+    parser.add_argument('--teacher_min_frames_per_token', type=int, default=8, help='Skip teacher updates when generated token count exceeds spectrogram frames divided by this value')
+    parser.add_argument('--teacher_max_consecutive_repeat', type=int, default=3, help='Skip teacher updates when a teacher token repeats more than this many times consecutively')
 
     args = parser.parse_args()
 

@@ -70,16 +70,20 @@ def main(args):
 
     eval_fn = dynamic_eval if not args.awmc else AWMC
 
+    adapt_overlap = args.adapt_overlap if args.adapt_overlap is not None else args.overlap
+    if adapt_overlap != args.overlap:
+        print(f'Using adapt_overlap={adapt_overlap} for adaptation (eval overlap={args.overlap})')
+
     for repeat in range(args.repeats):
-        
+
         rec = 0
         audio_spec, gold_text = data[rec]['process_fn'](data[rec])
         _, updated_parameters = eval_fn(
-            args, 
-            model, 
-            audio_spec, 
-            args.seq_len, 
-            args.overlap, 
+            args,
+            model,
+            audio_spec,
+            args.seq_len,
+            adapt_overlap,
             tokenizer,
             beam_search_fn = beamsearch,
             return_params = True
@@ -166,6 +170,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', '-d', type=str, default='earnings22', choices=datasets_functions.keys(), required=True)
     parser.add_argument('--repeats', '-r', type=int, default=1, help='Number of times to repeat the evaluation')
     parser.add_argument('--save_path', '-s', type=str, default='', help='path to save')
+    parser.add_argument('--adapt_overlap', '-ao', type=int, default=None, help='Overlap used during adaptation passes only. If unset, adaptation uses --overlap (current behavior).')
 
     args = lib.apply_args(parser)
     main(args)
