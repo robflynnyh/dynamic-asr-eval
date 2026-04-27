@@ -5,6 +5,8 @@ Bar height: relative WER improvement vs the unadapted baseline (positive
 means lower WER after adaptation):
   improvement% = (baseline.wer - adapted.wer) / baseline.wer * 100
 
+Bar labels show the adapted WER as an absolute percentage.
+
 By default only the lr=9e-6 sweep is shown. Pass `--lrs 9e-6 9e-5` to
 overlay multiple learning rates as grouped bars.
 
@@ -74,12 +76,19 @@ def main():
                       label=f"lr={LR_PRETTY[lr_tag]}",
                       color=colors[i % len(colors)],
                       edgecolor="black", linewidth=0.5)
-        for b, v in zip(bars, improvement):
+        for e, b, v in zip(epochs, bars, improvement):
             if np.isnan(v):
                 continue
+            r = parsed[(e, lr_tag)]
             va = "bottom" if v >= 0 else "top"
-            ax.text(b.get_x() + b.get_width() / 2, v, f"{v:+.1f}%",
-                    ha="center", va=va, fontsize=9)
+            ax.text(
+                b.get_x() + b.get_width() / 2,
+                v,
+                f"{r['adapted']['wer'] * 100:.1f}%",
+                ha="center",
+                va=va,
+                fontsize=9,
+            )
 
     ax.axhline(0, color="black", linewidth=0.8)
     ax.set_xticks(x)
