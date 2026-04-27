@@ -1,0 +1,232 @@
+Half-concat experiment outcomes (earnings22 test, epoch 1, 3 repeats)
+================================================================
+
+Setup reminder
+--------------
+These runs use the half-concat within-dataset evaluation:
+- split the 6 test recordings into two halves
+- concatenate one half into a single adaptation spectrogram
+- adapt on that concatenated half
+- evaluate on the held-out half
+- swap halves and average the two held-out WERs
+- repeat 3 times
+
+Shared held-out baseline
+------------------------
+Baseline mean WER (same across all repeats/runs here):
+- 0.183466601095398
+
+Run A: original half-concat settings
+------------------------------------
+Files:
+- earnings22-test-half-concat-epoch-1_1.pkl
+- earnings22-test-half-concat-epoch-1_2.pkl
+- earnings22-test-half-concat-epoch-1_3.pkl
+
+Effective settings:
+- eval overlap = 14336
+- adapt overlap = 14336
+- optim_lr = 9e-5
+
+Per-repeat adapted mean WER:
+- repeat 1: 0.19032509688306334  (delta vs baseline: +0.006858495787665342)
+- repeat 2: 0.18733865146778006  (delta vs baseline: +0.0038720503723820576)
+- repeat 3: 0.18941107111016608  (delta vs baseline: +0.005944470014768083)
+
+Average across repeats:
+- adapted mean WER = 0.1890249398203365
+- delta vs baseline = +0.005558338724938494
+
+Interpretation:
+- This setting consistently made WER worse than baseline.
+- So the original half-concat adaptation recipe appears too aggressive / harmful in this configuration.
+
+Run B: low-LR + zero adapt-overlap
+----------------------------------
+Files:
+- earnings22-test-half-concat-epoch-1-ao0-lr9e6_1.pkl
+- earnings22-test-half-concat-epoch-1-ao0-lr9e6_2.pkl
+- earnings22-test-half-concat-epoch-1-ao0-lr9e6_3.pkl
+
+Effective settings:
+- eval overlap = 14336
+- adapt overlap = 0
+- optim_lr = 9e-6
+
+Per-repeat adapted mean WER:
+- repeat 1: 0.18135041565216703  (delta vs baseline: -0.0021161854432309724)
+- repeat 2: 0.18125546230975553  (delta vs baseline: -0.002211138785642469)
+- repeat 3: 0.18126781279713555  (delta vs baseline: -0.0021987882982624496)
+
+Average across repeats:
+- adapted mean WER = 0.18129123025301938
+- delta vs baseline = -0.002175370842378621
+
+Interpretation:
+- This setting improved over baseline on all 3 repeats.
+- Relative to baseline, it is a small but very consistent gain.
+- Relative to Run A, this is a strong reversal: the adaptation went from consistently harmful to consistently helpful.
+
+Run C: low-LR + matched adapt-overlap
+-------------------------------------
+Files:
+- earnings22-test-half-concat-epoch-1-ao14336-lr9e6_1.pkl
+- earnings22-test-half-concat-epoch-1-ao14336-lr9e6_2.pkl
+- earnings22-test-half-concat-epoch-1-ao14336-lr9e6_3.pkl
+
+Effective settings:
+- eval overlap = 14336
+- adapt overlap = 14336
+- optim_lr = 9e-6
+
+Per-repeat adapted mean WER:
+- repeat 1: 0.17886334479952262  (delta vs baseline: -0.00460325629587538)
+- repeat 2: 0.17924470198009101  (delta vs baseline: -0.004221899115306987)
+- repeat 3: 0.1782102034224718  (delta vs baseline: -0.005256397672926211)
+
+Average across repeats:
+- adapted mean WER = 0.1787727500673618
+- delta vs baseline = -0.004693851028036193
+
+Interpretation:
+- This setting improved over baseline on all 3 repeats.
+- It is clearly better than Run B, so at this lower LR, matched adapt overlap looks better than adapt_overlap=0.
+- So the earlier improvement was not dependent on zero adapt overlap; in fact, keeping adapt overlap matched to eval overlap looks stronger here.
+
+What this likely means
+----------------------
+The main signal so far is:
+- lowering LR from 9e-5 to 9e-6 helped a lot
+- at lr=9e-6, adapt_overlap=14336 outperformed adapt_overlap=0 in this half-concat setup
+
+Current ordering (best to worst):
+1. Run C: ao=14336, lr=9e-6  -> 0.1787727500673618
+2. Run B: ao=0,     lr=9e-6  -> 0.18129123025301938
+3. Baseline:                    0.183466601095398
+4. Run A: ao=14336, lr=9e-5  -> 0.1890249398203365
+
+So the strongest effect appears to be the LR drop, and among the low-LR settings tested so far, matched overlap is currently best.
+
+Next comparison now running
+---------------------------
+A further tuning run has been launched with:
+- eval overlap = 14336
+- adapt overlap = 14336
+- optim_lr = 1e-6
+- epoch = 1
+- repeats = 3
+
+Output/log:
+- results base: earnings22-test-half-concat-epoch-1-ao14336-lr1e6.pkl
+- log: results/half_concat_eval/logs/earnings22-test-half-concat-epoch-1-ao14336-lr1e6.log
+
+Purpose:
+- This tests whether reducing LR further from 9e-6 to 1e-6 helps more, or whether 9e-6 was already near the sweet spot.
+
+Run D: matched adapt-overlap + lower LR
+---------------------------------------
+Files:
+- earnings22-test-half-concat-epoch-1-ao14336-lr1e6_1.pkl
+- earnings22-test-half-concat-epoch-1-ao14336-lr1e6_2.pkl
+- earnings22-test-half-concat-epoch-1-ao14336-lr1e6_3.pkl
+
+Effective settings:
+- eval overlap = 14336
+- adapt overlap = 14336
+- optim_lr = 1e-6
+
+Per-repeat adapted mean WER:
+- repeat 1: 0.17994406456063838  (delta vs baseline: -0.0035225365347596183)
+- repeat 2: 0.17907380458858607  (delta vs baseline: -0.00439279650681193)
+- repeat 3: 0.17909638506599707  (delta vs baseline: -0.004370216029400936)
+
+Average across repeats:
+- adapted mean WER = 0.1793714180717405
+- delta vs baseline = -0.004095183023657502
+
+Interpretation:
+- This still improves over baseline on all 3 repeats.
+- But it is slightly worse than Run C, so dropping LR further from 9e-6 to 1e-6 did not help.
+
+Cross-dataset outcome (earnings22 -> tedlium, lr=9e-6)
+------------------------------------------------------
+Completed files:
+- earnings22_tedlium-epoch-1-lr9e6-test_1.pkl
+- earnings22_tedlium-epoch-1-lr9e6-test_2.pkl
+- earnings22_tedlium-epoch-1-lr9e6-test_3.pkl
+- earnings22_tedlium-epoch-5-lr9e6-test_1.pkl
+- earnings22_tedlium-epoch-5-lr9e6-test_2.pkl
+- earnings22_tedlium-epoch-5-lr9e6-test_3.pkl
+
+Epoch 1 averages:
+- earnings22 baseline = 0.18289320507321852
+- tedlium baseline = 0.06227184121920964
+- a_to_b = 0.06256916139957075
+- a_to_a_loo = 0.1811856067019789
+
+Epoch 5 averages:
+- a_to_b = 0.06581802429755645
+- a_to_a_loo = 0.1863149042382741
+
+Interpretation:
+- Epoch 1 was better than epoch 5 for both cross-dataset transfer and in-dataset LOO.
+
+Cross-gender outcome (TEDLIUM, lr=9e-6)
+----------------------------------------
+Completed files:
+- tedlium-epoch-1-lr9e6-test_{1,2,3}.pkl
+- tedlium-epoch-2-lr9e6-test_{1,2,3}.pkl
+- tedlium-epoch-3-lr9e6-test_{1,2,3}.pkl
+- tedlium-epoch-4-lr9e6-test_{1,2,3}.pkl
+- tedlium-epoch-5-lr9e6-test_{1,2,3}.pkl
+
+Shared baselines:
+- male baseline = 0.07011029813257617
+- female baseline = 0.040948884495905113
+
+Epoch averages (male->female / female->male):
+- epoch 1: 0.04067693788111749 / 0.07026804023637047
+- epoch 2: 0.04072923530703819 / 0.07058352444395909
+- epoch 3: 0.04065601891074921 / 0.07112955480324706
+- epoch 4: 0.04093842501072097 / 0.07230655357771226
+- epoch 5: 0.04128358802179757 / 0.07257350175336418
+
+Interpretation:
+- male->female was best at epoch 3.
+- female->male was best at epoch 1.
+- Later epochs were generally a bit worse.
+
+Updated ordering for half-concat runs (best to worst):
+1. Run C: ao=14336, lr=9e-6  -> 0.1787727500673618
+2. Run D: ao=14336, lr=1e-6  -> 0.1793714180717405
+3. Run B: ao=0,     lr=9e-6  -> 0.18129123025301938
+4. Baseline:                    0.183466601095398
+5. Run A: ao=14336, lr=9e-5  -> 0.1890249398203365
+
+Planned next experiment: full-dataset whole-concat adaptation eval
+---------------------------------------------------------------
+Goal:
+- concatenate the whole dataset into one adaptation spectrogram
+- adapt once on that full concat for N epochs
+- then evaluate each original recording separately using the updated model
+
+Isolation/files:
+- runner: run_whole_concat_eval.py
+- launcher: tune_whole_concat_eval.sh
+- results dir: results/whole_concat_eval/
+- logs dir: results/whole_concat_eval/logs/
+
+Planned sweep:
+- dataset = earnings22
+- split = test
+- seq len = 16384
+- eval overlap = 14336
+- adapt overlap = 14336
+- repeats = 3
+- GPU = 3
+- epochs = 1, 3, 5, 10
+- learning rates = 9e-6, 9e-5
+
+Naming convention:
+- results: earnings22-test-whole-concat-epoch-<epoch>-lr-<lr_tag>_<repeat>.pkl
+- logs: earnings22-test-whole-concat-epoch-<epoch>-lr-<lr_tag>.log

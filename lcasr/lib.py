@@ -159,6 +159,50 @@ def bitfit(model):
 
     return model
 
+
+def freeze_subsampling(model):
+    subsampling_module = getattr(model, 'subsampling', None)
+    if subsampling_module is None:
+        print('No subsampling module found to freeze')
+        return model
+
+    for param in subsampling_module.parameters():
+        param.requires_grad = False
+    print(f'Freezing subsampling module: {subsampling_module.__class__.__name__}')
+    return model
+
+
+def freeze_all_but_last_block_and_head(model):
+    for param in model.parameters():
+        param.requires_grad = False
+
+    last_block = model.layers[-1]
+    ctc_head = model.decoder
+
+    for param in last_block.parameters():
+        param.requires_grad = True
+    for param in ctc_head.parameters():
+        param.requires_grad = True
+
+    print(f'Training only last block: layers.{len(model.layers) - 1} and CTC head')
+    return model
+
+
+def train_subsampling_only(model):
+    for param in model.parameters():
+        param.requires_grad = False
+
+    subsampling_module = getattr(model, 'subsampling', None)
+    if subsampling_module is None:
+        print('No subsampling module found to train')
+        return model
+
+    for param in subsampling_module.parameters():
+        param.requires_grad = True
+
+    print('Training only subsampling module')
+    return model
+
 def AWMC(
         args,
         model:nn.Module,
@@ -189,6 +233,13 @@ def AWMC(
 
     if args.__dict__.get('bitfit', False):
         model = bitfit(model)
+
+    if args.__dict__.get('freeze_subsampling', False):
+        model = freeze_subsampling(model)
+    if args.__dict__.get('freeze_all_but_last_block_and_head', False):
+        model = freeze_all_but_last_block_and_head(model)
+    if args.__dict__.get('train_subsampling_only', False):
+        model = train_subsampling_only(model)
 
     model.train()
     ema_leader_model = ExponentialMovingAverage(model.parameters(), decay=args.__dict__.get('ema_decay', 0.999))
@@ -430,6 +481,13 @@ def dynamic_eval_ctc_loss(
     # create copy of model parameters that are not updated
     original_model_params = list(model.parameters())
     original_model_params = [p.clone().detach().cpu() for p in original_model_params]
+
+    if args.__dict__.get('freeze_subsampling', False):
+        model = freeze_subsampling(model)
+    if args.__dict__.get('freeze_all_but_last_block_and_head', False):
+        model = freeze_all_but_last_block_and_head(model)
+    if args.__dict__.get('train_subsampling_only', False):
+        model = train_subsampling_only(model)
  
     ctc_loss_fn = torch.nn.CTCLoss(blank=model.decoder.num_classes-1, reduction='sum')
     
@@ -618,6 +676,13 @@ def dynamic_eval_consistency_ctc_loss(
     # create copy of model parameters that are not updated
     original_model_params = list(model.parameters())
     original_model_params = [p.clone().detach().cpu() for p in original_model_params]
+
+    if args.__dict__.get('freeze_subsampling', False):
+        model = freeze_subsampling(model)
+    if args.__dict__.get('freeze_all_but_last_block_and_head', False):
+        model = freeze_all_but_last_block_and_head(model)
+    if args.__dict__.get('train_subsampling_only', False):
+        model = train_subsampling_only(model)
  
     ctc_loss_fn = torch.nn.CTCLoss(blank=model.decoder.num_classes-1, reduction='sum')
     
@@ -664,7 +729,10 @@ def dynamic_eval_consistency_ctc_loss(
     model = model.to(precision)
     #optimizer = optim(model.parameters(), **lr_args)
 
-    param_collections = {key:list((p.to('cpu').detach().clone().requires_grad_()for p in list(model.parameters()))) for key in training_keys}
+    param_collections = {
+        key: [p.to('cpu').detach().clone().requires_grad_(p.requires_grad) for p in model.parameters()]
+        for key in training_keys
+    }
 
     optim_collections = {key:optim(param_collections[key], **lr_args) for key in training_keys}
 
@@ -726,6 +794,9 @@ def dynamic_eval_consistency_ctc_loss(
             loss.backward()
 
             for p, p_at_i in zip(model.parameters(), param_collections[i]):
+                if p.grad is None:
+                    p_at_i.grad = None
+                    continue
                 p_at_i.grad = p.grad.clone().to(p_at_i.device, dtype=precision)
                 p.grad.zero_() 
                 
@@ -750,6 +821,9 @@ def dynamic_eval_consistency_ctc_loss(
             for i, key_i in enumerate(training_keys):
                 cur_params = param_collections[key_i]
                 for z, param in enumerate(cur_params):
+                    if param.grad is None:
+                        continue
+
                     cur_grad = param.grad.clone().to(dtype=torch.float64)
                     total_sum = 1
 
@@ -761,7 +835,7 @@ def dynamic_eval_consistency_ctc_loss(
 
                         q_params = param_collections[key_q]
                         for q_i, q_param in enumerate(q_params):
-                            if z == q_i:
+                            if z == q_i and q_param.grad is not None:
                                 cur_grad += (decay * q_param.grad.clone()).to(dtype=torch.float64)
                     param.grad.data = (cur_grad / total_sum).to(dtype=precision)
                     del cur_grad
@@ -1611,6 +1685,9 @@ def apply_args(parser):
     parser.add_argument('-kwargs', '--kwargs', nargs='+', help='kwargs')
     parser.add_argument('-awmc', '--awmc', action='store_true', help='Use AWMC method from https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=10389640&tag=1 instead of dynamic eval')
     parser.add_argument('--consistency', '--consistency', action='store_true', help='Use consistency training')
+    parser.add_argument('--freeze_subsampling', action='store_true', help='Freeze subsampling layers during test-time adaptation')
+    parser.add_argument('--freeze_all_but_last_block_and_head', action='store_true', help='Freeze all params except the last encoder block and CTC head during test-time adaptation')
+    parser.add_argument('--train_subsampling_only', action='store_true', help='Train only the subsampling module during test-time adaptation')
 
     args = parser.parse_args()
 

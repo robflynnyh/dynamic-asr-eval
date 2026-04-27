@@ -2,9 +2,7 @@ import torch, argparse, lcasr, os, re, json
 from tqdm import tqdm
 from typing import Tuple
 from lcasr.utils.audio_tools import processing_chain
-from lcasr.eval.utils import fetch_logits, decode_beams_lm
 from lcasr.utils.general import load_model
-from pyctcdecode import build_ctcdecoder
 from lcasr.eval.wer import word_error_rate_detail 
 #from lcasr.eval.dynamic_eval import dynamic_eval
 from whisper.normalizers import EnglishTextNormalizer
@@ -36,7 +34,7 @@ def main(args):
     assert args.split in ['test', 'dev'], f'Split must be either test or dev (got {args.split})'
     if args.dataset == 'rev16': assert args.split == 'test', 'Split must be test for rev16'
     
-    checkpoint = torch.load(args.checkpoint, map_location='cpu')
+    checkpoint = torch.load(args.checkpoint, map_location='cpu', weights_only=False)
     model_config = checkpoint['config']
     args.config = model_config
 
@@ -53,8 +51,6 @@ def main(args):
     model = model.to(device)
     model.eval()
 
-    vocab = [tokenizer.id_to_piece(id) for id in range(tokenizer.get_piece_size())] + [""]
-    #decoder = build_ctcdecoder(vocab, kenlm_model_path=None, alpha=None, beta=None)
     decoder = GreedyCTCDecoder(tokenizer = tokenizer, blank_id = model.decoder.num_classes-1)
 
     data = datasets_functions[args.dataset](args.split)
@@ -104,11 +100,8 @@ def main(args):
             elapsed = etime - stime
             elapsed_times.append(elapsed)  
             
-            ds_factor = audio_spec.shape[-1] / logits.shape[0]
             if beamsearch is None:
                 out_text = decoder(torch.as_tensor(logits))
-                # decoded, bo = decode_beams_lm([logits], decoder, beam_width=1, ds_factor=ds_factor)
-                # out_text = decoded[0]['text']
             else:
                 run_beam_search = beamsearch(log_probs = logits, beam_width = beams)
                 run_beam_search.run_search(use_tqdm = True)
@@ -121,7 +114,6 @@ def main(args):
             
             all_texts.append(out)
             all_golds.append(gold_text)
-            break
             
 
         wer, words, ins_rate, del_rate, sub_rate = word_error_rate_detail(hypotheses=all_texts, references=all_golds)
