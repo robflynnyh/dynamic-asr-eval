@@ -1,0 +1,17 @@
+\paragraph{Cross-Dataset and Within-Dataset}
+\begin{table}[h!]
+    \centering
+    \begin{tabular}{lcc}
+        \toprule
+        \multirow{2}{*}{Adapt on} & \multicolumn{2}{c}{Test on:} \\
+        \cmidrule(lr){2-3}
+         & earnings22 & tedlium \\
+        \midrule
+        earnings22 & 18.1 & 6.3 \\
+        \midrule
+        Unadapted & 18.3 & 6.2 \\
+        \bottomrule
+    \end{tabular}
+    \caption{WERs after adapting on earnings22 for epoch 1 (lr9e6), reported as percentages.}
+    \label{tab:crossdataset:epoch1-lr9e6}
+\end{table}

@@ -111,12 +111,29 @@ def main(args):
             log_logits = windowed_inference(audio_spec)
             return log_logits, {'n_chunks': n_chunks, 'mode': 'fallback_windowed_eval'}
 
-        print(f'  {n_chunks} LOO chunks -> {n_chunks} adaptations + {n_chunks * (n_chunks - 1)} windowed inferences')
+        # Audio-disjoint LOO: only count contributions from inference chunks
+        # whose audio range does not overlap the adapted chunk at all. Each
+        # chunk i covers spec frames [i, i + len(chunk_i)), so chunks i and j
+        # are disjoint iff (j >= i + len(chunk_i)) or (i >= j + len(chunk_j)).
+        chunk_len = {k: chunks[k].shape[-1] for k in chunk_keys}
+
+        def disjoint(ai, ej):
+            return ej >= ai + chunk_len[ai] or ai >= ej + chunk_len[ej]
+
+        valid_evals = {ai: [ej for ej in chunk_keys if disjoint(ai, ej)] for ai in chunk_keys}
+        valid_pairs = sum(len(v) for v in valid_evals.values())
+        if valid_pairs == 0:
+            print(f'  {n_chunks} LOO chunks but no audio-disjoint (i, j) pairs at loo_seq_len={args.loo_seq_len}; falling back to windowed no-adapt eval on full recording.')
+            log_logits = windowed_inference(audio_spec)
+            return log_logits, {'n_chunks': n_chunks, 'mode': 'fallback_no_disjoint_pairs'}
+
+        usable_adapts = [ai for ai in chunk_keys if valid_evals[ai]]
+        print(f'  {n_chunks} LOO chunks -> {len(usable_adapts)} adaptations + {valid_pairs} windowed inferences (audio-disjoint LOO)')
 
         all_logits = torch.zeros((1, spec_n // downsampling_factor + args.loo_seq_len, vocab_size_plus))
         logit_count = torch.zeros_like(all_logits)
 
-        adapt_pbar = tqdm(chunk_keys, desc='  adapt-i', leave=False)
+        adapt_pbar = tqdm(usable_adapts, desc='  adapt-i', leave=False)
         for adapt_i in adapt_pbar:
             restore_original_params()
             adapt_chunk = chunks[adapt_i]
@@ -135,9 +152,7 @@ def main(args):
             for p, u in zip(model.parameters(), updated_params):
                 p.data = u.data.to(p.device)
 
-            for eval_j in chunk_keys:
-                if eval_j == adapt_i:
-                    continue
+            for eval_j in valid_evals[adapt_i]:
                 eval_chunk = chunks[eval_j]
                 log_logits_j = windowed_inference(eval_chunk)
                 probs_j = torch.exp(torch.as_tensor(log_logits_j)[None])
@@ -156,7 +171,7 @@ def main(args):
         expected_span = last - first + 1
         if nz_idx.numel() != expected_span:
             gap = expected_span - nz_idx.numel()
-            raise RuntimeError(f'LOO stitching has {gap} uncovered position(s) inside covered span [{first}, {last}].')
+            print(f'  WARNING: audio-disjoint LOO stitching has {gap} uncovered position(s) inside covered span [{first}, {last}]; uncovered positions are dropped before decoding.')
 
         all_logits = all_logits[nonzero_mask].reshape(1, -1, vocab_size_plus)
         logit_count = logit_count[nonzero_mask].reshape(1, -1, vocab_size_plus)
