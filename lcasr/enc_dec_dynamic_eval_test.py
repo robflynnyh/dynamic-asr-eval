@@ -73,7 +73,7 @@ def main(args):
                 model = model,
                 spec = audio_spec,
                 seq_len = args.seq_len,
-                overlap = args.overlap,
+                overlap = 0,
                 tokenizer = tokenizer,
                 use_tqdm = True
             )
