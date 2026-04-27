@@ -1,5 +1,27 @@
 # Plan: simplify within-recording LOO
 
+## Resume instructions (read me first next session)
+- Working dir: `/exp/exp4/acp21rjf/dynamic-asr-eval/lcasr`.
+- Branch: `main`. Current state has the **audio-disjoint** version of the
+  LOO runner committed-in-tree but not yet replaced by the simpler scheme
+  described below — that rewrite is the open task.
+- Key files already touched in the prior session (do not re-derive):
+  - `run_within_recording_loo_eval.py` (top-level) — currently implements
+    the overlapping-chunks + audio-disjoint variant. To be replaced per
+    "New scheme" below.
+  - `results/within_loo/README.md` — currently documents the
+    audio-disjoint variant. Needs replacement.
+  - `results/within_loo/plot_within_loo_scheme.py` — already produces
+    a merged-infer diagram (one `infer` block per side of `adapt`), which
+    matches the target scheme; minor cleanup only.
+- Thesis text in flight (lives outside this repo, in the user's thesis
+  source): paragraphs `\paragraph{Cross-Dataset and Within-Dataset}` and
+  `\paragraph{Within Recording:}` were drafted this session. NSTI is the
+  paper-side name for what the code calls `dynamic_eval`.
+- To resume, open this file, then implement the "Files to change" list in
+  order. Land it as one commit. Re-running the sweep (`tune_within_loo.sh`)
+  is out of scope for the rewrite itself.
+
 ## Goal
 Replace the current overlapping-outer-chunks + audio-disjoint exclusion
 scheme with a much simpler split-then-concat scheme, and update the

@@ -1,6 +1,6 @@
 # whole_concat_eval
 
-Whole-test-set concatenation adaptation on earnings22.
+Whole-test-set concatenation adaptation.
 
 - Launcher: `launch_scripts/tune_whole_concat_eval.sh`
 - Runner: `run_whole_concat_eval.py`
@@ -18,7 +18,7 @@ adaptation can help if the test recordings themselves were the adaptation
 data.
 
 ## Setup
-- All earnings22 test recordings → concatenate along time axis.
+- All test recordings for the selected dataset (`DATASET`, default `earnings22`) → concatenate along time axis.
 - One adapt-only pass (`adapt_on_concat_only`) for N epochs at LR `lr`.
 - Restore-and-evaluate each original recording with greedy CTC (and optional
   beam search if `-bs` is set; it is off in the launcher).
@@ -29,7 +29,7 @@ data.
 - seq=16384, overlap=adapt_overlap=14336
 
 ## Files
-`earnings22-test-whole-concat-epoch-<E>-lr-<lr_tag>_<repeat>.pkl`
+`<dataset>-test-whole-concat-epoch-<E>-lr-<lr_tag>_<repeat>.pkl`
 
 Each pickle stores `baseline`, `adapted`, `delta_wer`,
 `baseline_per_record`, `adapted_per_record`, `concat_spec_shape`,
