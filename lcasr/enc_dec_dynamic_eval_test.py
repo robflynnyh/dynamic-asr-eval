@@ -142,6 +142,8 @@ if __name__ == '__main__':
                              'teacher_ce: no RL — supervised cross-entropy on the (filtered) teacher prediction.')
     parser.add_argument('--maxrl_success_threshold', type=float, default=0.9,
                         help='Continuous-reward threshold for binarising rollouts as success/failure under --training_mode maxrl. Default 0.9 ~= error<0.1 under the calc_rewards mean.')
+    parser.add_argument('--grpo_normalize_std', action=argparse.BooleanOptionalAction, default=True,
+                        help='Normalize GRPO advantages by group reward std. Enabled by default; use --no-grpo_normalize_std to disable.')
     add_enc_dec_teacher_filter_args(parser)
     args = lib.apply_args(parser)
     main(args)

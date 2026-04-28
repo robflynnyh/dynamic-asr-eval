@@ -1402,18 +1402,22 @@ def update_grpo(
         audio_signal:torch.Tensor,
         tokenizer,
         hyps:List[str],
-        rewards:List[float]
+        rewards:List[float],
+        normalize_std:bool = True,
+        std_epsilon:float = 1e-7,
     ):
     log_probs, mask = _policy_forward(model, audio_signal, tokenizer, hyps)
 
     rewards = torch.as_tensor(rewards, dtype=torch.float32, device=log_probs.device)
     mean = rewards.mean()
-    advantage = (rewards - mean)  # / (rewards.std() + 1e-7)
+    advantage = rewards - mean
+    if normalize_std:
+        advantage = advantage / (rewards.std(unbiased=False) + std_epsilon)
     print(advantage)
 
-    per_token_loss = -log_probs * advantage.unsqueeze(-1)
-    per_token_loss = per_token_loss.masked_fill(~mask, 0)
-    loss = per_token_loss.sum() / mask.sum()
+    token_counts = mask.sum(dim=-1).clamp_min(1)
+    seq_mean_log_probs = (log_probs * mask).sum(dim=-1) / token_counts
+    loss = -(seq_mean_log_probs * advantage).mean()
     print(loss, "loss")
     return loss
 
@@ -1683,7 +1687,14 @@ def enc_dec_dynamic_eval(
                         if training_mode == 'maxrl':
                             loss = update_maxrl(model, audio_signal=audio_chunk[:num_negatives], tokenizer=tokenizer, hyps=student_rollouts_text, rewards=rewards, success_threshold=getattr(args, 'maxrl_success_threshold', 0.9))
                         else:  # 'grpo'
-                            loss = update_grpo(model, audio_signal=audio_chunk[:num_negatives], tokenizer=tokenizer, hyps=student_rollouts_text, rewards=rewards)
+                            loss = update_grpo(
+                                model,
+                                audio_signal=audio_chunk[:num_negatives],
+                                tokenizer=tokenizer,
+                                hyps=student_rollouts_text,
+                                rewards=rewards,
+                                normalize_std=getattr(args, 'grpo_normalize_std', True),
+                            )
                         if loss is not None:
                             optimizer.zero_grad()
                             loss.backward()
