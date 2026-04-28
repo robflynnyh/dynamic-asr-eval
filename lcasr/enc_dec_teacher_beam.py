@@ -21,6 +21,10 @@ def generate_enc_dec_beam(
 
     Returns a 1-D token tensor without BOS/EOS, matching the text_sequence
     convention expected by the existing teacher path.
+
+    Note: temperature follows the repository's existing enc-dec convention in
+    generate_enc_dec, where logits are multiplied by temperature. Values above
+    1.0 sharpen the distribution; values below 1.0 soften it.
     """
     if encoder_out is None:
         assert audio_signal is not None, 'Either audio_signal or encoder_out must be provided'
@@ -41,7 +45,7 @@ def generate_enc_dec_beam(
             score = score + (length_bonus * generated_len)
         return score
 
-    active_beams = [(torch.LongTensor([[bos_id]]).to(device), 0.0)]
+    active_beams = [(torch.tensor([[bos_id]], device=device, dtype=torch.long), 0.0)]
     finished_beams = []
 
     for _ in range(max_generate):
@@ -54,7 +58,7 @@ def generate_enc_dec_beam(
                 a_lengths=length,
             )["logits"]
 
-            next_log_probs = F.log_softmax(decoder_logits[0, -1, :] / temperature, dim=-1)
+            next_log_probs = F.log_softmax(decoder_logits[0, -1, :] * temperature, dim=-1)
 
             generated_len = tokens.shape[-1] - 1
             if generated_len < eos_min_length:
@@ -81,7 +85,7 @@ def generate_enc_dec_beam(
                 if next_token == eos_id:
                     finished_beams.append((tokens, next_score))
                 else:
-                    next_token_tensor = torch.LongTensor([[next_token]]).to(device)
+                    next_token_tensor = torch.tensor([[next_token]], device=device, dtype=torch.long)
                     next_tokens = torch.cat([tokens, next_token_tensor], dim=-1)
                     candidates.append((next_tokens, next_score))
 
@@ -108,9 +112,10 @@ def generate_enc_dec_beam(
 def patch_teacher_beam_generate(model, args):
     """Patch model.generate so the existing teacher path can use beam search.
 
-    The patch only intercepts deterministic teacher calls. Stochastic calls
-    (e.g. decode-agreement sampling) are passed through to the original
-    generate method.
+    The patch only intercepts deterministic teacher calls that pass
+    encoder_states, matching the pseudo-label path inside enc_dec_dynamic_eval.
+    Stochastic calls (e.g. decode-agreement sampling) and ordinary
+    model.generate calls are passed through to the original generate method.
     """
     if getattr(args, 'teacher_decode', 'greedy') != 'beam':
         return None
@@ -118,10 +123,10 @@ def patch_teacher_beam_generate(model, args):
     original_generate = model.generate
 
     def beam_generate(audio_signal, *generate_args, **generate_kwargs):
-        if generate_kwargs.get('sample', False):
+        encoder_states = generate_kwargs.get('encoder_states', None)
+        if generate_kwargs.get('sample', False) or encoder_states is None:
             return original_generate(audio_signal, *generate_args, **generate_kwargs)
 
-        encoder_states = generate_kwargs.get('encoder_states', None)
         eos_logit_margin = getattr(args, 'teacher_eos_logit_margin', None)
         if eos_logit_margin is not None:
             eos_logit_margin = float(eos_logit_margin)
