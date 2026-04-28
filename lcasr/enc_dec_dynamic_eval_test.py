@@ -134,6 +134,14 @@ if __name__ == '__main__':
     parser.add_argument('--repeats', '-r', type=int, default=1, help='Number of times to repeat the evaluation')
     parser.add_argument('--save_path', '-s', type=str, default='', help='path to save')
     parser.add_argument('--breaks', action='store_true', help='Break after first sample (for debugging)')
+    parser.add_argument('--training_mode', type=str, default='grpo',
+                        choices=['grpo', 'maxrl', 'teacher_ce'],
+                        help='Update rule for enc-dec TTA after the teacher-filter gate. '
+                             'grpo: REINFORCE-style with per-rollout reward centering (default). '
+                             'maxrl: MaxRL (Tajwar et al. 2026, arXiv:2602.02710); binarises rewards via --maxrl_success_threshold. '
+                             'teacher_ce: no RL — supervised cross-entropy on the (filtered) teacher prediction.')
+    parser.add_argument('--maxrl_success_threshold', type=float, default=0.9,
+                        help='Continuous-reward threshold for binarising rollouts as success/failure under --training_mode maxrl. Default 0.9 ~= error<0.1 under the calc_rewards mean.')
     add_enc_dec_teacher_filter_args(parser)
     args = lib.apply_args(parser)
     main(args)

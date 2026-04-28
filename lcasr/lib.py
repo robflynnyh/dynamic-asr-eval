@@ -1358,17 +1358,11 @@ def calc_rewards(ref: str, hyps: List[str]) -> List[float]:
     print(sum(rewards) / len(rewards), "avg reward")
     return rewards
 
-def update_grpo(
-        model,
-        audio_signal:torch.Tensor,
-        tokenizer,
-        hyps:List[str],
-        rewards:List[float]
-    ):
-
+def _policy_forward(model, audio_signal, tokenizer, hyps):
+    """Shared rollout forward: returns (per-rollout per-token log-prob of the
+    generated sequence, valid-token mask)."""
     batch_size = len(hyps)
     assert audio_signal.shape[0] == 1, 'Must be bsz of 1 for audio signal'
-    # audio_signal = audio_signal.repeat(batch_size, 1, 1)
     forcing_text_encodes = [torch.LongTensor(tokenizer.encode(t)).to(model.device) for t in hyps]
     forcing_text_lengths = torch.LongTensor([el.shape[0] for el in forcing_text_encodes]).to(model.device)
     forcing_text_encodes = torch.nn.utils.rnn.pad_sequence(forcing_text_encodes, batch_first=True, padding_value=0)
@@ -1382,7 +1376,7 @@ def update_grpo(
     a_hidden, a_length = enc_out['a_hidden'], enc_out['length']
     a_hidden = a_hidden.repeat(batch_size, 1, 1)
     a_length = a_length.repeat(batch_size)
-    
+
     decoder_out = model.language_model_decoder(
         tokens = forcing_text_encodes_bos,
         a_hidden = a_hidden,
@@ -1392,36 +1386,85 @@ def update_grpo(
     )
     predictions = decoder_out['logits']
 
-    if forcing_text_lengths_bos.max() == forcing_text_lengths_bos.min(): targets[:, -1] = 0
+    if forcing_text_lengths_bos.max() == forcing_text_lengths_bos.min():
+        targets[:, -1] = 0
     else:
         targets = add_eos(targets, eos_id = 0, token_lens = forcing_text_lengths_bos)
 
     mask = token_lens_to_mask(forcing_text_lengths_bos)
     targets = mark_padding(targets, mask, pad_id = 0)
-    predictions = predictions.log_softmax(-1)
+    log_probs = predictions.log_softmax(-1).gather(-1, targets.unsqueeze(-1)).squeeze(-1)
+    return log_probs, mask
 
 
-    rewards = torch.as_tensor(rewards, dtype=torch.float32, device=predictions.device)
+def update_grpo(
+        model,
+        audio_signal:torch.Tensor,
+        tokenizer,
+        hyps:List[str],
+        rewards:List[float]
+    ):
+    log_probs, mask = _policy_forward(model, audio_signal, tokenizer, hyps)
+
+    rewards = torch.as_tensor(rewards, dtype=torch.float32, device=log_probs.device)
     mean = rewards.mean()
-    std = rewards.std() 
-    
-    rewards = (rewards - mean) 
-    # / (std + 1e-7)
-    print(rewards)
-    rewards = rewards.unsqueeze(-1)
-    predictions = predictions.gather(-1, targets.unsqueeze(-1)).squeeze(-1)
+    advantage = (rewards - mean)  # / (rewards.std() + 1e-7)
+    print(advantage)
 
-    
-    per_token_loss = -predictions * rewards
-    # print(per_token_loss.shape, "per_token_loss", predictions.shape, rewards.shape, mask.shape)
-
+    per_token_loss = -log_probs * advantage.unsqueeze(-1)
     per_token_loss = per_token_loss.masked_fill(~mask, 0)
     loss = per_token_loss.sum() / mask.sum()
-
-    
-
     print(loss, "loss")
+    return loss
 
+
+def update_maxrl(
+        model,
+        audio_signal:torch.Tensor,
+        tokenizer,
+        hyps:List[str],
+        rewards:List[float],
+        success_threshold:float = 0.9,
+        epsilon:float = 1e-6,
+    ):
+    """Maximum Likelihood Reinforcement Learning (Tajwar et al. 2026,
+    arXiv:2602.02710). On-policy implementation: identical pipeline to GRPO
+    except the per-rollout advantage is
+
+        A_j = (r_j - r̄) / (r̄ + eps)        if r̄ > 0
+              skip task (return None)        otherwise
+
+    Reference: github.com/tajwarfahim/maxrl, verl/trainer/ppo/core_algos.py
+    `compute_maxrl_outcome_advantage` (line 437). The paper's explicit 1/N
+    factor folds into batch averaging.
+
+    Rewards are binarised (r_j = 1 if continuous reward >= success_threshold
+    else 0) so r̄ recovers its paper interpretation as the pass rate, and the
+    1/r̄ factor in the advantage becomes genuine inverse-probability
+    reweighting. Default threshold 0.9 corresponds to error < 0.1 under the
+    (1 - WER + 1 - CER + BLEU)/3 reward in calc_rewards."""
+    rewards_bin = torch.as_tensor(
+        [1.0 if r >= success_threshold else 0.0 for r in rewards],
+        dtype=torch.float32,
+    )
+    mean = rewards_bin.mean()
+    if mean.item() <= 0:
+        print(f'maxrl: pass rate=0 (no rollout >= {success_threshold}), skipping task')
+        return None
+    if mean.item() >= 1:
+        print(f'maxrl: pass rate=1 (all rollouts >= {success_threshold}), skipping task (zero advantage)')
+        return None
+
+    log_probs, mask = _policy_forward(model, audio_signal, tokenizer, hyps)
+    rewards_bin = rewards_bin.to(log_probs.device)
+    mean = mean.to(log_probs.device)
+    advantage = (rewards_bin - mean) / (mean + epsilon)
+    print(f'maxrl: pass rate={mean.item():.3f}, advantages={advantage.tolist()}')
+
+    per_token_loss = -log_probs * advantage.unsqueeze(-1)
+    per_token_loss = per_token_loss.masked_fill(~mask, 0)
+    loss = per_token_loss.sum() / mask.sum()
+    print(loss, "loss (maxrl)")
     return loss
  
 
@@ -1465,7 +1508,6 @@ def enc_dec_dynamic_eval(
     dropout_post_ff = args.__dict__.get('dropout_post_ff', 0.0) 
     dropout_attn = args.__dict__.get('dropout_attn', 0.0)
 
-    generate_fn = model.generate
     decoding_args = {}
     decode_fn = enc_dec_inference
 
@@ -1506,7 +1548,7 @@ def enc_dec_dynamic_eval(
 
     ctc_decoder = None
     if args.__dict__.get('teacher_filter_ctc_agreement', False):
-        ctc_decoder = GreedyCTCDecoder(tokenizer=tokenizer, blank_id=model.decoder.num_classes - 1)
+        ctc_decoder = GreedyCTCDecoder(tokenizer=tokenizer, blank_id=model.ctc_decoder.num_classes - 1)
 
     model.eval() # don't update batchrenorm
     training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
@@ -1526,14 +1568,22 @@ def enc_dec_dynamic_eval(
                 audio_chunk[:num_negatives] = augmentation(audio_chunk[:num_negatives]) # apply augmentation to 2 of the 3 copies
 
             
-                teacher_pred = torch.tensor(generate_fn(audio_chunk[-1, None])["text_sequence"], dtype=torch.long, device=model.device)
+                # One encoder forward, reused for the deterministic teacher
+                # decode and (optionally) the stochastic agreement decode.
+                with torch.no_grad():
+                    encoder_out_for_teacher = model.forward(audio_signal=audio_chunk[-1, None])
+
+                teacher_pred = torch.tensor(
+                    model.generate(audio_chunk[-1, None], encoder_states=encoder_out_for_teacher)["text_sequence"],
+                    dtype=torch.long, device=model.device,
+                )
                 teacher_pred_tokens = teacher_pred.tolist()
                 teacher_pred_text = tokenizer.decode(teacher_pred_tokens).strip()
 
                 text_lengths = torch.LongTensor([teacher_pred.shape[-1]]).to(model.device)
                 acoustic_length = torch.LongTensor([audio_chunk.shape[-1]]).to(model.device)
                 teacher_mean_max_prob, teacher_mean_entropy = None, None
-                agreement_tokens, ctc_text = None, None
+                agreement_text, ctc_text = None, None
 
                 if args.__dict__.get('teacher_filter_low_confidence', False) or args.__dict__.get('teacher_filter_ctc_agreement', False):
                     teacher_inputs = F.pad(teacher_pred[None, :], (1, 0), value=0)
@@ -1549,13 +1599,13 @@ def enc_dec_dynamic_eval(
                         ctc_text = ctc_decoder(teacher_forward_out['final_posteriors_ctc'][0].detach().cpu()).strip()
 
                 if args.__dict__.get('teacher_filter_decode_agreement', False):
-                    agreement_tokens = generate_enc_dec(
-                        model=model,
-                        audio_signal=audio_chunk[-1, None],
-                        sample=1,
-                        greedy=False,
+                    agreement_gen = model.generate(
+                        audio_chunk[-1, None],
+                        encoder_states=encoder_out_for_teacher,
+                        sample=True,
                         temperature=args.teacher_decode_agreement_temperature,
-                    )[0].squeeze(0).tolist()
+                    )
+                    agreement_text = tokenizer.decode(agreement_gen["text_sequence"]).strip()
                 
                 print(f'Teacher pred: {teacher_pred_text}')
                 skip_teacher_step, skip_reason = should_skip_faulty_teacher_prediction(
@@ -1563,7 +1613,7 @@ def enc_dec_dynamic_eval(
                     teacher_pred_tokens=teacher_pred_tokens,
                     teacher_pred_text=teacher_pred_text,
                     spec_frames=audio_chunk.shape[-1],
-                    agreement_tokens=agreement_tokens,
+                    agreement_text=agreement_text,
                     teacher_mean_max_prob=teacher_mean_max_prob,
                     teacher_mean_entropy=teacher_mean_entropy,
                     ctc_text=ctc_text,
@@ -1579,45 +1629,67 @@ def enc_dec_dynamic_eval(
                     layer[0].fn.dropout_p = dropout_attn
                     
                 model.language_model_decoder.train() # for dropout
-                model.ctc_loss_weight = 0.0
+                training_mode = getattr(args, 'training_mode', 'grpo')
 
-
-                student_rollouts = generate_enc_dec(
-                    model = model,
-                    audio_signal = audio_chunk[:num_negatives],
-                    sample=12, 
-                    greedy=False,
-                    temperature=5,
-                )[0]
-
-                student_rollouts_text = [tokenizer.decode(seq.tolist()).strip() for seq in student_rollouts]
-                
-                print(f'Student rollouts: {student_rollouts_text} \n--------------------------------\n') 
-                rewards = calc_rewards(teacher_pred_text, student_rollouts_text)
-                print(rewards)
-
-                if sum(rewards) / len(rewards) > 0.95:
-                    completed = True
-                    continue
-          
-
-                if all(r == 0.0 for r in rewards) or all(r == rewards[0] for r in rewards):
-                    print('skipping')
-                else:
-                    loss = update_grpo(model, audio_signal=audio_chunk[:num_negatives], tokenizer=tokenizer, hyps=student_rollouts_text, rewards=rewards)
+                if training_mode == 'teacher_ce':
+                    # Supervised CE on the (filter-passed) teacher prediction.
+                    # No rollouts, no rewards. Mirrors the CTC TTA path: train
+                    # on the augmented batch, repeating the teacher target.
+                    bsz = num_negatives
+                    teacher_targets = teacher_pred[None, :].repeat(bsz, 1)
+                    teacher_target_lengths = teacher_lengths.repeat(bsz)
+                    a_lengths_for_ce = acoustic_length.repeat(bsz)
+                    out = calc_loss_enc_dec(
+                        model = model,
+                        audio_signal = audio_chunk[:num_negatives],
+                        text_sequence = teacher_targets,
+                        a_lengths = a_lengths_for_ce,
+                        t_lengths = teacher_target_lengths,
+                        tokenizer = tokenizer,
+                    )
+                    loss = out['loss']
+                    print(loss, "loss (teacher_ce)")
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
-            
+                else:
+                    # RL path (grpo or maxrl): zero CTC weight so gradients
+                    # only flow through the LM head.
+                    original_ctc_loss_weight = model.ctc_loss_weight
+                    model.ctc_loss_weight = 0.0
 
-                # student_out = calc_loss_enc_dec(
-                #     model = model,
-                #     audio_signal = audio_chunk[:num_negatives], 
-                #     text_sequence = teacher_pred[None, :], 
-                #     a_lengths = acoustic_length, 
-                #     t_lengths = teacher_lengths,
-                #     tokenizer = tokenizer
-                # )
+                    student_rollouts = generate_enc_dec(
+                        model = model,
+                        audio_signal = audio_chunk[:num_negatives],
+                        sample=4,
+                        greedy=False,
+                        temperature=1.0,
+                    )[0]
+
+                    student_rollouts_text = [tokenizer.decode(seq.tolist()).strip() for seq in student_rollouts]
+
+                    print(f'Student rollouts: {student_rollouts_text} \n--------------------------------\n')
+                    rewards = calc_rewards(teacher_pred_text, student_rollouts_text)
+                    print(rewards)
+
+                    if sum(rewards) / len(rewards) > 0.95:
+                        model.ctc_loss_weight = original_ctc_loss_weight
+                        completed = True
+                        continue
+
+                    if all(r == 0.0 for r in rewards) or all(r == rewards[0] for r in rewards):
+                        print('skipping')
+                    else:
+                        if training_mode == 'maxrl':
+                            loss = update_maxrl(model, audio_signal=audio_chunk[:num_negatives], tokenizer=tokenizer, hyps=student_rollouts_text, rewards=rewards, success_threshold=getattr(args, 'maxrl_success_threshold', 0.9))
+                        else:  # 'grpo'
+                            loss = update_grpo(model, audio_signal=audio_chunk[:num_negatives], tokenizer=tokenizer, hyps=student_rollouts_text, rewards=rewards)
+                        if loss is not None:
+                            optimizer.zero_grad()
+                            loss.backward()
+                            optimizer.step()
+                    model.ctc_loss_weight = original_ctc_loss_weight
+
                 model.language_model_decoder.eval()
 
                 for layer in model.language_model_decoder.layers:

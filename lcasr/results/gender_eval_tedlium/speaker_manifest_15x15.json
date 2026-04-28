@@ -1,0 +1,117 @@
+{
+  "name": "tedlium_gender_eval_15x15_candidate_pool",
+  "notes": [
+    "Selection rule: scan train talks with span >= 8 minutes, sort by smallest max gap, then pick the best verified female candidates until the pool is full.",
+    "Female side keeps the existing three eval women and adds the 12 lowest-gap verified train women.",
+    "Male side uses the 15 lowest-gap male talks from the same ranked eligible set."
+  ],
+  "female": [
+    {
+      "talk_id": "JaneMcGonigal_2010",
+      "split": "test",
+      "max_gap_seconds": 2.11,
+      "source": "existing_eval"
+    },
+    {
+      "talk_id": "ElizabethGilbert_2009",
+      "split": "dev",
+      "max_gap_seconds": 3.89,
+      "source": "existing_eval"
+    },
+    {
+      "talk_id": "AimeeMullins_2009P",
+      "split": "test",
+      "max_gap_seconds": 8.17,
+      "source": "existing_eval"
+    },
+    {
+      "talk_id": "HelenFisher_2008",
+      "split": "train",
+      "max_gap_seconds": 11.56,
+      "source": "https://www.ted.com/speakers/helen_fisher"
+    },
+    {
+      "talk_id": "CarolinePhillips_2010G",
+      "split": "train",
+      "max_gap_seconds": 11.72,
+      "source": "https://www.ted.com/speakers/caroline_phillips"
+    },
+    {
+      "talk_id": "CarolynPorco_2009U",
+      "split": "train",
+      "max_gap_seconds": 12.04,
+      "source": "https://www.ted.com/speakers/carolyn_porco"
+    },
+    {
+      "talk_id": "LakshmiPratury_2007",
+      "split": "train",
+      "max_gap_seconds": 12.12,
+      "source": "https://www.ted.com/speakers/lakshmi_pratury"
+    },
+    {
+      "talk_id": "KarenArmstrong_2009G",
+      "split": "train",
+      "max_gap_seconds": 13.20,
+      "source": "https://www.ted.com/speakers/karen_armstrong"
+    },
+    {
+      "talk_id": "LesleyHazleton_2010X",
+      "split": "train",
+      "max_gap_seconds": 14.05,
+      "source": "https://www.ted.com/speakers/lesley_hazleton"
+    },
+    {
+      "talk_id": "MarisaFickJordan_2007G2",
+      "split": "train",
+      "max_gap_seconds": 14.42,
+      "source": "https://www.ted.com/speakers/marisa_fick_jordan"
+    },
+    {
+      "talk_id": "MichelleObama_2009P",
+      "split": "train",
+      "max_gap_seconds": 14.45,
+      "source": "https://www.ted.com/speakers/michelle_obama"
+    },
+    {
+      "talk_id": "ThelmaGolden_2009",
+      "split": "train",
+      "max_gap_seconds": 14.77,
+      "source": "https://www.ted.com/speakers/thelma_golden"
+    },
+    {
+      "talk_id": "JaneChen_2009I",
+      "split": "train",
+      "max_gap_seconds": 14.88,
+      "source": "https://www.ted.com/speakers/jane_chen"
+    },
+    {
+      "talk_id": "DiannaCohen_2010Z",
+      "split": "train",
+      "max_gap_seconds": 14.93,
+      "source": "https://www.ted.com/speakers/dianna_cohen"
+    },
+    {
+      "talk_id": "RachelSussman_2010G",
+      "split": "train",
+      "max_gap_seconds": 15.16,
+      "source": "https://www.ted.com/speakers/rachel_sussman"
+    }
+  ],
+  "male": [
+    {"talk_id": "JohnHardy_2010G", "split": "train", "max_gap_seconds": 12.23},
+    {"talk_id": "SherwinNuland_2003", "split": "train", "max_gap_seconds": 12.99},
+    {"talk_id": "OliverSacks_2009", "split": "train", "max_gap_seconds": 13.80},
+    {"talk_id": "FeisalAbdulRauf_2009P", "split": "train", "max_gap_seconds": 13.81},
+    {"talk_id": "RickWarren_2006", "split": "train", "max_gap_seconds": 14.25},
+    {"talk_id": "MarcPachter_2008P", "split": "train", "max_gap_seconds": 14.59},
+    {"talk_id": "MurrayGellMann_2007", "split": "train", "max_gap_seconds": 14.64},
+    {"talk_id": "ReedKroloff_2003", "split": "train", "max_gap_seconds": 14.71},
+    {"talk_id": "WillieSmits_2009", "split": "train", "max_gap_seconds": 14.75},
+    {"talk_id": "DimitarSasselov_2010G", "split": "train", "max_gap_seconds": 14.96},
+    {"talk_id": "DenisDutton_2010", "split": "train", "max_gap_seconds": 15.03},
+    {"talk_id": "LewisPugh_2010G", "split": "train", "max_gap_seconds": 15.27},
+    {"talk_id": "DavidBolinsky_2007", "split": "train", "max_gap_seconds": 15.57},
+    {"talk_id": "AnthonyAtala_2009P", "split": "train", "max_gap_seconds": 15.73},
+    {"talk_id": "RichardDawkins_2005G", "split": "train", "max_gap_seconds": 15.74}
+  ]
+}

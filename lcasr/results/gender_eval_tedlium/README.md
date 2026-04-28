@@ -4,15 +4,22 @@ Cross-speaker-gender dynamic evaluation on TEDLIUM.
 
 - Launcher: `launch_scripts/eval_genders.sh`
 - Runner: `run_cross_speaker_gender_tedlium.py`
+- Speaker manifest: `speaker_manifest_15x15.json`
 
 ## Question
 Does test-time adaptation (dynamic eval) on a speaker generalise to other
 speakers of the same gender, and how does it transfer across gender?
 
 ## Setup
-6 TEDLIUM recordings (test+dev) split by speaker gender:
-- Male: `BillGates_2010`, `DanielKahneman_2010`, `TomWujec_2010U`
-- Female: `AimeeMullins_2009P`, `JaneMcGonigal_2010`, `ElizabethGilbert_2009`
+Expanded TEDLIUM speaker pool selected from the train set by:
+1. keeping the existing eval women,
+2. scanning train talks with transcript span >= 8 minutes,
+3. sorting by smallest max transcript gap,
+4. taking the first verified female talks until the pool is full.
+
+The current manifest contains:
+- 15 female talks
+- 15 male talks
 
 For each speaker we adapt the model on that recording (`-seq 16384 -o 14336`),
 then evaluate the updated model on:
@@ -36,6 +43,10 @@ Each pickle stores per-repeat dicts with:
 - `args_dict` — full launch arguments
 
 `logs/` holds the corresponding stdout from each run.
+
+## Notes
+- The manifest is the source of truth for speaker membership and gender.
+- Existing legacy 6-speaker runs are still in the repo, but they are not the current selection.
 
 ## Headline numbers (from `experiment_outcomes.txt`, lr=9e-6)
 - Baselines: male 0.0701, female 0.0409

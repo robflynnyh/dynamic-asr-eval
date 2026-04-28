@@ -1,6 +1,8 @@
 from difflib import SequenceMatcher
 import re
 
+from lcasr.eval.wer import word_error_rate_detail
+
 
 def add_enc_dec_teacher_filter_args(parser):
     parser.add_argument(
@@ -106,6 +108,16 @@ def _sequence_similarity(first, second):
     return SequenceMatcher(a=list(first), b=list(second)).ratio()
 
 
+def _text_cer_similarity(hyp_text, ref_text):
+    """1 - CER as similarity in [0, 1]. Tokenizer-invariant."""
+    if not hyp_text and not ref_text:
+        return 1.0
+    if not hyp_text or not ref_text:
+        return 0.0
+    cer = word_error_rate_detail([hyp_text], [ref_text], use_cer=True)[0]
+    return max(0.0, 1.0 - cer)
+
+
 def _word_sequence(text):
     return re.findall(r"[a-z0-9']+", text.lower())
 
@@ -157,7 +169,7 @@ def should_skip_faulty_teacher_prediction(
         teacher_pred_tokens,
         teacher_pred_text,
         spec_frames,
-        agreement_tokens=None,
+        agreement_text=None,
         teacher_mean_max_prob=None,
         teacher_mean_entropy=None,
         ctc_text=None,
@@ -195,12 +207,12 @@ def should_skip_faulty_teacher_prediction(
                     f'teacher token {ngram_size}-gram {list(ngram)} repeated {repeat_count} times consecutively'
                 )
 
-    if args.__dict__.get('teacher_filter_decode_agreement', False) and agreement_tokens is not None:
+    if args.__dict__.get('teacher_filter_decode_agreement', False) and agreement_text is not None:
         min_similarity = args.__dict__.get('teacher_decode_agreement_min_similarity', 0.65)
-        similarity = _sequence_similarity(teacher_pred_tokens, agreement_tokens)
+        similarity = _text_cer_similarity(agreement_text, teacher_pred_text)
         if similarity < min_similarity:
             return True, (
-                f'teacher decode agreement too low ({similarity:.2f} < {min_similarity:.2f})'
+                f'teacher decode agreement too low (1-CER={similarity:.2f} < {min_similarity:.2f})'
             )
 
     if args.__dict__.get('teacher_filter_low_confidence', False):

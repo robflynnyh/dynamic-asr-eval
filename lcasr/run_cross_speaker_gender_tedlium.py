@@ -18,20 +18,33 @@ from lib import dynamic_eval, AWMC
 
 from tedlium.run import get_text_and_audio as get_text_and_audio_tedlium
 
+DEFAULT_SPEAKER_MANIFEST = os.path.join(
+    os.path.dirname(__file__),
+    "results",
+    "gender_eval_tedlium",
+    "speaker_manifest_15x15.json",
+)
+
 datasets_functions = {'tedlium': get_text_and_audio_tedlium}
-speaker_gender = {
-    "AimeeMullins_2009P.sph": "F",
-    "JaneMcGonigal_2010.sph": "F",
-    "ElizabethGilbert_2009.sph": "F",
-    "BillGates_2010.sph": "M",
-    "DanielKahneman_2010.sph": "M",
-    "TomWujec_2010U.sph": "M",
-}
+
+
+def load_speaker_manifest(path: str):
+    with open(path, 'r') as f:
+        manifest = json.load(f)
+    speaker_gender = {}
+    for row in manifest['female']:
+        speaker_gender[row['talk_id'] + '.sph'] = 'F'
+    for row in manifest['male']:
+        speaker_gender[row['talk_id'] + '.sph'] = 'M'
+    return manifest, speaker_gender
 
 
 def main(args):
-    assert args.split in ['test', 'dev'], f'Split must be either test or dev (got {args.split})'
+    assert args.split in ['test', 'dev', 'train'], f'Split must be either test, dev, or train (got {args.split})'
     if args.dataset == 'rev16': assert args.split == 'test', 'Split must be test for rev16'
+
+    speaker_manifest, speaker_gender = load_speaker_manifest(args.speaker_manifest)
+    print(f"Loaded speaker manifest from {args.speaker_manifest}: {len(speaker_manifest['female'])} female, {len(speaker_manifest['male'])} male")
     
     checkpoint = torch.load(args.checkpoint, map_location='cpu', weights_only=False)
     model_config = checkpoint['config']
@@ -54,14 +67,15 @@ def main(args):
 
     test = datasets_functions["tedlium"]("test")
     dev = datasets_functions["tedlium"]("dev")
+    train = datasets_functions["tedlium"]("train")
    
-    all_data = test + dev 
+    all_data = test + dev + train
 
-    eval_data = [rec for rec in all_data if rec['id'].split('/')[-1] in speaker_gender.keys()]
-    males = [rec for rec in eval_data if speaker_gender[rec['id'].split('/')[-1]] == "M"]
-    females = [rec for rec in eval_data if speaker_gender[rec['id'].split('/')[-1]] == "F"]
-    print(f'Female data: {[el["id"] for el in females]}')
-    print(f'Male data: {[el["id"] for el in males]}')
+    eval_data = [rec for rec in all_data if os.path.basename(rec['id']) in speaker_gender]
+    males = [rec for rec in eval_data if speaker_gender[os.path.basename(rec['id'])] == "M"]
+    females = [rec for rec in eval_data if speaker_gender[os.path.basename(rec['id'])] == "F"]
+    print(f'Female data: {[os.path.basename(el["id"]) for el in females]}')
+    print(f'Male data: {[os.path.basename(el["id"]) for el in males]}')
     assert len(females) + len(males) == len(eval_data), "Data filtered incorrectly"
 
     print(f'Total data: {len(eval_data)}')
@@ -295,6 +309,7 @@ if __name__ == '__main__':
     parser.add_argument('--repeats', '-r', type=int, default=1, help='Number of times to repeat the evaluation')
     parser.add_argument('--save_path', '-s', type=str, default='', help='path to save')
     parser.add_argument('--adapt_overlap', '-ao', type=int, default=None, help='Overlap used during adaptation passes only. If unset, adaptation uses --overlap (current behavior).')
+    parser.add_argument('--speaker_manifest', type=str, default=DEFAULT_SPEAKER_MANIFEST, help='Path to the gender selection manifest')
 
     args = lib.apply_args(parser)
     args.dataset = 'tedlium'
