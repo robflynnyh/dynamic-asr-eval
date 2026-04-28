@@ -16,6 +16,7 @@ import os.path
 import lib
 from lib import enc_dec_dynamic_eval
 from enc_dec_teacher_filters import add_enc_dec_teacher_filter_args
+from enc_dec_teacher_beam import patch_teacher_beam_generate
 
 from earnings22.run import get_text_and_audio as get_text_and_audio_earnings22
 from chime6.run import get_text_and_audio as get_text_and_audio_chime6
@@ -51,6 +52,14 @@ def main(args):
     model.device = device
     model = model.to(device)
     model.eval()
+
+    original_generate = patch_teacher_beam_generate(model, args)
+    if original_generate is not None:
+        print(
+            'Using encoder-decoder beam search for teacher pseudo-labels '
+            f'(beam={args.teacher_beam_width}, length_penalty={args.teacher_length_penalty}, '
+            f'length_bonus={args.teacher_length_bonus}, eos_min_length={args.teacher_eos_min_length})'
+        )
 
     data = datasets_functions[args.dataset](args.split)
 
@@ -144,6 +153,22 @@ if __name__ == '__main__':
                         help='Continuous-reward threshold for binarising rollouts as success/failure under --training_mode maxrl. Default 0.9 ~= error<0.1 under the calc_rewards mean.')
     parser.add_argument('--grpo_normalize_std', action=argparse.BooleanOptionalAction, default=True,
                         help='Normalize GRPO advantages by group reward std. Enabled by default; use --no-grpo_normalize_std to disable.')
+    parser.add_argument('--teacher_decode', type=str, default='greedy', choices=['greedy', 'beam'],
+                        help='Teacher pseudo-label decoding mode for encoder-decoder dynamic eval. Default keeps the previous greedy model.generate path.')
+    parser.add_argument('--teacher_beam_width', type=int, default=4,
+                        help='Beam width used when --teacher_decode beam.')
+    parser.add_argument('--teacher_max_generate', type=int, default=256,
+                        help='Maximum number of teacher tokens generated when --teacher_decode beam.')
+    parser.add_argument('--teacher_length_penalty', type=float, default=0.0,
+                        help='Length-normalisation exponent for teacher beam scores. 0 disables length normalisation.')
+    parser.add_argument('--teacher_length_bonus', type=float, default=0.0,
+                        help='Additive per-token bonus for teacher beam scores. Useful for discouraging early EOS.')
+    parser.add_argument('--teacher_eos_min_length', type=int, default=0,
+                        help='Minimum generated token count before EOS is allowed in teacher beam search.')
+    parser.add_argument('--teacher_eos_logit_margin', type=float, default=None,
+                        help='If set, EOS is only allowed when its log-prob is within this margin of the best non-EOS token.')
+    parser.add_argument('--teacher_beam_temperature', type=float, default=1.0,
+                        help='Temperature applied to teacher beam-search logits before log-softmax.')
     add_enc_dec_teacher_filter_args(parser)
     args = lib.apply_args(parser)
     main(args)
