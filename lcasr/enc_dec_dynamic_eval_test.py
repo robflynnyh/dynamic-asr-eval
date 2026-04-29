@@ -135,11 +135,13 @@ if __name__ == '__main__':
     parser.add_argument('--save_path', '-s', type=str, default='', help='path to save')
     parser.add_argument('--breaks', action='store_true', help='Break after first sample (for debugging)')
     parser.add_argument('--training_mode', type=str, default='grpo',
-                        choices=['grpo', 'maxrl', 'teacher_ce'],
+                        choices=['grpo', 'maxrl', 'teacher_ce', 'ctc_aux', 'adaptive_ce_ctc_aux'],
                         help='Update rule for enc-dec TTA after the teacher-filter gate. '
                              'grpo: REINFORCE-style with per-rollout reward centering (default). '
                              'maxrl: MaxRL (Tajwar et al. 2026, arXiv:2602.02710); binarises rewards via --maxrl_success_threshold. '
-                             'teacher_ce: no RL — supervised cross-entropy on the (filtered) teacher prediction.')
+                             'teacher_ce: no RL — supervised cross-entropy on the (filtered) teacher prediction. '
+                             'ctc_aux: no RL/LM CE — CTC-only auxiliary update on the encoder-decoder CTC branch. '
+                             'adaptive_ce_ctc_aux: use teacher_ce when sampled decode agreement is high, otherwise ctc_aux.')
     parser.add_argument('--maxrl_success_threshold', type=float, default=0.9,
                         help='Continuous-reward threshold for binarising rollouts as success/failure under --training_mode maxrl. Default 0.9 ~= error<0.1 under the calc_rewards mean.')
     parser.add_argument('--grpo_normalize_std', action=argparse.BooleanOptionalAction, default=True,

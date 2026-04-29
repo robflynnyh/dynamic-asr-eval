@@ -81,9 +81,12 @@ def main():
                 continue
             r = parsed[(e, lr_tag)]
             va = "bottom" if v >= 0 else "top"
+            # Clip text position so it doesn't cause tight_layout issues
+            # and remains visible at the edge of the plot if it diverged.
+            text_y = max(min(v, 24.5), -4.5)
             ax.text(
                 b.get_x() + b.get_width() / 2,
-                v,
+                text_y,
                 f"{r['adapted']['wer'] * 100:.1f}%",
                 ha="center",
                 va=va,
@@ -100,6 +103,7 @@ def main():
     ax.spines["right"].set_visible(False)
     ax.yaxis.grid(True, linestyle=":", alpha=0.5)
     ax.set_axisbelow(True)
+    ax.set_ylim(-5, 25) # Prevent diverged runs from ruining the scale
     title_lrs = ", ".join(f"lr={lr}" for lr in args.lrs)
     ax.set_title(f"Whole-concat adapt-only (earnings22 test, {title_lrs})", fontsize=10)
 

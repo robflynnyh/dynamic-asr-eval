@@ -32,7 +32,7 @@ except ImportError:
     FusedLayerNorm = None
 from lcasr.components.batchrenorm import BatchRenorm1d
 import time
-from enc_dec_teacher_filters import should_skip_faulty_teacher_prediction
+from enc_dec_teacher_filters import should_skip_faulty_teacher_prediction, _text_cer_similarity
 
 def load_beamsearch(
         path:str,
@@ -185,6 +185,19 @@ def freeze_all_but_last_block_and_head(model):
         param.requires_grad = True
 
     print(f'Training only last block: layers.{len(model.layers) - 1} and CTC head')
+    return model
+
+
+def freeze_language_model_decoder(model):
+    decoder = getattr(model, 'language_model_decoder', None)
+    if decoder is None:
+        print('No language_model_decoder module found to freeze')
+        return model
+
+    for param in decoder.parameters():
+        param.requires_grad = False
+
+    print(f'Freezing decoder: {decoder.__class__.__name__}')
     return model
 
 
@@ -1108,67 +1121,6 @@ def dynamic_eval_consistency_ctc_loss(
 
 #     return logits.squeeze(0).numpy() if not return_params else (logits.squeeze(0).numpy(), updated_model_params)
 
-
-def enc_dec_inference(
-        model:nn.Module,
-        spec:int,
-        seq_len:int,
-        overlap:int,
-        tokenizer,
-        use_tqdm:bool=True,
-    ):
-    assert overlap == 0, 'Overlap not implemented for encoder-decoder model (yet)'
-    training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
-    training_keys_idx = [i for i in range(len(training_keys))]
-    output_sequences = [None] * len(training_keys)
-    pbar = tqdm(training_keys_idx) if use_tqdm else training_keys_idx
- 
-    for idx in pbar:
-        audio_chunk = training_data[training_keys[idx]].to(model.device)
-        with torch.no_grad(): output = generate_enc_dec(model, audio_chunk)[0]
-        text = tokenizer.decode(output.squeeze().tolist()).strip()
-        print(f'Generated text: {text}')
-        output_sequences[idx] = text
-
-    transcript = " ".join(output_sequences).replace('  ', ' ').strip()
-    return transcript
-
-def enc_dec_ctc_beamsearch_inference(
-        model:nn.Module,
-        spec:int,
-        seq_len:int,
-        overlap:int,
-        tokenizer,
-        alpha:float = 0.45,
-        beta:float = 1.53,
-        prune_less_than_val:float=3.17,
-        use_tqdm:bool=True,
-        beam_width:int=10,
-    ):
-    assert overlap == 0, 'Overlap not implemented for encoder-decoder model (yet)'
-    training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
-    training_keys_idx = [i for i in range(len(training_keys))]
-    output_sequences = [None] * len(training_keys)
-    pbar = tqdm(training_keys_idx) if use_tqdm else training_keys_idx
- 
-    for idx in pbar:
-        audio_chunk = training_data[training_keys[idx]].to(model.device)
-        with torch.no_grad(): text = model.ctc_beam_search(
-            audio_signal = audio_chunk,
-            tokenizer = tokenizer,
-            alpha = alpha,
-            beta = beta,
-            prune_less_than_val = prune_less_than_val,
-            beam_width = beam_width,
-        ).strip()
-            
-        print(f'Generated text: {text}')
-        output_sequences[idx] = text
-
-    transcript = " ".join(output_sequences).replace('  ', ' ').strip()
-    return transcript
-
-
 @torch.no_grad()
 def generate_enc_dec(
         model, 
@@ -1224,6 +1176,111 @@ def generate_enc_dec(
     text_lengths -= 1
     
     return text_sequence, encoder_out, text_lengths
+
+def enc_dec_inference(
+        model:nn.Module,
+        spec:int,
+        seq_len:int,
+        overlap:int,
+        tokenizer,
+        use_tqdm:bool=True,
+    ):
+    assert overlap == 0, 'Overlap not implemented for encoder-decoder model (yet)'
+    training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
+    training_keys_idx = [i for i in range(len(training_keys))]
+    output_sequences = [None] * len(training_keys)
+    pbar = tqdm(training_keys_idx) if use_tqdm else training_keys_idx
+ 
+    for idx in pbar:
+        audio_chunk = training_data[training_keys[idx]].to(model.device)
+        print('---HERE')
+        with torch.no_grad(): output = generate_enc_dec(model, audio_chunk)[0][0].cpu().tolist()
+        print(output)
+        text = tokenizer.decode(output).strip()
+        print(f'Generated text: {text}')
+        output_sequences[idx] = text
+
+    transcript = " ".join(output_sequences).replace('  ', ' ').strip()
+    return transcript
+
+def enc_dec_beamsearch_inference(
+        model:nn.Module,
+        spec:int,
+        seq_len:int,
+        overlap:int,
+        tokenizer,
+        use_tqdm:bool=True,
+        beam_width:int=5,
+        length_penalty:float=0.0,
+        eos_bias:float=0.0,
+        repetition_penalty:float=0.0,
+        no_repeat_ngram_size:int=0,
+        max_generate:int=-1,
+    ):
+    assert overlap == 0, 'Overlap not implemented for encoder-decoder model (yet)'
+    training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
+    training_keys_idx = [i for i in range(len(training_keys))]
+    output_sequences = [None] * len(training_keys)
+    pbar = tqdm(training_keys_idx) if use_tqdm else training_keys_idx
+ 
+    for idx in pbar:
+        audio_chunk = training_data[training_keys[idx]].to(model.device)
+        with torch.no_grad():
+            generate_kwargs = {
+                'audio_signal': audio_chunk,
+                'beam_width': beam_width,
+                'length_penalty': length_penalty,
+                'eos_bias': eos_bias,
+                'repetition_penalty': repetition_penalty,
+                'no_repeat_ngram_size': no_repeat_ngram_size,
+            }
+            if max_generate > 0:
+                generate_kwargs['max_generate'] = max_generate
+            output = model.generate(
+                **generate_kwargs,
+            )['text_sequence'][0]
+        text = tokenizer.decode(output).strip()
+        print(f'Generated text: {text}')
+        output_sequences[idx] = text
+
+    transcript = " ".join(output_sequences).replace('  ', ' ').strip()
+    return transcript
+
+def enc_dec_ctc_beamsearch_inference(
+        model:nn.Module,
+        spec:int,
+        seq_len:int,
+        overlap:int,
+        tokenizer,
+        alpha:float = 0.45,
+        beta:float = 1.53,
+        prune_less_than_val:float=3.17,
+        use_tqdm:bool=True,
+        beam_width:int=10,
+    ):
+    assert overlap == 0, 'Overlap not implemented for encoder-decoder model (yet)'
+    training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
+    training_keys_idx = [i for i in range(len(training_keys))]
+    output_sequences = [None] * len(training_keys)
+    pbar = tqdm(training_keys_idx) if use_tqdm else training_keys_idx
+ 
+    for idx in pbar:
+        audio_chunk = training_data[training_keys[idx]].to(model.device)
+        with torch.no_grad(): text = model.ctc_beam_search(
+            audio_signal = audio_chunk,
+            tokenizer = tokenizer,
+            alpha = alpha,
+            beta = beta,
+            prune_less_than_val = prune_less_than_val,
+            beam_width = beam_width,
+        ).strip()
+            
+        print(f'Generated text: {text}')
+        output_sequences[idx] = text
+
+    transcript = " ".join(output_sequences).replace('  ', ' ').strip()
+    return transcript
+
 
 def calc_loss_enc_dec(
         model,
@@ -1320,6 +1377,40 @@ def calc_loss_enc_dec(
         'lm_posteriors': lm_out,
         'length': a_length_out,
     }
+
+
+def calc_ctc_aux_enc_dec_loss(
+        model,
+        audio_signal,
+        text_sequence,
+        t_lengths,
+        blank_id=None,
+        bos_id=0,
+    ):
+    """CTC-only auxiliary update for encoder-decoder models.
+
+    The decoder input is supplied only because this model's forward path returns
+    the CTC branch alongside LM outputs. The loss depends only on
+    final_posteriors_ctc.
+    """
+    text_sequence_bos = F.pad(text_sequence, (1, 0), value=bos_id)
+    a_lengths = torch.LongTensor([audio_signal.shape[-1]] * audio_signal.shape[0]).to(audio_signal.device)
+    out = model.forward(audio_signal, text_sequence_bos, a_lengths)
+    ctc_out, a_length_out = out['final_posteriors_ctc'], out['length']
+    blank_id = ctc_out.shape[-1] - 1 if blank_id is None else blank_id
+
+    loss = F.ctc_loss(
+        log_probs=rearrange(ctc_out, 'b n c -> n b c'),
+        targets=text_sequence,
+        input_lengths=a_length_out,
+        target_lengths=t_lengths,
+        reduction='sum',
+        blank=blank_id,
+        zero_infinity=True,
+    )
+    loss = loss / (ctc_out.shape[0] * ctc_out.shape[1])
+    print(loss, "loss (ctc_aux)")
+    return loss
         
 def get_ema_from_args(args):
     ema_args = {k.replace('ema_', ''):v for k,v in args.__dict__.items() if k.startswith('ema_')}
@@ -1512,8 +1603,19 @@ def enc_dec_dynamic_eval(
     dropout_post_ff = args.__dict__.get('dropout_post_ff', 0.0) 
     dropout_attn = args.__dict__.get('dropout_attn', 0.0)
 
+    enc_dec_beam_width = args.__dict__.get('enc_dec_beam_width', 1)
     decoding_args = {}
     decode_fn = enc_dec_inference
+    if enc_dec_beam_width > 1:
+        decode_fn = enc_dec_beamsearch_inference
+        decoding_args = {
+            'beam_width': enc_dec_beam_width,
+            'length_penalty': args.__dict__.get('enc_dec_length_penalty', 0.0),
+            'eos_bias': args.__dict__.get('enc_dec_eos_bias', 0.0),
+            'repetition_penalty': args.__dict__.get('enc_dec_repetition_penalty', 0.0),
+            'no_repeat_ngram_size': args.__dict__.get('enc_dec_no_repeat_ngram_size', 0),
+            'max_generate': args.__dict__.get('enc_dec_max_generate', -1),
+        }
 
 
     model.language_model_decoder.dropout_emb = dropout_emb
@@ -1533,6 +1635,10 @@ def enc_dec_dynamic_eval(
         for param in module.parameters():
             param.requires_grad = False
         print(f'Freezing {module}')
+
+    freeze_decoder = args.__dict__.get('freeze_decoder', False)
+    if freeze_decoder:
+        model = freeze_language_model_decoder(model)
 
     optimizer = optim(model.parameters(), **lr_args)
 
@@ -1578,7 +1684,7 @@ def enc_dec_dynamic_eval(
                     encoder_out_for_teacher = model.forward(audio_signal=audio_chunk[-1, None])
 
                 teacher_pred = torch.tensor(
-                    model.generate(audio_chunk[-1, None], encoder_states=encoder_out_for_teacher)["text_sequence"],
+                    model.generate(audio_chunk[-1, None], encoder_states=encoder_out_for_teacher)["text_sequence"][0],
                     dtype=torch.long, device=model.device,
                 )
                 teacher_pred_tokens = teacher_pred.tolist()
@@ -1588,6 +1694,8 @@ def enc_dec_dynamic_eval(
                 acoustic_length = torch.LongTensor([audio_chunk.shape[-1]]).to(model.device)
                 teacher_mean_max_prob, teacher_mean_entropy = None, None
                 agreement_text, ctc_text = None, None
+                training_mode = getattr(args, 'training_mode', 'grpo')
+                adaptive_ce_ctc = training_mode == 'adaptive_ce_ctc_aux'
 
                 if args.__dict__.get('teacher_filter_low_confidence', False) or args.__dict__.get('teacher_filter_ctc_agreement', False):
                     teacher_inputs = F.pad(teacher_pred[None, :], (1, 0), value=0)
@@ -1602,14 +1710,14 @@ def enc_dec_dynamic_eval(
                     if args.__dict__.get('teacher_filter_ctc_agreement', False) and ctc_decoder is not None:
                         ctc_text = ctc_decoder(teacher_forward_out['final_posteriors_ctc'][0].detach().cpu()).strip()
 
-                if args.__dict__.get('teacher_filter_decode_agreement', False):
+                if args.__dict__.get('teacher_filter_decode_agreement', False) or adaptive_ce_ctc:
                     agreement_gen = model.generate(
                         audio_chunk[-1, None],
                         encoder_states=encoder_out_for_teacher,
                         sample=True,
                         temperature=args.teacher_decode_agreement_temperature,
                     )
-                    agreement_text = tokenizer.decode(agreement_gen["text_sequence"]).strip()
+                    agreement_text = tokenizer.decode(agreement_gen["text_sequence"][0]).strip()
                 
                 print(f'Teacher pred: {teacher_pred_text}')
                 skip_teacher_step, skip_reason = should_skip_faulty_teacher_prediction(
@@ -1632,10 +1740,22 @@ def enc_dec_dynamic_eval(
                 for layer in model.language_model_decoder.layers:
                     layer[0].fn.dropout_p = dropout_attn
                     
-                model.language_model_decoder.train() # for dropout
-                training_mode = getattr(args, 'training_mode', 'grpo')
+                if not freeze_decoder:
+                    model.language_model_decoder.train() # for dropout
+                effective_training_mode = training_mode
+                if adaptive_ce_ctc:
+                    min_similarity = args.__dict__.get('teacher_decode_agreement_min_similarity', 0.65)
+                    agreement_similarity = _text_cer_similarity(agreement_text, teacher_pred_text)
+                    if agreement_similarity >= min_similarity:
+                        effective_training_mode = 'teacher_ce'
+                    else:
+                        effective_training_mode = 'ctc_aux'
+                    print(
+                        f'adaptive_ce_ctc_aux: decode agreement 1-CER={agreement_similarity:.2f} '
+                        f'(threshold={min_similarity:.2f}); using {effective_training_mode}'
+                    )
 
-                if training_mode == 'teacher_ce':
+                if effective_training_mode == 'teacher_ce':
                     # Supervised CE on the (filter-passed) teacher prediction.
                     # No rollouts, no rewards. Mirrors the CTC TTA path: train
                     # on the augmented batch, repeating the teacher target.
@@ -1656,21 +1776,34 @@ def enc_dec_dynamic_eval(
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
+                elif effective_training_mode == 'ctc_aux':
+                    bsz = num_negatives
+                    teacher_targets = teacher_pred[None, :].repeat(bsz, 1)
+                    teacher_target_lengths = teacher_lengths.repeat(bsz)
+                    loss = calc_ctc_aux_enc_dec_loss(
+                        model=model,
+                        audio_signal=audio_chunk[:num_negatives],
+                        text_sequence=teacher_targets,
+                        t_lengths=teacher_target_lengths,
+                        blank_id=model.ctc_decoder.num_classes - 1,
+                    )
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
                 else:
                     # RL path (grpo or maxrl): zero CTC weight so gradients
                     # only flow through the LM head.
                     original_ctc_loss_weight = model.ctc_loss_weight
                     model.ctc_loss_weight = 0.0
 
-                    student_rollouts = generate_enc_dec(
-                        model = model,
+                    student_rollouts = model.generate(
                         audio_signal = audio_chunk[:num_negatives],
-                        sample=4,
-                        greedy=False,
-                        temperature=1.0,
-                    )[0]
+                        num_rollouts = 4,
+                        sample = True,
+                        temperature = 1.0,
+                    )['text_sequence']
 
-                    student_rollouts_text = [tokenizer.decode(seq.tolist()).strip() for seq in student_rollouts]
+                    student_rollouts_text = [tokenizer.decode(seq).strip() for seq in student_rollouts]
 
                     print(f'Student rollouts: {student_rollouts_text} \n--------------------------------\n')
                     rewards = calc_rewards(teacher_pred_text, student_rollouts_text)
@@ -1684,7 +1817,7 @@ def enc_dec_dynamic_eval(
                     if all(r == 0.0 for r in rewards) or all(r == rewards[0] for r in rewards):
                         print('skipping')
                     else:
-                        if training_mode == 'maxrl':
+                        if effective_training_mode == 'maxrl':
                             loss = update_maxrl(model, audio_signal=audio_chunk[:num_negatives], tokenizer=tokenizer, hyps=student_rollouts_text, rewards=rewards, success_threshold=getattr(args, 'maxrl_success_threshold', 0.9))
                         else:  # 'grpo'
                             loss = update_grpo(
@@ -1770,7 +1903,14 @@ def apply_args(parser):
     parser.add_argument('--consistency', '--consistency', action='store_true', help='Use consistency training')
     parser.add_argument('--freeze_subsampling', action='store_true', help='Freeze subsampling layers during test-time adaptation')
     parser.add_argument('--freeze_all_but_last_block_and_head', action='store_true', help='Freeze all params except the last encoder block and CTC head during test-time adaptation')
+    parser.add_argument('--freeze_decoder', action='store_true', help='Freeze the encoder-decoder language_model_decoder during test-time adaptation')
     parser.add_argument('--train_subsampling_only', action='store_true', help='Train only the subsampling module during test-time adaptation')
+    parser.add_argument('--enc_dec_beam_width', type=int, default=1, help='Autoregressive encoder-decoder beam width for final decoding')
+    parser.add_argument('--enc_dec_length_penalty', type=float, default=0.0, help='Length penalty for autoregressive encoder-decoder beam search')
+    parser.add_argument('--enc_dec_eos_bias', type=float, default=0.0, help='EOS log-prob bias for autoregressive encoder-decoder beam search')
+    parser.add_argument('--enc_dec_repetition_penalty', type=float, default=0.0, help='Penalty subtracted from already-generated token log-probs during encoder-decoder beam search')
+    parser.add_argument('--enc_dec_no_repeat_ngram_size', type=int, default=0, help='Block repeated ngrams of this size during encoder-decoder beam search')
+    parser.add_argument('--enc_dec_max_generate', type=int, default=-1, help='Optional max generated tokens per chunk for encoder-decoder beam search')
 
     args = parser.parse_args()
 

@@ -4,7 +4,6 @@ from typing import Tuple
 from lcasr.utils.audio_tools import processing_chain
 from lcasr.eval.utils import fetch_logits, decode_beams_lm
 from lcasr.utils.general import load_model, get_model_class
-from pyctcdecode import build_ctcdecoder
 from lcasr.eval.wer import word_error_rate_detail 
 #from lcasr.eval.dynamic_eval import dynamic_eval
 from whisper.normalizers import EnglishTextNormalizer
@@ -16,6 +15,7 @@ import os.path
 
 import lib
 from lib import enc_dec_inference
+from lib import enc_dec_beamsearch_inference
 from lib import enc_dec_ctc_beamsearch_inference
 
 from earnings22.run import get_text_and_audio as get_text_and_audio_earnings22
@@ -32,6 +32,7 @@ datasets_functions = {
 
 decoding_modes = {
     'default': enc_dec_inference,
+    'beam': enc_dec_beamsearch_inference,
     'joint': enc_dec_ctc_beamsearch_inference
 }
 
@@ -39,7 +40,7 @@ def main(args):
     assert args.split in ['test', 'dev'], f'Split must be either test or dev (got {args.split})'
     if args.dataset == 'rev16': assert args.split == 'test', 'Split must be test for rev16'
     
-    checkpoint = torch.load(args.checkpoint, map_location='cpu')
+    checkpoint = torch.load(args.checkpoint, map_location='cpu', weights_only=False)
     model_config = checkpoint['config']
     args.config = model_config
 
@@ -58,7 +59,19 @@ def main(args):
 
     data = datasets_functions[args.dataset](args.split)
 
-    decoding_args = {'alpha':args.alpha,'beta':args.beta,} if args.decoding_mode == "joint" else {}
+    if args.decoding_mode == "joint":
+        decoding_args = {'alpha': args.alpha, 'beta': args.beta, 'beam_width': args.beam_width}
+    elif args.decoding_mode == "beam":
+        decoding_args = {
+            'beam_width': args.enc_dec_beam_width,
+            'length_penalty': args.enc_dec_length_penalty,
+            'eos_bias': args.enc_dec_eos_bias,
+            'repetition_penalty': args.enc_dec_repetition_penalty,
+            'no_repeat_ngram_size': args.enc_dec_no_repeat_ngram_size,
+            'max_generate': args.enc_dec_max_generate,
+        }
+    else:
+        decoding_args = {}
 
     all_texts, all_golds = [],[]
   
@@ -125,9 +138,9 @@ if __name__ == '__main__':
     parser.add_argument('--save_path', '-s', type=str, default='', help='path to save')
     parser.add_argument('-alpha', type=float, default=0.816, help='LM weight')
     parser.add_argument('-beta', type=float, default=1.11, help='non-blank bonus')
+    parser.add_argument('--beam_width', type=int, default=10, help='CTC/joint beam width')
     args = lib.apply_args(parser)
     main(args)
     
 
 #python run.py -d earnings22 -r 3 -dfa -epochs 5 -kwargs optim_lr=0.00009 spec_augment_freq_mask_param=34 spec_augment_min_p=0.1879883950862319 spec_augment_n_time_masks=0 spec_augment_n_freq_masks=6
-

@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+GPU=${GPU:-1}
+PYTHON_BIN=${PYTHON_BIN:-python3.10}
+CHECKPOINT=${CHECKPOINT:-"/store/store5/data/acp21rjf_checkpoints/lcasr/enc_dec_v2/step_105360.pt"}
+SPLIT=${SPLIT:-test}
+REPEATS=${REPEATS:-1}
+SEQ=${SEQ:-2048}
+OVERLAP=${OVERLAP:-0}
+DRY_RUN=${DRY_RUN:-0}
+export MPLCONFIGDIR=${MPLCONFIGDIR:-/tmp/matplotlib}
+
+DATASETS_STR=${DATASETS:-"tedlium earnings22"}
+read -r -a DATASETS <<< "$DATASETS_STR"
+
+RESULTS_DIR="./results/enc_dec_dynamic_eval"
+LOG_DIR="${RESULTS_DIR}/logs"
+mkdir -p "$RESULTS_DIR" "$LOG_DIR" "$MPLCONFIGDIR"
+
+for dataset in "${DATASETS[@]}"
+do
+    run_name="${dataset}-${SPLIT}-no_adapt-epoch-0-lr-none-no_aug"
+    save_path="${RESULTS_DIR}/${run_name}.pkl"
+    log_path="${LOG_DIR}/${run_name}.log"
+
+    echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] starting ${run_name}" | tee "$log_path"
+    echo "checkpoint=${CHECKPOINT}" | tee -a "$log_path"
+    echo "save_path=${save_path}" | tee -a "$log_path"
+
+    cmd=(
+        "$PYTHON_BIN" enc_dec_dynamic_eval_test.py
+        --training_mode teacher_ce
+        -c "$CHECKPOINT"
+        -dfa
+        -epochs 0
+        -r "$REPEATS"
+        -seq "$SEQ"
+        -o "$OVERLAP"
+        --split "$SPLIT"
+        --dataset "$dataset"
+        -s "$save_path"
+        -log "$log_path"
+        -kwargs optim_lr=0.0 spec_augment_freq_mask_param=34 spec_augment_n_time_masks=0 spec_augment_n_freq_masks=0
+    )
+
+    if [ "$DRY_RUN" = "1" ]; then
+        printf 'CUDA_VISIBLE_DEVICES=%q' "$GPU" | tee -a "$log_path"
+        printf ' %q' "${cmd[@]}" | tee -a "$log_path"
+        printf '\n' | tee -a "$log_path"
+    else
+        CUDA_VISIBLE_DEVICES="$GPU" "${cmd[@]}" 2>&1 | tee -a "$log_path"
+    fi
+done
