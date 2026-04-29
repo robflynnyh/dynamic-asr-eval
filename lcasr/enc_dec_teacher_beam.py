@@ -25,6 +25,10 @@ def generate_enc_dec_beam(
     Note: temperature follows the repository's existing enc-dec convention in
     generate_enc_dec, where logits are multiplied by temperature. Values above
     1.0 sharpen the distribution; values below 1.0 soften it.
+
+    The audio batch size is kept at 1 to match enc_dec_dynamic_eval's teacher
+    path, but active beam prefixes are batched within each decode step so the
+    decoder is called once per generated token rather than once per beam.
     """
     if encoder_out is None:
         assert audio_signal is not None, 'Either audio_signal or encoder_out must be provided'
@@ -49,44 +53,58 @@ def generate_enc_dec_beam(
     finished_beams = []
 
     for _ in range(max_generate):
+        if len(active_beams) == 0:
+            break
+
+        active_tokens = torch.cat([tokens for tokens, _ in active_beams], dim=0)
+        active_scores = torch.tensor(
+            [score for _, score in active_beams],
+            device=device,
+            dtype=torch.float32,
+        )
+        active_count = active_tokens.shape[0]
+
+        decoder_logits = model.language_model_decoder(
+            tokens=active_tokens,
+            a_hidden=a_hidden.repeat(active_count, 1, 1),
+            a_lengths=length.repeat(active_count),
+        )["logits"]
+
+        next_log_probs = F.log_softmax(decoder_logits[:, -1, :] * temperature, dim=-1)
+
+        generated_len = active_tokens.shape[-1] - 1
+        if generated_len < eos_min_length:
+            next_log_probs = next_log_probs.clone()
+            next_log_probs[:, eos_id] = -float('inf')
+
+        if eos_logit_margin is not None:
+            next_log_probs = next_log_probs.clone()
+            non_eos_log_probs = next_log_probs.clone()
+            non_eos_log_probs[:, eos_id] = -float('inf')
+            best_non_eos_log_probs = non_eos_log_probs.max(dim=-1).values
+            eos_too_weak = next_log_probs[:, eos_id] < best_non_eos_log_probs + eos_logit_margin
+            next_log_probs[eos_too_weak, eos_id] = -float('inf')
+
+        top_log_probs, top_tokens = torch.topk(
+            next_log_probs,
+            k=min(beam_width, next_log_probs.shape[-1]),
+            dim=-1,
+        )
+
         candidates = []
+        for beam_idx in range(active_count):
+            prefix_tokens = active_tokens[beam_idx:beam_idx + 1]
+            prefix_score = float(active_scores[beam_idx].item())
 
-        for tokens, score in active_beams:
-            decoder_logits = model.language_model_decoder(
-                tokens=tokens,
-                a_hidden=a_hidden,
-                a_lengths=length,
-            )["logits"]
-
-            next_log_probs = F.log_softmax(decoder_logits[0, -1, :] * temperature, dim=-1)
-
-            generated_len = tokens.shape[-1] - 1
-            if generated_len < eos_min_length:
-                next_log_probs = next_log_probs.clone()
-                next_log_probs[eos_id] = -float('inf')
-
-            if eos_logit_margin is not None:
-                next_log_probs = next_log_probs.clone()
-                non_eos_log_probs = next_log_probs.clone()
-                non_eos_log_probs[eos_id] = -float('inf')
-                best_non_eos_log_prob = non_eos_log_probs.max()
-                if next_log_probs[eos_id] < best_non_eos_log_prob + eos_logit_margin:
-                    next_log_probs[eos_id] = -float('inf')
-
-            top_log_probs, top_tokens = torch.topk(
-                next_log_probs,
-                k=min(beam_width, next_log_probs.shape[-1]),
-            )
-
-            for next_log_prob, next_token in zip(top_log_probs, top_tokens):
+            for next_log_prob, next_token in zip(top_log_probs[beam_idx], top_tokens[beam_idx]):
                 next_token = int(next_token.item())
-                next_score = score + float(next_log_prob.item())
+                next_score = prefix_score + float(next_log_prob.item())
 
                 if next_token == eos_id:
-                    finished_beams.append((tokens, next_score))
+                    finished_beams.append((prefix_tokens, next_score))
                 else:
                     next_token_tensor = torch.tensor([[next_token]], device=device, dtype=torch.long)
-                    next_tokens = torch.cat([tokens, next_token_tensor], dim=-1)
+                    next_tokens = torch.cat([prefix_tokens, next_token_tensor], dim=-1)
                     candidates.append((next_tokens, next_score))
 
         if len(candidates) == 0:
