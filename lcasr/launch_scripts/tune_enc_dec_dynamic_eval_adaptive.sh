@@ -9,6 +9,12 @@ EPOCHS=${EPOCHS:-1}
 REPEATS=${REPEATS:-1}
 SEQ=${SEQ:-2048}
 OVERLAP=${OVERLAP:-0}
+ENC_DEC_BEAM_WIDTH=${ENC_DEC_BEAM_WIDTH:-1}
+ENC_DEC_LENGTH_PENALTY=${ENC_DEC_LENGTH_PENALTY:-0.0}
+ENC_DEC_EOS_BIAS=${ENC_DEC_EOS_BIAS:-0.0}
+ENC_DEC_REPETITION_PENALTY=${ENC_DEC_REPETITION_PENALTY:-0.0}
+ENC_DEC_NO_REPEAT_NGRAM_SIZE=${ENC_DEC_NO_REPEAT_NGRAM_SIZE:-0}
+ENC_DEC_MAX_GENERATE=${ENC_DEC_MAX_GENERATE:--1}
 TRAINING_MODE=${TRAINING_MODE:-adaptive_ce_ctc_aux}
 AGREEMENT_MIN_SIMILARITY=${AGREEMENT_MIN_SIMILARITY:-0.90}
 AGREEMENT_TEMPERATURE=${AGREEMENT_TEMPERATURE:-0.7}
@@ -30,6 +36,32 @@ mkdir -p "$RESULTS_DIR" "$LOG_DIR" "$MPLCONFIGDIR"
 lr_tag() {
     echo "$1" | sed 's/-/m/g; s/+//g; s/\./p/g'
 }
+
+DECODING_ARGS=()
+DECODING_SUFFIX=""
+if [ "$ENC_DEC_BEAM_WIDTH" != "1" ]; then
+    DECODING_ARGS=(
+        --enc_dec_beam_width "$ENC_DEC_BEAM_WIDTH"
+        --enc_dec_length_penalty "$ENC_DEC_LENGTH_PENALTY"
+        --enc_dec_eos_bias "$ENC_DEC_EOS_BIAS"
+        --enc_dec_repetition_penalty "$ENC_DEC_REPETITION_PENALTY"
+        --enc_dec_no_repeat_ngram_size "$ENC_DEC_NO_REPEAT_NGRAM_SIZE"
+        --enc_dec_max_generate "$ENC_DEC_MAX_GENERATE"
+    )
+    DECODING_SUFFIX="-beam${ENC_DEC_BEAM_WIDTH}_lp$(lr_tag "$ENC_DEC_LENGTH_PENALTY")"
+    if [ "$ENC_DEC_NO_REPEAT_NGRAM_SIZE" != "0" ]; then
+        DECODING_SUFFIX="${DECODING_SUFFIX}_ng${ENC_DEC_NO_REPEAT_NGRAM_SIZE}"
+    fi
+    if [ "$ENC_DEC_EOS_BIAS" != "0.0" ]; then
+        DECODING_SUFFIX="${DECODING_SUFFIX}_eos$(lr_tag "$ENC_DEC_EOS_BIAS")"
+    fi
+    if [ "$ENC_DEC_REPETITION_PENALTY" != "0.0" ]; then
+        DECODING_SUFFIX="${DECODING_SUFFIX}_rep$(lr_tag "$ENC_DEC_REPETITION_PENALTY")"
+    fi
+    if [ "$ENC_DEC_MAX_GENERATE" != "-1" ]; then
+        DECODING_SUFFIX="${DECODING_SUFFIX}_max${ENC_DEC_MAX_GENERATE}"
+    fi
+fi
 
 for dataset in "${DATASETS[@]}"
 do
@@ -54,7 +86,7 @@ do
             esac
 
             lr_name=$(lr_tag "$lr")
-            run_name="${dataset}-${SPLIT}-${TRAINING_MODE}-epoch-${EPOCHS}-lr-${lr_name}-${aug}-agree${AGREEMENT_MIN_SIMILARITY}"
+            run_name="${dataset}-${SPLIT}-${TRAINING_MODE}${DECODING_SUFFIX}-epoch-${EPOCHS}-lr-${lr_name}-${aug}-agree${AGREEMENT_MIN_SIMILARITY}"
             save_path="${RESULTS_DIR}/${run_name}.pkl"
             log_path="${LOG_DIR}/${run_name}.log"
 
@@ -62,6 +94,7 @@ do
             echo "checkpoint=${CHECKPOINT}" | tee -a "$log_path"
             echo "save_path=${save_path}" | tee -a "$log_path"
             echo "augmentation=${aug} kwargs=${aug_kwargs[*]}" | tee -a "$log_path"
+            echo "decoding_args=${DECODING_ARGS[*]}" | tee -a "$log_path"
 
             cmd=(
                 "$PYTHON_BIN" enc_dec_dynamic_eval_test.py
@@ -83,6 +116,7 @@ do
                 --dataset "$dataset" \
                 -s "$save_path" \
                 -log "$log_path" \
+                "${DECODING_ARGS[@]}" \
                 -kwargs optim_lr="$lr" "${aug_kwargs[@]}"
             )
 

@@ -80,18 +80,22 @@ def main():
             if np.isnan(v):
                 continue
             r = parsed[(e, lr_tag)]
-            va = "bottom" if v >= 0 else "top"
-            # Clip text position so it doesn't cause tight_layout issues
-            # and remains visible at the edge of the plot if it diverged.
-            text_y = max(min(v, 24.5), -4.5)
+            if v >= 0:
+                va = "bottom"
+                text_y = min(v + 0.5, 24.2)
+            else:
+                va = "bottom"
+                text_y = max(v - 0.5, -4.7) # Nudge down from -3.5 to -4.7
+
             ax.text(
                 b.get_x() + b.get_width() / 2,
                 text_y,
                 f"{r['adapted']['wer'] * 100:.1f}%",
                 ha="center",
                 va=va,
-                fontsize=9,
+                fontsize=8,
             )
+
 
     ax.axhline(0, color="black", linewidth=0.8)
     ax.set_xticks(x)
@@ -101,11 +105,11 @@ def main():
         ax.legend(frameon=False, loc="best")
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.yaxis.grid(True, linestyle=":", alpha=0.5)
+    ax.yaxis.grid(True, alpha=0.3, which='both')
     ax.set_axisbelow(True)
     ax.set_ylim(-5, 25) # Prevent diverged runs from ruining the scale
-    title_lrs = ", ".join(f"lr={lr}" for lr in args.lrs)
-    ax.set_title(f"Whole-concat adapt-only (earnings22 test, {title_lrs})", fontsize=10)
+    # title_lrs = ", ".join(f"lr={lr}" for lr in args.lrs)
+    # ax.set_title(f"Whole-concat adapt-only (earnings22 test, {title_lrs})", fontsize=10)
 
     out_path = (here / args.out) if not Path(args.out).is_absolute() else Path(args.out)
     fig.tight_layout()

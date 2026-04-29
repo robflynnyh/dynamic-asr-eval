@@ -124,6 +124,23 @@ def get_lr_args_from_args(args):
     lr_args['lr'] = lr_args.get('lr', 9e-5)
     return lr_args
 
+def get_enc_dec_beam_generation_args(args):
+    enc_dec_beam_width = args.__dict__.get('enc_dec_beam_width', 1)
+    if enc_dec_beam_width <= 1:
+        return {}
+
+    generation_args = {
+        'beam_width': enc_dec_beam_width,
+        'length_penalty': args.__dict__.get('enc_dec_length_penalty', 0.0),
+        'eos_bias': args.__dict__.get('enc_dec_eos_bias', 0.0),
+        'repetition_penalty': args.__dict__.get('enc_dec_repetition_penalty', 0.0),
+        'no_repeat_ngram_size': args.__dict__.get('enc_dec_no_repeat_ngram_size', 0),
+    }
+    max_generate = args.__dict__.get('enc_dec_max_generate', -1)
+    if max_generate > 0:
+        generation_args['max_generate'] = max_generate
+    return generation_args
+
 
 def prepare_chunks(spec, seq_len, overlap):
     spec_n = spec.shape[-1]
@@ -1121,61 +1138,6 @@ def dynamic_eval_consistency_ctc_loss(
 
 #     return logits.squeeze(0).numpy() if not return_params else (logits.squeeze(0).numpy(), updated_model_params)
 
-@torch.no_grad()
-def generate_enc_dec(
-        model, 
-        audio_signal, 
-        max_generate=256, 
-        bos_id=0, 
-        eos_id=0,
-        sample=1,
-        greedy=True,
-        temperature=1.0,
-    ):
-    '''
-    sample: use multinomial sampling
-    '''
-    encoder_out = model.forward(audio_signal=audio_signal)
-    a_hidden, length = encoder_out['a_hidden'], encoder_out['length']
-    a_hidden = a_hidden.repeat(sample, 1, 1)
-    text_sequence = torch.LongTensor([[bos_id]]).to(a_hidden.device).repeat(sample, 1)
-    finised_sequences = []
-    finished = False
-    #generated = 0
-    while not finished:
-        decoder_logits = model.language_model_decoder(
-            tokens = text_sequence,
-            a_hidden = a_hidden,
-            a_lengths = length,
-        )["logits"]
-   
-        probs = (decoder_logits[:, -1, :] * temperature).softmax(dim=-1)
-        if sample == 1 and greedy:
-            decoder_pred = probs.argmax(dim=-1)[None]
-        else:
-            decoder_pred = torch.multinomial(probs, num_samples=1)
-        
-        indices_to_drop = 0
-        new_text_sequences = []
-        for i in range(sample):
-            if decoder_pred[i] == eos_id or text_sequence[i].shape[0] > max_generate:
-                finised_sequences.append(text_sequence[i])
-                indices_to_drop += 1
-            else:
-                new_text_sequences.append(torch.cat([text_sequence[i, None], decoder_pred[i, None]], dim=1))
-        if indices_to_drop > 0: a_hidden = a_hidden[:-indices_to_drop]
-        if len(new_text_sequences) > 0: text_sequence = torch.cat(new_text_sequences, dim=0)
-        sample = a_hidden.shape[0]
-        if sample == 0: finished = True
-
-    
-    text_lengths = torch.LongTensor([el.shape[0] for el in finised_sequences])
-    text_sequence = torch.nn.utils.rnn.pad_sequence(finised_sequences, batch_first=True, padding_value=0)
-        
-    text_sequence = text_sequence[:, 1:] # remove bos
-    text_lengths -= 1
-    
-    return text_sequence, encoder_out, text_lengths
 
 def enc_dec_inference(
         model:nn.Module,
@@ -1193,9 +1155,11 @@ def enc_dec_inference(
  
     for idx in pbar:
         audio_chunk = training_data[training_keys[idx]].to(model.device)
-        print('---HERE')
-        with torch.no_grad(): output = generate_enc_dec(model, audio_chunk)[0][0].cpu().tolist()
-        print(output)
+
+        with torch.no_grad(): output = model.generate(
+            audio_signal = audio_chunk,
+        )['text_sequence'][0]
+   
         text = tokenizer.decode(output).strip()
         print(f'Generated text: {text}')
         output_sequences[idx] = text
@@ -1377,6 +1341,56 @@ def calc_loss_enc_dec(
         'lm_posteriors': lm_out,
         'length': a_length_out,
     }
+
+
+def calc_kl_enc_dec_loss(
+        model,
+        audio_signal,
+        teacher_audio_signal,
+        text_sequence,
+        a_lengths,
+        teacher_a_lengths,
+        t_lengths,
+        temperature=1.0,
+        bos_id=0,
+    ):
+    if temperature <= 0.0:
+        raise ValueError(f'temperature must be > 0 for teacher_kl, got {temperature}')
+
+    text_sequence_bos = F.pad(text_sequence, (1, 0), value=bos_id)
+    target_lengths_bos = t_lengths + 1
+
+    teacher_decoder_was_training = model.language_model_decoder.training
+    model.language_model_decoder.eval()
+    try:
+        with torch.no_grad():
+            teacher_out = model.forward(teacher_audio_signal, text_sequence_bos[:1], teacher_a_lengths)
+            teacher_logits = teacher_out['final_posteriors_lm'].detach()
+    finally:
+        if teacher_decoder_was_training:
+            model.language_model_decoder.train()
+
+    student_out = model.forward(audio_signal, text_sequence_bos, a_lengths)
+    student_logits = student_out['final_posteriors_lm']
+
+    n_tokens = min(student_logits.shape[1], teacher_logits.shape[1])
+    student_logits = student_logits[:, :n_tokens, :]
+    teacher_logits = teacher_logits[:, :n_tokens, :]
+    mask = token_lens_to_mask(target_lengths_bos).to(student_logits.device)[:, :n_tokens]
+
+    teacher_probs = F.softmax(teacher_logits / temperature, dim=-1)
+    teacher_probs = teacher_probs.repeat(student_logits.shape[0], 1, 1)
+    student_log_probs = F.log_softmax(student_logits / temperature, dim=-1)
+
+    per_token_kl = F.kl_div(
+        input=student_log_probs,
+        target=teacher_probs,
+        reduction='none',
+    ).sum(dim=-1)
+    loss = (per_token_kl * mask).sum() / mask.sum().clamp_min(1)
+    loss = loss * (temperature ** 2)
+    print(loss, "loss (teacher_kl)")
+    return loss
 
 
 def calc_ctc_aux_enc_dec_loss(
@@ -1604,18 +1618,12 @@ def enc_dec_dynamic_eval(
     dropout_attn = args.__dict__.get('dropout_attn', 0.0)
 
     enc_dec_beam_width = args.__dict__.get('enc_dec_beam_width', 1)
+    generation_args = get_enc_dec_beam_generation_args(args)
     decoding_args = {}
     decode_fn = enc_dec_inference
     if enc_dec_beam_width > 1:
         decode_fn = enc_dec_beamsearch_inference
-        decoding_args = {
-            'beam_width': enc_dec_beam_width,
-            'length_penalty': args.__dict__.get('enc_dec_length_penalty', 0.0),
-            'eos_bias': args.__dict__.get('enc_dec_eos_bias', 0.0),
-            'repetition_penalty': args.__dict__.get('enc_dec_repetition_penalty', 0.0),
-            'no_repeat_ngram_size': args.__dict__.get('enc_dec_no_repeat_ngram_size', 0),
-            'max_generate': args.__dict__.get('enc_dec_max_generate', -1),
-        }
+        decoding_args = generation_args
 
 
     model.language_model_decoder.dropout_emb = dropout_emb
@@ -1683,8 +1691,13 @@ def enc_dec_dynamic_eval(
                 with torch.no_grad():
                     encoder_out_for_teacher = model.forward(audio_signal=audio_chunk[-1, None])
 
+                teacher_generate_kwargs = {
+                    'audio_signal': audio_chunk[-1, None],
+                    'encoder_states': encoder_out_for_teacher,
+                    **generation_args,
+                }
                 teacher_pred = torch.tensor(
-                    model.generate(audio_chunk[-1, None], encoder_states=encoder_out_for_teacher)["text_sequence"][0],
+                    model.generate(**teacher_generate_kwargs)["text_sequence"][0],
                     dtype=torch.long, device=model.device,
                 )
                 teacher_pred_tokens = teacher_pred.tolist()
@@ -1755,24 +1768,36 @@ def enc_dec_dynamic_eval(
                         f'(threshold={min_similarity:.2f}); using {effective_training_mode}'
                     )
 
-                if effective_training_mode == 'teacher_ce':
-                    # Supervised CE on the (filter-passed) teacher prediction.
-                    # No rollouts, no rewards. Mirrors the CTC TTA path: train
-                    # on the augmented batch, repeating the teacher target.
+                if effective_training_mode in {'teacher_ce', 'teacher_kl'}:
+                    # Supervised update on the filter-passed teacher prediction.
+                    # CE uses hard pseudo-labels; KL distils the clean teacher
+                    # distribution into the augmented student pass.
                     bsz = num_negatives
                     teacher_targets = teacher_pred[None, :].repeat(bsz, 1)
                     teacher_target_lengths = teacher_lengths.repeat(bsz)
                     a_lengths_for_ce = acoustic_length.repeat(bsz)
-                    out = calc_loss_enc_dec(
-                        model = model,
-                        audio_signal = audio_chunk[:num_negatives],
-                        text_sequence = teacher_targets,
-                        a_lengths = a_lengths_for_ce,
-                        t_lengths = teacher_target_lengths,
-                        tokenizer = tokenizer,
-                    )
-                    loss = out['loss']
-                    print(loss, "loss (teacher_ce)")
+                    if effective_training_mode == 'teacher_ce':
+                        out = calc_loss_enc_dec(
+                            model = model,
+                            audio_signal = audio_chunk[:num_negatives],
+                            text_sequence = teacher_targets,
+                            a_lengths = a_lengths_for_ce,
+                            t_lengths = teacher_target_lengths,
+                            tokenizer = tokenizer,
+                        )
+                        loss = out['loss']
+                        print(loss, "loss (teacher_ce)")
+                    else:
+                        loss = calc_kl_enc_dec_loss(
+                            model=model,
+                            audio_signal=audio_chunk[:num_negatives],
+                            teacher_audio_signal=audio_chunk[-1, None],
+                            text_sequence=teacher_targets,
+                            a_lengths=a_lengths_for_ce,
+                            teacher_a_lengths=acoustic_length,
+                            t_lengths=teacher_target_lengths,
+                            temperature=getattr(args, 'teacher_kl_temperature', 1.0),
+                        )
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
@@ -1905,12 +1930,12 @@ def apply_args(parser):
     parser.add_argument('--freeze_all_but_last_block_and_head', action='store_true', help='Freeze all params except the last encoder block and CTC head during test-time adaptation')
     parser.add_argument('--freeze_decoder', action='store_true', help='Freeze the encoder-decoder language_model_decoder during test-time adaptation')
     parser.add_argument('--train_subsampling_only', action='store_true', help='Train only the subsampling module during test-time adaptation')
-    parser.add_argument('--enc_dec_beam_width', type=int, default=1, help='Autoregressive encoder-decoder beam width for final decoding')
-    parser.add_argument('--enc_dec_length_penalty', type=float, default=0.0, help='Length penalty for autoregressive encoder-decoder beam search')
-    parser.add_argument('--enc_dec_eos_bias', type=float, default=0.0, help='EOS log-prob bias for autoregressive encoder-decoder beam search')
-    parser.add_argument('--enc_dec_repetition_penalty', type=float, default=0.0, help='Penalty subtracted from already-generated token log-probs during encoder-decoder beam search')
-    parser.add_argument('--enc_dec_no_repeat_ngram_size', type=int, default=0, help='Block repeated ngrams of this size during encoder-decoder beam search')
-    parser.add_argument('--enc_dec_max_generate', type=int, default=-1, help='Optional max generated tokens per chunk for encoder-decoder beam search')
+    parser.add_argument('--enc_dec_beam_width', type=int, default=1, help='Autoregressive encoder-decoder beam width for teacher and final decoding')
+    parser.add_argument('--enc_dec_length_penalty', type=float, default=0.0, help='Length penalty for autoregressive encoder-decoder teacher and final beam search')
+    parser.add_argument('--enc_dec_eos_bias', type=float, default=0.0, help='EOS log-prob bias for autoregressive encoder-decoder teacher and final beam search')
+    parser.add_argument('--enc_dec_repetition_penalty', type=float, default=0.0, help='Penalty subtracted from already-generated token log-probs during encoder-decoder teacher and final beam search')
+    parser.add_argument('--enc_dec_no_repeat_ngram_size', type=int, default=0, help='Block repeated ngrams of this size during encoder-decoder teacher and final beam search')
+    parser.add_argument('--enc_dec_max_generate', type=int, default=-1, help='Optional max generated tokens per chunk for encoder-decoder teacher and final beam search')
 
     args = parser.parse_args()
 

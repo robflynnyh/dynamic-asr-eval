@@ -42,6 +42,16 @@ def parse_setting(setting: str) -> dict:
     out = match.groupdict()
     out["setting"] = setting
     out["epoch"] = int(out["epoch"])
+    mode = out.get("mode") or ""
+    out["base_mode"] = mode
+    out["decode"] = "greedy"
+    for base_mode in ("adaptive_ce_ctc_aux", "teacher_kl", "teacher_ce", "ctc_aux", "grpo", "maxrl", "no_adapt", "baseline"):
+        if mode == base_mode:
+            break
+        if mode.startswith(base_mode + "-"):
+            out["base_mode"] = base_mode
+            out["decode"] = mode[len(base_mode) + 1:]
+            break
     return out
 
 
@@ -75,12 +85,12 @@ def aggregate(directory: Path) -> list[dict]:
         rows.append(row)
 
     baselines = {
-        (row.get("dataset"), row.get("split")): row["wer"]
+        (row.get("dataset"), row.get("split"), row.get("decode", "greedy")): row["wer"]
         for row in rows
-        if row.get("mode") in {"baseline", "no_adapt"}
+        if row.get("base_mode") in {"baseline", "no_adapt"}
     }
     for row in rows:
-        baseline = baselines.get((row.get("dataset"), row.get("split")))
+        baseline = baselines.get((row.get("dataset"), row.get("split"), row.get("decode", "greedy")))
         row["delta_vs_baseline"] = None if baseline is None else row["wer"] - baseline
 
     return rows
