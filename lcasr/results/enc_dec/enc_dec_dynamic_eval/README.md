@@ -216,7 +216,7 @@ bash launch_scripts/tune_enc_dec_dynamic_eval_teacher_ce.sh
 Detached screen form:
 
 ```bash
-screen -L -Logfile results/enc_dec_dynamic_eval/teacher_ce_beam5_lp0p5_tedlium_earnings22.log \
+screen -L -Logfile results/enc_dec/enc_dec_dynamic_eval/teacher_ce_beam5_lp0p5_tedlium_earnings22.log \
   -dmS teacher_ce_beam5_lp0p5_tedlium_earnings22 \
   bash -lc 'GPU=0 DATASETS="tedlium earnings22" LRS="3e-7 1e-7 1e-6" ENC_DEC_BEAM_WIDTH=5 ENC_DEC_LENGTH_PENALTY=0.5 bash launch_scripts/tune_enc_dec_dynamic_eval_teacher_ce.sh'
 ```
@@ -226,26 +226,26 @@ screen -L -Logfile results/enc_dec_dynamic_eval/teacher_ce_beam5_lp0p5_tedlium_e
 Pickles are written as:
 
 ```text
-results/enc_dec_dynamic_eval/<dataset>-<split>-adaptive_ce_ctc_aux[-beam<beam>_lp<lp>...]-epoch-<E>-lr-<lr_tag>-<aug>-agree<threshold>.pkl
+results/enc_dec/enc_dec_dynamic_eval/<dataset>-<split>-adaptive_ce_ctc_aux[-beam<beam>_lp<lp>...]-epoch-<E>-lr-<lr_tag>-<aug>-agree<threshold>.pkl
 ```
 
 Teacher-CE and teacher-KL ablation pickles are written as:
 
 ```text
-results/enc_dec_dynamic_eval/<dataset>-<split>-<teacher_ce|teacher_kl>[-beam<beam>_lp<lp>...]-epoch-<E>-lr-<lr_tag>-<aug>.pkl
+results/enc_dec/enc_dec_dynamic_eval/<dataset>-<split>-<teacher_ce|teacher_kl>[-beam<beam>_lp<lp>...]-epoch-<E>-lr-<lr_tag>-<aug>.pkl
 ```
 
 For the current beam5/lp0.5 run, expected pickles are:
 
 ```text
-results/enc_dec_dynamic_eval/<dataset>-test-teacher_ce-beam5_lp0p5-epoch-1-lr-<lr_tag>-<aug>_1.pkl
+results/enc_dec/enc_dec_dynamic_eval/<dataset>-test-teacher_ce-beam5_lp0p5-epoch-1-lr-<lr_tag>-<aug>_1.pkl
 ```
 
 For example:
 
 ```text
-results/enc_dec_dynamic_eval/tedlium-test-teacher_ce-beam5_lp0p5-epoch-1-lr-3em7-freq6_width34_time0_1.pkl
-results/enc_dec_dynamic_eval/earnings22-test-teacher_ce-beam5_lp0p5-epoch-1-lr-1em6-no_aug_1.pkl
+results/enc_dec/enc_dec_dynamic_eval/tedlium-test-teacher_ce-beam5_lp0p5-epoch-1-lr-3em7-freq6_width34_time0_1.pkl
+results/enc_dec/enc_dec_dynamic_eval/earnings22-test-teacher_ce-beam5_lp0p5-epoch-1-lr-1em6-no_aug_1.pkl
 ```
 
 With repeats, `enc_dec_dynamic_eval_test.py` appends `_<repeat>` before
@@ -254,7 +254,7 @@ With repeats, `enc_dec_dynamic_eval_test.py` appends `_<repeat>` before
 Logs are written under:
 
 ```text
-results/enc_dec_dynamic_eval/logs/
+results/enc_dec/enc_dec_dynamic_eval/logs/
 ```
 
 ## Aggregation
@@ -262,17 +262,17 @@ results/enc_dec_dynamic_eval/logs/
 Compact table:
 
 ```bash
-python results/enc_dec_dynamic_eval/aggregate.py
+python results/enc_dec/enc_dec_dynamic_eval/aggregate.py
 ```
 
 JSON:
 
 ```bash
-python results/enc_dec_dynamic_eval/aggregate.py --json
+python results/enc_dec/enc_dec_dynamic_eval/aggregate.py --json
 ```
 
 CSV:
 
 ```bash
-python results/enc_dec_dynamic_eval/aggregate.py --csv results/enc_dec_dynamic_eval/summary.csv
+python results/enc_dec/enc_dec_dynamic_eval/aggregate.py --csv results/enc_dec/enc_dec_dynamic_eval/summary.csv
 ```

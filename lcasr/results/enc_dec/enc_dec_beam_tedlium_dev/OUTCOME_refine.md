@@ -2,9 +2,9 @@
 
 Artifacts inspected:
 
-- Pickles: `./results/enc_dec_beam_tedlium_dev_refine/*_1.pkl`
-- Logs: `./results/enc_dec_beam_tedlium_dev_refine/logs/*.log`
-- Baseline summary: `./results/enc_dec_beam_tedlium_dev/summary.csv`
+- Pickles: `./results/enc_dec/enc_dec_beam_tedlium_dev_refine/*_1.pkl`
+- Logs: `./results/enc_dec/enc_dec_beam_tedlium_dev_refine/logs/*.log`
+- Baseline summary: `./results/enc_dec/enc_dec_beam_tedlium_dev/summary.csv`
 
 No evaluations were rerun. Metrics below come from saved pickle fields
 `wer`, `ins_rate`, `del_rate`, and `sub_rate`; saved `args_dict` values and
@@ -21,7 +21,7 @@ covers 8 TEDLIUM dev talks and 18,094 reference words.
 
 ## Baseline Comparison
 
-From `results/enc_dec_beam_tedlium_dev/summary.csv`, the strongest previous
+From `results/enc_dec/enc_dec_beam_tedlium_dev/summary.csv`, the strongest previous
 setting was `tedlium-dev-beam5_lp0p5-seq2048-overlap0`:
 
 | Run | Arguments | WER | Ins | Del | Sub | Notes |

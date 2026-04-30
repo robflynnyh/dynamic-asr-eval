@@ -101,19 +101,19 @@ RUN_CODEX_ANALYSIS=1 bash launch_scripts/sweep_enc_dec_beam_tedlium_dev.sh
 Pickles are written as:
 
 ```text
-results/enc_dec_beam_tedlium_dev/tedlium-dev-<run>-seq2048-overlap0_<repeat>.pkl
+results/enc_dec/enc_dec_beam_tedlium_dev/tedlium-dev-<run>-seq2048-overlap0_<repeat>.pkl
 ```
 
 Logs are written under:
 
 ```text
-results/enc_dec_beam_tedlium_dev/logs/
+results/enc_dec/enc_dec_beam_tedlium_dev/logs/
 ```
 
 The detached screen launch log from the first sweep is:
 
 ```text
-results/enc_dec_beam_tedlium_dev/sweep_screen.log
+results/enc_dec/enc_dec_beam_tedlium_dev/sweep_screen.log
 ```
 
 ## Aggregation
@@ -121,17 +121,17 @@ results/enc_dec_beam_tedlium_dev/sweep_screen.log
 Compact table:
 
 ```bash
-python3.10 results/enc_dec_beam_tedlium_dev/aggregate.py
+python3.10 results/enc_dec/enc_dec_beam_tedlium_dev/aggregate.py
 ```
 
 JSON:
 
 ```bash
-python3.10 results/enc_dec_beam_tedlium_dev/aggregate.py --json
+python3.10 results/enc_dec/enc_dec_beam_tedlium_dev/aggregate.py --json
 ```
 
 CSV:
 
 ```bash
-python3.10 results/enc_dec_beam_tedlium_dev/aggregate.py --csv results/enc_dec_beam_tedlium_dev/summary.csv
+python3.10 results/enc_dec/enc_dec_beam_tedlium_dev/aggregate.py --csv results/enc_dec/enc_dec_beam_tedlium_dev/summary.csv
 ```

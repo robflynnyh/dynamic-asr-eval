@@ -1,9 +1,38 @@
 # TEDLIUM dev encoder-decoder beam-search sweep outcome
 
+## Current aggregate snapshot
+
+Generated from `aggregate.py` over the current pickles in this directory.
+All rows have `n=1`, so the table is a single-run snapshot rather than a
+repeat-averaged estimate. This folder intentionally mixes greedy/default and
+beam-search decoding settings; WER differences here are decode-setting
+differences, not adaptation deltas.
+
+| Rank | Setting | WER | Ins | Del | Sub | Note |
+|---:|---|---:|---:|---:|---:|---|
+| 1 | `tedlium-dev-beam10_lp0p5-seq2048-overlap0` | 11.15 | 1.48 | 3.48 | 6.19 | Best current WER; small gain over beam 5 at higher decode cost. |
+| 2 | `tedlium-dev-beam5_lp0p5-seq2048-overlap0` | 11.20 | 1.53 | 3.44 | 6.23 | Best original sweep setting and preferred runtime-quality point. |
+| 3 | `tedlium-dev-beam5_lp0p5_ng8-seq2048-overlap0` | 11.25 | 1.49 | 3.51 | 6.25 | Near tie; adds a light no-repeat guard. |
+| 4 | `tedlium-dev-beam5_lp0-seq2048-overlap0` | 11.34 | 1.52 | 3.63 | 6.18 | Conservative near-best. |
+| 5 | `tedlium-dev-beam5_lp0p2-seq2048-overlap0` | 11.34 | 1.51 | 3.61 | 6.21 | Conservative near-best. |
+
+Worst settings in the current aggregate are `beam5_max80` at 18.10% WER,
+`beam5_rep1p0_ng3` at 13.58%, and `beam5_eos0p5_rep0p5_ng3` at 13.34%.
+The `max_generate=80` setting fails by deletion/truncation, while the
+no-repeat/repetition-penalty variants are worse mostly through deletion and
+substitution increases.
+
+Recommendation: use `beam=5`, `length_penalty=0.5` as the default
+adaptation decode setting. `beam=10`, `length_penalty=0.5` is the best saved
+WER, but the 0.05 absolute WER gain is small enough to treat as a runtime-cost
+tradeoff.
+
+---
+
 Artifacts inspected:
 
-- Pickles: `./results/enc_dec_beam_tedlium_dev/*_1.pkl`
-- Logs: `./results/enc_dec_beam_tedlium_dev/logs/*.log`
+- Pickles: `./results/enc_dec/enc_dec_beam_tedlium_dev/*_1.pkl`
+- Logs: `./results/enc_dec/enc_dec_beam_tedlium_dev/logs/*.log`
 - No evaluations were rerun. Metrics below come from the saved pickle fields `wer`, `ins_rate`, `del_rate`, and `sub_rate`; logs were used to recover run arguments and completion status.
 
 The completed runs cover 8 TEDLIUM dev talks and 18,094 reference words. All 12 configs from `launch_scripts/sweep_enc_dec_beam_tedlium_dev.sh` completed and produced matching pickle files.

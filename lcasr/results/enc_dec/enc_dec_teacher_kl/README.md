@@ -45,19 +45,39 @@ This differs from `teacher_ce`: CE collapses the target to one hard pseudo-label
 ## Launch
 
 ```bash
-screen -L -Logfile results/enc_dec_teacher_kl/teacher_kl_beam5_lp0p5_tedlium_earnings22.log \
+screen -L -Logfile results/enc_dec/enc_dec_teacher_kl/teacher_kl_beam5_lp0p5_tedlium_earnings22.log \
   -dmS teacher_kl_beam5_lp0p5 \
-  bash -lc 'GPU=1 RESULTS_DIR=./results/enc_dec_teacher_kl TRAINING_MODE=teacher_kl TEACHER_KL_TEMPERATURE=1.0 DATASETS="tedlium earnings22" LRS="3e-7 1e-7 1e-6" AUGS="freq6_width34_time0 freq3_width24_time0 no_aug" ENC_DEC_BEAM_WIDTH=5 ENC_DEC_LENGTH_PENALTY=0.5 bash launch_scripts/tune_enc_dec_dynamic_eval_teacher_ce.sh'
+  bash -lc 'GPU=1 RESULTS_DIR=./results/enc_dec/enc_dec_teacher_kl TRAINING_MODE=teacher_kl TEACHER_KL_TEMPERATURE=1.0 DATASETS="tedlium earnings22" LRS="3e-7 1e-7 1e-6" AUGS="freq6_width34_time0 freq3_width24_time0 no_aug" ENC_DEC_BEAM_WIDTH=5 ENC_DEC_LENGTH_PENALTY=0.5 bash launch_scripts/tune_enc_dec_dynamic_eval_teacher_ce.sh'
 ```
 
 Pickles are written as:
 
 ```text
-results/enc_dec_teacher_kl/<dataset>-test-teacher_kl-beam5_lp0p5-epoch-1-lr-<lr_tag>-<aug>_<repeat>.pkl
+results/enc_dec/enc_dec_teacher_kl/<dataset>-test-teacher_kl-beam5_lp0p5-epoch-1-lr-<lr_tag>-<aug>_<repeat>.pkl
 ```
 
 Per-setting logs are written under:
 
 ```text
-results/enc_dec_teacher_kl/logs/
+results/enc_dec/enc_dec_teacher_kl/logs/
+```
+
+## Aggregation
+
+Compact table:
+
+```bash
+python results/enc_dec/enc_dec_teacher_kl/aggregate.py
+```
+
+JSON:
+
+```bash
+python results/enc_dec/enc_dec_teacher_kl/aggregate.py --json
+```
+
+CSV:
+
+```bash
+python results/enc_dec/enc_dec_teacher_kl/aggregate.py --csv results/enc_dec/enc_dec_teacher_kl/summary.csv
 ```

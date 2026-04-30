@@ -17,6 +17,11 @@ ENC_DEC_NO_REPEAT_NGRAM_SIZE=${ENC_DEC_NO_REPEAT_NGRAM_SIZE:-0}
 ENC_DEC_MAX_GENERATE=${ENC_DEC_MAX_GENERATE:--1}
 TRAINING_MODE=${TRAINING_MODE:-teacher_ce}
 TEACHER_KL_TEMPERATURE=${TEACHER_KL_TEMPERATURE:-1.0}
+TEACHER_FILTER_CTC_AGREEMENT=${TEACHER_FILTER_CTC_AGREEMENT:-1}
+TEACHER_REPEATED_TOKEN_NGRAM_SIZES=${TEACHER_REPEATED_TOKEN_NGRAM_SIZES:-"2 3"}
+TEACHER_FILTER_LOW_CONFIDENCE=${TEACHER_FILTER_LOW_CONFIDENCE:-0}
+TEACHER_MIN_MEAN_MAX_PROB=${TEACHER_MIN_MEAN_MAX_PROB:-0.35}
+TEACHER_MAX_MEAN_ENTROPY=${TEACHER_MAX_MEAN_ENTROPY:-2.5}
 DRY_RUN=${DRY_RUN:-0}
 export MPLCONFIGDIR=${MPLCONFIGDIR:-/tmp/matplotlib}
 
@@ -35,6 +40,26 @@ mkdir -p "$RESULTS_DIR" "$LOG_DIR" "$MPLCONFIGDIR"
 lr_tag() {
     echo "$1" | sed 's/-/m/g; s/+//g; s/\./p/g'
 }
+
+read -r -a TEACHER_REPEATED_TOKEN_NGRAM_SIZES_ARR <<< "$TEACHER_REPEATED_TOKEN_NGRAM_SIZES"
+
+TEACHER_FILTER_ARGS=(
+    --teacher_filter_max_length
+    --teacher_filter_max_consecutive_token_repeat
+    --teacher_filter_repeated_token_ngrams
+    --teacher_repeated_token_ngram_sizes "${TEACHER_REPEATED_TOKEN_NGRAM_SIZES_ARR[@]}"
+    --teacher_filter_repeated_words
+)
+if [ "$TEACHER_FILTER_CTC_AGREEMENT" = "1" ]; then
+    TEACHER_FILTER_ARGS+=(--teacher_filter_ctc_agreement)
+fi
+if [ "$TEACHER_FILTER_LOW_CONFIDENCE" = "1" ]; then
+    TEACHER_FILTER_ARGS+=(
+        --teacher_filter_low_confidence
+        --teacher_min_mean_max_prob "$TEACHER_MIN_MEAN_MAX_PROB"
+        --teacher_max_mean_entropy "$TEACHER_MAX_MEAN_ENTROPY"
+    )
+fi
 
 DECODING_ARGS=()
 DECODING_SUFFIX=""
@@ -95,14 +120,15 @@ do
             echo "augmentation=${aug} kwargs=${aug_kwargs[*]}" | tee -a "$log_path"
             echo "decoding_args=${DECODING_ARGS[*]}" | tee -a "$log_path"
             echo "teacher_kl_temperature=${TEACHER_KL_TEMPERATURE}" | tee -a "$log_path"
+            echo "teacher_filter_ctc_agreement=${TEACHER_FILTER_CTC_AGREEMENT}" | tee -a "$log_path"
+            echo "teacher_repeated_token_ngram_sizes=${TEACHER_REPEATED_TOKEN_NGRAM_SIZES}" | tee -a "$log_path"
+            echo "teacher_filter_low_confidence=${TEACHER_FILTER_LOW_CONFIDENCE}" | tee -a "$log_path"
+            echo "teacher_min_mean_max_prob=${TEACHER_MIN_MEAN_MAX_PROB}" | tee -a "$log_path"
+            echo "teacher_max_mean_entropy=${TEACHER_MAX_MEAN_ENTROPY}" | tee -a "$log_path"
 
             cmd=(
                 "$PYTHON_BIN" enc_dec_dynamic_eval_test.py
-                --teacher_filter_max_length \
-                --teacher_filter_max_consecutive_token_repeat \
-                --teacher_filter_repeated_token_ngrams \
-                --teacher_filter_repeated_words \
-                --teacher_filter_ctc_agreement \
+                "${TEACHER_FILTER_ARGS[@]}" \
                 --training_mode "$TRAINING_MODE" \
                 --teacher_kl_temperature "$TEACHER_KL_TEMPERATURE" \
                 -c "$CHECKPOINT" \
