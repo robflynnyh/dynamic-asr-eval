@@ -1820,12 +1820,18 @@ def enc_dec_dynamic_eval(
                     # only flow through the LM head.
                     original_ctc_loss_weight = model.ctc_loss_weight
                     model.ctc_loss_weight = 0.0
+                    student_rollout_temperature = getattr(args, 'student_rollout_temperature', 1.0)
+                    if student_rollout_temperature <= 0.0:
+                        raise ValueError(f'student_rollout_temperature must be > 0, got {student_rollout_temperature}')
+                    student_num_rollouts = getattr(args, 'student_num_rollouts', 4)
+                    if student_num_rollouts <= 0:
+                        raise ValueError(f'student_num_rollouts must be > 0, got {student_num_rollouts}')
 
                     student_rollouts = model.generate(
                         audio_signal = audio_chunk[:num_negatives],
-                        num_rollouts = 4,
+                        num_rollouts = student_num_rollouts,
                         sample = True,
-                        temperature = 1.0,
+                        temperature = student_rollout_temperature,
                     )['text_sequence']
 
                     student_rollouts_text = [tokenizer.decode(seq).strip() for seq in student_rollouts]
@@ -1834,17 +1840,13 @@ def enc_dec_dynamic_eval(
                     rewards = calc_rewards(teacher_pred_text, student_rollouts_text)
                     print(rewards)
 
-                    if sum(rewards) / len(rewards) > 0.95:
-                        model.ctc_loss_weight = original_ctc_loss_weight
-                        completed = True
-                        continue
-
-                    if all(r == 0.0 for r in rewards) or all(r == rewards[0] for r in rewards):
-                        print('skipping')
-                    else:
-                        if effective_training_mode == 'maxrl':
-                            loss = update_maxrl(model, audio_signal=audio_chunk[:num_negatives], tokenizer=tokenizer, hyps=student_rollouts_text, rewards=rewards, success_threshold=getattr(args, 'maxrl_success_threshold', 0.9))
-                        else:  # 'grpo'
+                    if effective_training_mode == 'maxrl':
+                        loss = update_maxrl(model, audio_signal=audio_chunk[:num_negatives], tokenizer=tokenizer, hyps=student_rollouts_text, rewards=rewards, success_threshold=getattr(args, 'maxrl_success_threshold', 0.9))
+                    else:  # 'grpo'
+                        if all(r == 0.0 for r in rewards) or all(r == rewards[0] for r in rewards):
+                            print('skipping')
+                            loss = None
+                        else:
                             loss = update_grpo(
                                 model,
                                 audio_signal=audio_chunk[:num_negatives],
@@ -1853,10 +1855,10 @@ def enc_dec_dynamic_eval(
                                 rewards=rewards,
                                 normalize_std=getattr(args, 'grpo_normalize_std', True),
                             )
-                        if loss is not None:
-                            optimizer.zero_grad()
-                            loss.backward()
-                            optimizer.step()
+                    if loss is not None:
+                        optimizer.zero_grad()
+                        loss.backward()
+                        optimizer.step()
                     model.ctc_loss_weight = original_ctc_loss_weight
 
                 model.language_model_decoder.eval()

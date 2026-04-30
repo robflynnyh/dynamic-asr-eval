@@ -145,6 +145,10 @@ if __name__ == '__main__':
                              'adaptive_ce_ctc_aux: use teacher_ce when sampled decode agreement is high, otherwise ctc_aux.')
     parser.add_argument('--teacher_kl_temperature', type=float, default=1.0,
                         help='Softmax temperature for --training_mode teacher_kl. Default 1.0.')
+    parser.add_argument('--student_rollout_temperature', type=float, default=1.0,
+                        help='Sampling temperature for RL student rollouts under --training_mode grpo or maxrl. Default 1.0.')
+    parser.add_argument('--student_num_rollouts', type=int, default=4,
+                        help='Number of sampled student rollouts for RL modes grpo and maxrl. Default 4.')
     parser.add_argument('--maxrl_success_threshold', type=float, default=0.9,
                         help='Continuous-reward threshold for binarising rollouts as success/failure under --training_mode maxrl. Default 0.9 ~= error<0.1 under the calc_rewards mean.')
     parser.add_argument('--grpo_normalize_std', action=argparse.BooleanOptionalAction, default=True,
