@@ -145,6 +145,8 @@ if __name__ == '__main__':
                              'adaptive_ce_ctc_aux: use teacher_ce when sampled decode agreement is high, otherwise ctc_aux.')
     parser.add_argument('--teacher_kl_temperature', type=float, default=1.0,
                         help='Softmax temperature for --training_mode teacher_kl. Default 1.0.')
+    parser.add_argument('--teacher_epoch_relabel', action='store_true',
+                        help='For teacher_ce/teacher_kl style modes, label and filter all chunks with the epoch-start teacher before training the student for that epoch.')
     parser.add_argument('--student_rollout_temperature', type=float, default=1.0,
                         help='Sampling temperature for RL student rollouts under --training_mode grpo or maxrl. Default 1.0.')
     parser.add_argument('--student_num_rollouts', type=int, default=4,

@@ -1393,6 +1393,47 @@ def calc_kl_enc_dec_loss(
     return loss
 
 
+def calc_kl_enc_dec_loss_from_teacher_logits(
+        model,
+        audio_signal,
+        text_sequence,
+        a_lengths,
+        t_lengths,
+        teacher_logits,
+        temperature=1.0,
+        bos_id=0,
+    ):
+    if temperature <= 0.0:
+        raise ValueError(f'temperature must be > 0 for teacher_kl, got {temperature}')
+
+    text_sequence_bos = F.pad(text_sequence, (1, 0), value=bos_id)
+    target_lengths_bos = t_lengths + 1
+
+    student_out = model.forward(audio_signal, text_sequence_bos, a_lengths)
+    student_logits = student_out['final_posteriors_lm']
+    teacher_logits = teacher_logits.to(student_logits.device)
+
+    n_tokens = min(student_logits.shape[1], teacher_logits.shape[1])
+    student_logits = student_logits[:, :n_tokens, :]
+    teacher_logits = teacher_logits[:, :n_tokens, :]
+    mask = token_lens_to_mask(target_lengths_bos).to(student_logits.device)[:, :n_tokens]
+
+    teacher_probs = F.softmax(teacher_logits / temperature, dim=-1)
+    if teacher_probs.shape[0] == 1 and student_logits.shape[0] != 1:
+        teacher_probs = teacher_probs.repeat(student_logits.shape[0], 1, 1)
+    student_log_probs = F.log_softmax(student_logits / temperature, dim=-1)
+
+    per_token_kl = F.kl_div(
+        input=student_log_probs,
+        target=teacher_probs,
+        reduction='none',
+    ).sum(dim=-1)
+    loss = (per_token_kl * mask).sum() / mask.sum().clamp_min(1)
+    loss = loss * (temperature ** 2)
+    print(loss, "loss (teacher_kl_epoch_relabel)")
+    return loss
+
+
 def calc_ctc_aux_enc_dec_loss(
         model,
         audio_signal,
@@ -1670,11 +1711,185 @@ def enc_dec_dynamic_eval(
 
     model.eval() # don't update batchrenorm
     training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
+    training_mode = getattr(args, 'training_mode', 'grpo')
+    teacher_epoch_relabel = args.__dict__.get('teacher_epoch_relabel', False)
+    if teacher_epoch_relabel and training_mode in {'grpo', 'maxrl'}:
+        raise ValueError('--teacher_epoch_relabel is only implemented for teacher_ce, teacher_kl, ctc_aux, and adaptive_ce_ctc_aux')
+
+    def label_teacher_chunk(idx):
+        clean_chunk = training_data[training_keys[idx]].clone().to(model.device)
+        acoustic_length = torch.LongTensor([clean_chunk.shape[-1]]).to(model.device)
+
+        with torch.no_grad():
+            encoder_out_for_teacher = model.forward(audio_signal=clean_chunk)
+
+        teacher_generate_kwargs = {
+            'audio_signal': clean_chunk,
+            'encoder_states': encoder_out_for_teacher,
+            **generation_args,
+        }
+        teacher_pred = torch.tensor(
+            model.generate(**teacher_generate_kwargs)["text_sequence"][0],
+            dtype=torch.long, device=model.device,
+        )
+        teacher_pred_tokens = teacher_pred.tolist()
+        teacher_pred_text = tokenizer.decode(teacher_pred_tokens).strip()
+        text_lengths = torch.LongTensor([teacher_pred.shape[-1]]).to(model.device)
+
+        teacher_mean_max_prob, teacher_mean_entropy = None, None
+        agreement_text, ctc_text = None, None
+        teacher_logits = None
+        adaptive_ce_ctc = training_mode == 'adaptive_ce_ctc_aux'
+        need_teacher_forward = (
+            args.__dict__.get('teacher_filter_low_confidence', False)
+            or args.__dict__.get('teacher_filter_ctc_agreement', False)
+            or training_mode == 'teacher_kl'
+        )
+
+        teacher_forward_out = None
+        if need_teacher_forward:
+            teacher_inputs = F.pad(teacher_pred[None, :], (1, 0), value=0)
+            with torch.no_grad():
+                teacher_forward_out = model.forward(clean_chunk, teacher_inputs, acoustic_length)
+
+            if args.__dict__.get('teacher_filter_low_confidence', False) and teacher_pred.shape[-1] > 0:
+                teacher_probs = teacher_forward_out['final_posteriors_lm'][0, :teacher_pred.shape[-1], :].softmax(dim=-1)
+                teacher_mean_max_prob = teacher_probs.max(dim=-1).values.mean().item()
+                teacher_mean_entropy = torch.distributions.Categorical(probs=teacher_probs).entropy().mean().item()
+
+            if args.__dict__.get('teacher_filter_ctc_agreement', False) and ctc_decoder is not None:
+                ctc_text = ctc_decoder(teacher_forward_out['final_posteriors_ctc'][0].detach().cpu()).strip()
+
+            if training_mode == 'teacher_kl':
+                teacher_logits = teacher_forward_out['final_posteriors_lm'].detach().cpu()
+
+        if args.__dict__.get('teacher_filter_decode_agreement', False) or adaptive_ce_ctc:
+            agreement_gen = model.generate(
+                clean_chunk,
+                encoder_states=encoder_out_for_teacher,
+                sample=True,
+                temperature=args.teacher_decode_agreement_temperature,
+            )
+            agreement_text = tokenizer.decode(agreement_gen["text_sequence"][0]).strip()
+
+        print(f'Teacher pred: {teacher_pred_text}')
+        skip_teacher_step, skip_reason = should_skip_faulty_teacher_prediction(
+            args=args,
+            teacher_pred_tokens=teacher_pred_tokens,
+            teacher_pred_text=teacher_pred_text,
+            spec_frames=clean_chunk.shape[-1],
+            agreement_text=agreement_text,
+            teacher_mean_max_prob=teacher_mean_max_prob,
+            teacher_mean_entropy=teacher_mean_entropy,
+            ctc_text=ctc_text,
+        )
+        if skip_teacher_step:
+            print(f'Skipping teacher update: {skip_reason}')
+            return None
+
+        effective_training_mode = training_mode
+        if adaptive_ce_ctc:
+            min_similarity = args.__dict__.get('teacher_decode_agreement_min_similarity', 0.65)
+            agreement_similarity = _text_cer_similarity(agreement_text, teacher_pred_text)
+            if agreement_similarity >= min_similarity:
+                effective_training_mode = 'teacher_ce'
+            else:
+                effective_training_mode = 'ctc_aux'
+            print(
+                f'adaptive_ce_ctc_aux: decode agreement 1-CER={agreement_similarity:.2f} '
+                f'(threshold={min_similarity:.2f}); using {effective_training_mode}'
+            )
+
+        return {
+            'idx': idx,
+            'teacher_pred': teacher_pred.detach().cpu(),
+            'teacher_lengths': text_lengths.detach().cpu(),
+            'teacher_logits': teacher_logits,
+            'effective_training_mode': effective_training_mode,
+        }
+
+    def train_on_teacher_label(label):
+        audio_chunk = training_data[training_keys[label['idx']]].clone().to(model.device)
+        audio_chunk = audio_chunk.repeat(num_negatives+1, 1, 1)
+        audio_chunk[:num_negatives] = augmentation(audio_chunk[:num_negatives])
+        acoustic_length = torch.LongTensor([audio_chunk.shape[-1]]).to(model.device)
+
+        teacher_pred = label['teacher_pred'].to(model.device)
+        teacher_lengths = label['teacher_lengths'].to(model.device)
+        effective_training_mode = label['effective_training_mode']
+
+        for layer in model.language_model_decoder.layers:
+            layer[0].fn.dropout_p = dropout_attn
+
+        if not freeze_decoder:
+            model.language_model_decoder.train()
+
+        if effective_training_mode in {'teacher_ce', 'teacher_kl'}:
+            bsz = num_negatives
+            teacher_targets = teacher_pred[None, :].repeat(bsz, 1)
+            teacher_target_lengths = teacher_lengths.repeat(bsz)
+            a_lengths_for_ce = acoustic_length.repeat(bsz)
+            if effective_training_mode == 'teacher_ce':
+                out = calc_loss_enc_dec(
+                    model=model,
+                    audio_signal=audio_chunk[:num_negatives],
+                    text_sequence=teacher_targets,
+                    a_lengths=a_lengths_for_ce,
+                    t_lengths=teacher_target_lengths,
+                    tokenizer=tokenizer,
+                )
+                loss = out['loss']
+                print(loss, "loss (teacher_ce_epoch_relabel)")
+            else:
+                loss = calc_kl_enc_dec_loss_from_teacher_logits(
+                    model=model,
+                    audio_signal=audio_chunk[:num_negatives],
+                    text_sequence=teacher_targets,
+                    a_lengths=a_lengths_for_ce,
+                    t_lengths=teacher_target_lengths,
+                    teacher_logits=label['teacher_logits'],
+                    temperature=getattr(args, 'teacher_kl_temperature', 1.0),
+                )
+        elif effective_training_mode == 'ctc_aux':
+            bsz = num_negatives
+            teacher_targets = teacher_pred[None, :].repeat(bsz, 1)
+            teacher_target_lengths = teacher_lengths.repeat(bsz)
+            loss = calc_ctc_aux_enc_dec_loss(
+                model=model,
+                audio_signal=audio_chunk[:num_negatives],
+                text_sequence=teacher_targets,
+                t_lengths=teacher_target_lengths,
+                blank_id=model.ctc_decoder.num_classes - 1,
+            )
+        else:
+            raise ValueError(f'Unsupported teacher_epoch_relabel training mode: {effective_training_mode}')
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        model.language_model_decoder.eval()
+        for layer in model.language_model_decoder.layers:
+            layer[0].fn.dropout_p = 0
+
     for epoch in range(args.__dict__.get('epochs', 1)):
         print(f'Epoch {epoch + 1} / {args.__dict__.get("epochs", 1)}')
         training_keys = list(training_data.keys())
         training_keys_idx = [i for i in range(len(training_keys))]
         training_keys_idx = random.sample(training_keys_idx, len(training_keys_idx)) if args.__dict__.get('shuffle', False) else training_keys_idx
+
+        if teacher_epoch_relabel:
+            label_iter = tqdm(training_keys_idx, desc='teacher-label', leave=False) if use_tqdm else training_keys_idx
+            teacher_labels = []
+            for idx in label_iter:
+                label = label_teacher_chunk(idx)
+                if label is not None:
+                    teacher_labels.append(label)
+            print(f'teacher_epoch_relabel: retained {len(teacher_labels)} / {len(training_keys_idx)} chunks')
+            train_labels = random.sample(teacher_labels, len(teacher_labels)) if args.__dict__.get('shuffle', False) else teacher_labels
+            train_iter = tqdm(train_labels, desc='student-train', leave=False) if use_tqdm else train_labels
+            for label in train_iter:
+                train_on_teacher_label(label)
+            continue
         
         pbar = tqdm(training_keys_idx) if use_tqdm else training_keys_idx
         for idx in pbar:

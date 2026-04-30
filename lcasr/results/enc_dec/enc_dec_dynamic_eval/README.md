@@ -202,6 +202,24 @@ bash launch_scripts/tune_enc_dec_dynamic_eval_teacher_ce.sh
 This keeps the same teacher-filtered pseudo-label path but uses the clean
 teacher decoder distribution as a soft target for the augmented student pass.
 
+Epoch-relabel teacher ablation:
+
+```bash
+TRAINING_MODE=teacher_kl \
+TEACHER_EPOCH_RELABEL=1 \
+RESULTS_DIR=./results/enc_dec/enc_dec_teacher_epoch_relabel \
+ENC_DEC_BEAM_WIDTH=5 \
+ENC_DEC_LENGTH_PENALTY=0.5 \
+bash launch_scripts/tune_enc_dec_dynamic_eval_teacher_ce.sh
+```
+
+With `TEACHER_EPOCH_RELABEL=1`, each adaptation epoch first labels and filters
+all chunks with the epoch-start teacher model. The student then trains for one
+epoch on only the retained labels. This keeps the teacher fixed during the
+student epoch, then repeats the label/filter/train cycle on the next epoch.
+The default chunk-by-chunk teacher/student behavior is unchanged when this
+flag is unset.
+
 Current teacher-CE beam sweep:
 
 ```bash
@@ -233,6 +251,12 @@ Teacher-CE and teacher-KL ablation pickles are written as:
 
 ```text
 results/enc_dec/enc_dec_dynamic_eval/<dataset>-<split>-<teacher_ce|teacher_kl>[-beam<beam>_lp<lp>...]-epoch-<E>-lr-<lr_tag>-<aug>.pkl
+```
+
+Epoch-relabel variants add `_epoch_relabel` to the mode:
+
+```text
+results/enc_dec/enc_dec_teacher_epoch_relabel/<dataset>-<split>-<teacher_ce_epoch_relabel|teacher_kl_epoch_relabel>[-beam<beam>_lp<lp>...]-epoch-<E>-lr-<lr_tag>-<aug>.pkl
 ```
 
 For the current beam5/lp0.5 run, expected pickles are:

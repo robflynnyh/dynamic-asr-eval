@@ -45,7 +45,20 @@ def parse_setting(setting: str) -> dict:
     mode = out.get("mode") or ""
     out["base_mode"] = mode
     out["decode"] = "greedy"
-    for base_mode in ("adaptive_ce_ctc_aux", "teacher_kl", "teacher_ce", "ctc_aux", "grpo", "maxrl", "no_adapt", "baseline"):
+    for base_mode in (
+        "adaptive_ce_ctc_aux_epoch_relabel",
+        "teacher_kl_epoch_relabel",
+        "teacher_ce_epoch_relabel",
+        "ctc_aux_epoch_relabel",
+        "adaptive_ce_ctc_aux",
+        "teacher_kl",
+        "teacher_ce",
+        "ctc_aux",
+        "grpo",
+        "maxrl",
+        "no_adapt",
+        "baseline",
+    ):
         if mode == base_mode:
             break
         if mode.startswith(base_mode + "-"):

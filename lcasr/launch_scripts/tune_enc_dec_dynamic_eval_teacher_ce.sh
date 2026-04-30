@@ -22,6 +22,7 @@ TEACHER_REPEATED_TOKEN_NGRAM_SIZES=${TEACHER_REPEATED_TOKEN_NGRAM_SIZES:-"2 3"}
 TEACHER_FILTER_LOW_CONFIDENCE=${TEACHER_FILTER_LOW_CONFIDENCE:-0}
 TEACHER_MIN_MEAN_MAX_PROB=${TEACHER_MIN_MEAN_MAX_PROB:-0.35}
 TEACHER_MAX_MEAN_ENTROPY=${TEACHER_MAX_MEAN_ENTROPY:-2.5}
+TEACHER_EPOCH_RELABEL=${TEACHER_EPOCH_RELABEL:-0}
 DRY_RUN=${DRY_RUN:-0}
 export MPLCONFIGDIR=${MPLCONFIGDIR:-/tmp/matplotlib}
 
@@ -59,6 +60,12 @@ if [ "$TEACHER_FILTER_LOW_CONFIDENCE" = "1" ]; then
         --teacher_min_mean_max_prob "$TEACHER_MIN_MEAN_MAX_PROB"
         --teacher_max_mean_entropy "$TEACHER_MAX_MEAN_ENTROPY"
     )
+fi
+TEACHER_EPOCH_RELABEL_ARGS=()
+RUN_TRAINING_MODE="$TRAINING_MODE"
+if [ "$TEACHER_EPOCH_RELABEL" = "1" ]; then
+    TEACHER_EPOCH_RELABEL_ARGS+=(--teacher_epoch_relabel)
+    RUN_TRAINING_MODE="${TRAINING_MODE}_epoch_relabel"
 fi
 
 DECODING_ARGS=()
@@ -110,7 +117,7 @@ do
             esac
 
             lr_name=$(lr_tag "$lr")
-            run_name="${dataset}-${SPLIT}-${TRAINING_MODE}${DECODING_SUFFIX}-epoch-${EPOCHS}-lr-${lr_name}-${aug}"
+            run_name="${dataset}-${SPLIT}-${RUN_TRAINING_MODE}${DECODING_SUFFIX}-epoch-${EPOCHS}-lr-${lr_name}-${aug}"
             save_path="${RESULTS_DIR}/${run_name}.pkl"
             log_path="${LOG_DIR}/${run_name}.log"
 
@@ -125,12 +132,14 @@ do
             echo "teacher_filter_low_confidence=${TEACHER_FILTER_LOW_CONFIDENCE}" | tee -a "$log_path"
             echo "teacher_min_mean_max_prob=${TEACHER_MIN_MEAN_MAX_PROB}" | tee -a "$log_path"
             echo "teacher_max_mean_entropy=${TEACHER_MAX_MEAN_ENTROPY}" | tee -a "$log_path"
+            echo "teacher_epoch_relabel=${TEACHER_EPOCH_RELABEL}" | tee -a "$log_path"
 
             cmd=(
                 "$PYTHON_BIN" enc_dec_dynamic_eval_test.py
                 "${TEACHER_FILTER_ARGS[@]}" \
                 --training_mode "$TRAINING_MODE" \
                 --teacher_kl_temperature "$TEACHER_KL_TEMPERATURE" \
+                "${TEACHER_EPOCH_RELABEL_ARGS[@]}" \
                 -c "$CHECKPOINT" \
                 -dfa \
                 -epochs "$EPOCHS" \
