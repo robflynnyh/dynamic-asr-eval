@@ -19,6 +19,15 @@ changes immediately after each update.
 
 ## Launch
 
+For the TEDLIUM-dev stability grid, see
+[`SWEEP_PLAN.md`](SWEEP_PLAN.md). The dedicated launcher is:
+
+```bash
+GPU=0 bash launch_scripts/tune_enc_dec_teacher_epoch_relabel_tedlium_dev.sh
+```
+
+For the older broad dataset/LR/augmentation grid:
+
 ```bash
 GPU=1 \
 RESULTS_DIR=./results/enc_dec/enc_dec_teacher_epoch_relabel \

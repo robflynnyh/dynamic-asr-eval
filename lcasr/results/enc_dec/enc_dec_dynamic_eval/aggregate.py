@@ -22,6 +22,9 @@ SETTING_RE = re.compile(
     r"^(?P<dataset>.+)-(?P<split>dev|test)-(?P<mode>.+)-epoch-(?P<epoch>\d+)"
     r"-lr-(?P<lr>[^-]+)-(?P<aug>.+?)(?:-agree(?P<agreement>[^-]+))?$"
 )
+EPOCH_RELABEL_SWEEP_AUG_RE = re.compile(
+    r"^(?P<spec_aug>.+)-tau(?P<kl_temp>[^-]+)-filter_(?P<teacher_filter>.+)$"
+)
 
 
 def _mean(values):
@@ -42,6 +45,9 @@ def parse_setting(setting: str) -> dict:
     out = match.groupdict()
     out["setting"] = setting
     out["epoch"] = int(out["epoch"])
+    sweep_aug = EPOCH_RELABEL_SWEEP_AUG_RE.match(out.get("aug") or "")
+    if sweep_aug is not None:
+        out.update(sweep_aug.groupdict())
     mode = out.get("mode") or ""
     out["base_mode"] = mode
     out["decode"] = "greedy"
@@ -118,11 +124,13 @@ def print_table(rows: list[dict]) -> None:
         r.get("dataset", ""),
         r.get("mode", ""),
         r.get("lr", ""),
-        r.get("aug", ""),
+        r.get("spec_aug") or r.get("aug", ""),
+        r.get("kl_temp") or "",
+        r.get("teacher_filter") or "",
         r.get("agreement") or "",
     ))
     header = (
-        "dataset", "mode", "lr", "aug", "agreement", "wer", "delta",
+        "dataset", "mode", "lr", "aug", "kl_temp", "teacher_filter", "agreement", "wer", "delta",
         "wer_std", "ins", "del", "sub", "n",
     )
     print("\t".join(header))
@@ -131,7 +139,9 @@ def print_table(rows: list[dict]) -> None:
             str(row.get("dataset", "")),
             str(row.get("mode", "")),
             str(row.get("lr", "")),
-            str(row.get("aug", "")),
+            str(row.get("spec_aug") or row.get("aug", "")),
+            str(row.get("kl_temp") or ""),
+            str(row.get("teacher_filter") or ""),
             str(row.get("agreement") or ""),
             f"{row['wer']:.5f}",
             "" if row["delta_vs_baseline"] is None else f"{row['delta_vs_baseline']:.5f}",
