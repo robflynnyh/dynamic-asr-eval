@@ -189,6 +189,49 @@ def freeze_subsampling(model):
     return model
 
 
+def freeze_encoder_layer(model, layer_idx):
+    layers = getattr(model, 'layers', None)
+    if layers is None:
+        print('No encoder layers found to freeze')
+        return model
+
+    if layer_idx < 0 or layer_idx >= len(layers):
+        raise ValueError(f'Invalid freeze_layer={layer_idx}; model has {len(layers)} layers')
+
+    for param in layers[layer_idx].parameters():
+        param.requires_grad = False
+    print(f'Freezing encoder layer: layers.{layer_idx}')
+    return model
+
+
+def freeze_ctc_decoder(model):
+    decoder = getattr(model, 'decoder', None)
+    if decoder is None:
+        print('No CTC decoder/output projection found to freeze')
+        return model
+
+    for param in decoder.parameters():
+        param.requires_grad = False
+    print(f'Freezing CTC decoder/output projection: {decoder.__class__.__name__}')
+    return model
+
+
+def apply_update_freezes(args, model):
+    """Drop selected modules from self-training updates while leaving the rest trainable."""
+    if args.__dict__.get('freeze_subsampling', False):
+        model = freeze_subsampling(model)
+    freeze_layer = args.__dict__.get('freeze_layer', None)
+    if freeze_layer is not None:
+        model = freeze_encoder_layer(model, freeze_layer)
+    if args.__dict__.get('freeze_ctc_decoder', False):
+        model = freeze_ctc_decoder(model)
+    if args.__dict__.get('freeze_all_but_last_block_and_head', False):
+        model = freeze_all_but_last_block_and_head(model)
+    if args.__dict__.get('train_subsampling_only', False):
+        model = train_subsampling_only(model)
+    return model
+
+
 def freeze_all_but_last_block_and_head(model):
     for param in model.parameters():
         param.requires_grad = False
@@ -264,12 +307,7 @@ def AWMC(
     if args.__dict__.get('bitfit', False):
         model = bitfit(model)
 
-    if args.__dict__.get('freeze_subsampling', False):
-        model = freeze_subsampling(model)
-    if args.__dict__.get('freeze_all_but_last_block_and_head', False):
-        model = freeze_all_but_last_block_and_head(model)
-    if args.__dict__.get('train_subsampling_only', False):
-        model = train_subsampling_only(model)
+    model = apply_update_freezes(args, model)
 
     model.train()
     ema_leader_model = ExponentialMovingAverage(model.parameters(), decay=args.__dict__.get('ema_decay', 0.999))
@@ -512,12 +550,7 @@ def dynamic_eval_ctc_loss(
     original_model_params = list(model.parameters())
     original_model_params = [p.clone().detach().cpu() for p in original_model_params]
 
-    if args.__dict__.get('freeze_subsampling', False):
-        model = freeze_subsampling(model)
-    if args.__dict__.get('freeze_all_but_last_block_and_head', False):
-        model = freeze_all_but_last_block_and_head(model)
-    if args.__dict__.get('train_subsampling_only', False):
-        model = train_subsampling_only(model)
+    model = apply_update_freezes(args, model)
  
     ctc_loss_fn = torch.nn.CTCLoss(blank=model.decoder.num_classes-1, reduction='sum')
     
@@ -707,12 +740,7 @@ def dynamic_eval_consistency_ctc_loss(
     original_model_params = list(model.parameters())
     original_model_params = [p.clone().detach().cpu() for p in original_model_params]
 
-    if args.__dict__.get('freeze_subsampling', False):
-        model = freeze_subsampling(model)
-    if args.__dict__.get('freeze_all_but_last_block_and_head', False):
-        model = freeze_all_but_last_block_and_head(model)
-    if args.__dict__.get('train_subsampling_only', False):
-        model = train_subsampling_only(model)
+    model = apply_update_freezes(args, model)
  
     ctc_loss_fn = torch.nn.CTCLoss(blank=model.decoder.num_classes-1, reduction='sum')
     
@@ -2144,6 +2172,8 @@ def apply_args(parser):
     parser.add_argument('-awmc', '--awmc', action='store_true', help='Use AWMC method from https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=10389640&tag=1 instead of dynamic eval')
     parser.add_argument('--consistency', '--consistency', action='store_true', help='Use consistency training')
     parser.add_argument('--freeze_subsampling', action='store_true', help='Freeze subsampling layers during test-time adaptation')
+    parser.add_argument('--freeze_layer', type=int, default=None, help='Freeze one encoder layer during test-time adaptation, e.g. 0 for layers.0')
+    parser.add_argument('--freeze_ctc_decoder', action='store_true', help='Freeze the CTC decoder/output projection during test-time adaptation')
     parser.add_argument('--freeze_all_but_last_block_and_head', action='store_true', help='Freeze all params except the last encoder block and CTC head during test-time adaptation')
     parser.add_argument('--freeze_decoder', action='store_true', help='Freeze the encoder-decoder language_model_decoder during test-time adaptation')
     parser.add_argument('--train_subsampling_only', action='store_true', help='Train only the subsampling module during test-time adaptation')
