@@ -19,6 +19,7 @@ LRS_STR=${LRS:-"9e-6 9e-5 9e-4"}
 # Default checkpoint has 6 encoder layers (0..5). Override if using a different model.
 LAYERS_STR=${LAYERS:-"0 1 2 3 4 5"}
 INCLUDE_SUBSAMPLING=${INCLUDE_SUBSAMPLING:-1}
+INCLUDE_CTC_DECODER=${INCLUDE_CTC_DECODER:-1}
 RESULTS_DIR=${RESULTS_DIR:-"./results/ctc_self_training_layer_drop_lr_sweep"}
 LOG_DIR="${RESULTS_DIR}/logs"
 
@@ -58,6 +59,10 @@ for lr in "${LRS[@]}"
 do
     if [ "$INCLUDE_SUBSAMPLING" = "1" ]; then
         run_item "$lr" "subsampling" --freeze_subsampling
+    fi
+
+    if [ "$INCLUDE_CTC_DECODER" = "1" ]; then
+        run_item "$lr" "ctc-decoder" --freeze_ctc_decoder
     fi
 
     for layer in "${LAYERS[@]}"

@@ -204,6 +204,18 @@ def freeze_encoder_layer(model, layer_idx):
     return model
 
 
+def freeze_ctc_decoder(model):
+    decoder = getattr(model, 'decoder', None)
+    if decoder is None:
+        print('No CTC decoder/output projection found to freeze')
+        return model
+
+    for param in decoder.parameters():
+        param.requires_grad = False
+    print(f'Freezing CTC decoder/output projection: {decoder.__class__.__name__}')
+    return model
+
+
 def apply_update_freezes(args, model):
     """Drop selected modules from self-training updates while leaving the rest trainable."""
     if args.__dict__.get('freeze_subsampling', False):
@@ -211,6 +223,8 @@ def apply_update_freezes(args, model):
     freeze_layer = args.__dict__.get('freeze_layer', None)
     if freeze_layer is not None:
         model = freeze_encoder_layer(model, freeze_layer)
+    if args.__dict__.get('freeze_ctc_decoder', False):
+        model = freeze_ctc_decoder(model)
     if args.__dict__.get('freeze_all_but_last_block_and_head', False):
         model = freeze_all_but_last_block_and_head(model)
     if args.__dict__.get('train_subsampling_only', False):
@@ -2159,6 +2173,7 @@ def apply_args(parser):
     parser.add_argument('--consistency', '--consistency', action='store_true', help='Use consistency training')
     parser.add_argument('--freeze_subsampling', action='store_true', help='Freeze subsampling layers during test-time adaptation')
     parser.add_argument('--freeze_layer', type=int, default=None, help='Freeze one encoder layer during test-time adaptation, e.g. 0 for layers.0')
+    parser.add_argument('--freeze_ctc_decoder', action='store_true', help='Freeze the CTC decoder/output projection during test-time adaptation')
     parser.add_argument('--freeze_all_but_last_block_and_head', action='store_true', help='Freeze all params except the last encoder block and CTC head during test-time adaptation')
     parser.add_argument('--freeze_decoder', action='store_true', help='Freeze the encoder-decoder language_model_decoder during test-time adaptation')
     parser.add_argument('--train_subsampling_only', action='store_true', help='Train only the subsampling module during test-time adaptation')
