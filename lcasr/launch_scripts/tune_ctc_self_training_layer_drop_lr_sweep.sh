@@ -57,6 +57,8 @@ run_item() {
 
 for lr in "${LRS[@]}"
 do
+    run_item "$lr" "none"
+
     if [ "$INCLUDE_SUBSAMPLING" = "1" ]; then
         run_item "$lr" "subsampling" --freeze_subsampling
     fi
