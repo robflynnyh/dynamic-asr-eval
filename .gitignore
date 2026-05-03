@@ -3,7 +3,6 @@
 *.out
 *.log
 .fuse*
-*.pkl
 paths.yaml
 *.gz
 *.arpa
