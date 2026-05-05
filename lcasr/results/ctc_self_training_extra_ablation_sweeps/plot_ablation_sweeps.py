@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import pickle
 import subprocess
 import statistics
 from collections import defaultdict
@@ -28,6 +29,11 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parent
 SUMMARY_CSV = ROOT / "summary.csv"
+CROSSDATASET_BASELINE = ROOT.parent / "crossdataset" / "earnings22_tedlium-epoch-1-ao0-test_1.pkl"
+FALLBACK_BASELINE_WER = {
+    "earnings22": 0.18289320507321855,
+    "tedlium": 0.06227184121920964,
+}
 
 GROUP_TITLES = {
     "train_only": "Train-only ablation",
@@ -137,6 +143,17 @@ def load_rows() -> list[dict[str, str]]:
     return [row for row in rows if not row.get("error")]
 
 
+def load_baseline_wer() -> dict[str, float]:
+    if CROSSDATASET_BASELINE.exists():
+        with CROSSDATASET_BASELINE.open("rb") as f:
+            data = pickle.load(f)
+        return {
+            str(data["dataset_a"]): float(data["a_baseline"]["wer"]),
+            str(data["dataset_b"]): float(data["b_baseline"]["wer"]),
+        }
+    return FALLBACK_BASELINE_WER.copy()
+
+
 def ordered_settings(group: str, rows: list[dict[str, str]]) -> list[str]:
     present = {row["setting"] for row in rows if row["group"] == group}
     ordered = [setting for setting in SETTING_ORDER[group] if setting in present]
@@ -149,6 +166,7 @@ def plot_group(
     rows: list[dict[str, str]],
     out_path: Path,
     selected_lrs: list[str],
+    baseline_wer: dict[str, float],
 ) -> None:
     settings = ordered_settings(group, rows)
     datasets = [
@@ -237,6 +255,19 @@ def plot_group(
         ymax = max(upper_values) + upper_pad
         ax.set_ylim(ymin, ymax)
         ax.set_title(DATASET_TITLES.get(dataset, dataset), fontsize=10)
+        baseline = baseline_wer.get(dataset)
+        if baseline is not None:
+            ax.text(
+                0.98,
+                0.96,
+                f"unadapted WER={baseline * 100:.1f}%",
+                transform=ax.transAxes,
+                ha="right",
+                va="top",
+                fontsize=8,
+                color="#C44E52",
+                bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.85, "pad": 1.5},
+            )
         ax.set_xticks(x)
         labels = [SETTING_LABELS.get(setting, setting) for setting in settings]
         if group in {"progressive_top", "train_only", "layer_drop_lr_sweep"}:
@@ -278,8 +309,9 @@ def main() -> None:
     ensure_summary(refresh=args.refresh)
     rows = load_rows()
     selected_lrs = [LR_TAG[lr] for lr in args.lrs]
+    baseline_wer = load_baseline_wer()
     for group in args.groups:
-        plot_group(group, rows, ROOT / f"{group}_ablation_bars.pdf", selected_lrs)
+        plot_group(group, rows, ROOT / f"{group}_ablation_bars.pdf", selected_lrs, baseline_wer)
 
 
 if __name__ == "__main__":
