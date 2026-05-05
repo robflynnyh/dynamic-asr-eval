@@ -37,8 +37,8 @@ GROUP_TITLES = {
 }
 
 DATASET_TITLES = {
-    "earnings22": "Earnings22 test",
-    "tedlium": "TED-LIUM test",
+    "earnings22": "Earnings22",
+    "tedlium": "TED-LIUM",
 }
 
 LR_PRETTY = {
@@ -144,7 +144,12 @@ def ordered_settings(group: str, rows: list[dict[str, str]]) -> list[str]:
     return ordered + extras
 
 
-def plot_group(group: str, rows: list[dict[str, str]], out_path: Path, selected_lrs: list[str]) -> None:
+def plot_group(
+    group: str,
+    rows: list[dict[str, str]],
+    out_path: Path,
+    selected_lrs: list[str],
+) -> None:
     settings = ordered_settings(group, rows)
     datasets = [
         dataset
@@ -246,7 +251,7 @@ def plot_group(group: str, rows: list[dict[str, str]], out_path: Path, selected_
         if len(lrs) > 1:
             ax.legend(frameon=False, fontsize=8, loc="best")
 
-    fig.suptitle(GROUP_TITLES[group], fontsize=12)
+    # fig.suptitle(GROUP_TITLES[group], fontsize=12)
     fig.savefig(out_path, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved {out_path}")
