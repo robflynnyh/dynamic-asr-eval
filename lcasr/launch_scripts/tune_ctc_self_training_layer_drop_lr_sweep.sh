@@ -20,7 +20,7 @@ LRS_STR=${LRS:-"9e-6 9e-5 9e-4"}
 LAYERS_STR=${LAYERS:-"0 1 2 3 4 5"}
 INCLUDE_SUBSAMPLING=${INCLUDE_SUBSAMPLING:-1}
 INCLUDE_CTC_DECODER=${INCLUDE_CTC_DECODER:-1}
-RESULTS_DIR=${RESULTS_DIR:-"./results/ctc_self_training_layer_drop_lr_sweep"}
+RESULTS_DIR=${RESULTS_DIR:-"./results/ctc_self_training_extra_ablation_sweeps/layer_drop_lr_sweep"}
 LOG_DIR="${RESULTS_DIR}/logs"
 
 read -r -a LRS <<< "$LRS_STR"

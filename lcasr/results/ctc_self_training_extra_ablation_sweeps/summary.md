@@ -2,7 +2,7 @@
 
 Generated from `/exp/exp4/acp21rjf/dynamic-asr-eval/lcasr/results/ctc_self_training_extra_ablation_sweeps`.
 
-Focused view: **9e-5 only**, all rows in each category. Full metrics remain in `summary.csv`.
+Focused view: **9e-5 only**, averaged by setting. Per-repeat rows remain in `summary.csv`; grouped metrics are in `summary_by_setting.csv`.
 
 ## train_only, 9e-5
 

@@ -15,10 +15,13 @@ import csv
 import os
 import pickle
 import re
+import statistics
+from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 OUT_CSV = ROOT / "summary.csv"
+OUT_GROUPED_CSV = ROOT / "summary_by_setting.csv"
 OUT_MD = ROOT / "summary.md"
 
 
@@ -99,11 +102,27 @@ def write_outputs(rows: list[dict[str, object]]) -> None:
         for row in rows:
             writer.writerow({k: row.get(k, "") for k in fields})
 
+    grouped_rows = summarize_by_setting(rows)
+    grouped_fields = [
+        "group", "dataset", "split", "epochs", "lr", "setting",
+        "n", "wer_mean", "wer_std", "ins_rate_mean", "del_rate_mean",
+        "sub_rate_mean", "words", "repeats", "paths",
+    ]
+    with OUT_GROUPED_CSV.open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=grouped_fields)
+        writer.writeheader()
+        for row in grouped_rows:
+            writer.writerow({k: row.get(k, "") for k in grouped_fields})
+
     def wer_pct(row: dict[str, object]) -> str:
         try:
-            return f"{100 * float(row.get('wer', '')):.2f}%"
+            mean = 100 * float(row.get('wer_mean', ''))
+            std = row.get('wer_std', '')
+            if int(row.get("n", 1)) > 1 and std != "":
+                return f"{mean:.2f}% +/- {100 * float(std):.2f}"
+            return f"{mean:.2f}%"
         except Exception:
-            return str(row.get('wer', ''))
+            return str(row.get('wer_mean', ''))
 
     def lr_display(lr: object) -> str:
         return str(lr).replace("em", "e-")
@@ -125,10 +144,10 @@ def write_outputs(rows: list[dict[str, object]]) -> None:
     lines.append("")
     lines.append(f"Generated from `{ROOT}`.")
     lines.append("")
-    lines.append("Focused view: **9e-5 only**, all rows in each category. Full metrics remain in `summary.csv`.")
+    lines.append("Focused view: **9e-5 only**, averaged by setting. Per-repeat rows remain in `summary.csv`; grouped metrics are in `summary_by_setting.csv`.")
     lines.append("")
 
-    ok_rows = [r for r in rows if r.get('error', '') == '' and r.get('lr') == '9em5']
+    ok_rows = [r for r in grouped_rows if r.get('lr') == '9em5']
     for group in ["train_only", "progressive_top", "layer_type", "layer_drop_lr_sweep"]:
         subset = [r for r in ok_rows if r.get("group") == group]
         if subset:
@@ -137,11 +156,74 @@ def write_outputs(rows: list[dict[str, object]]) -> None:
     OUT_MD.write_text("\n".join(lines) + "\n")
 
 
+def mean_or_blank(values: list[float]) -> str:
+    return f"{statistics.mean(values):.10f}" if values else ""
+
+
+def stdev_or_blank(values: list[float]) -> str:
+    return f"{statistics.stdev(values):.10f}" if len(values) > 1 else ""
+
+
+def summarize_by_setting(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    grouped: dict[tuple[str, str, str, str, str, str], list[dict[str, object]]] = defaultdict(list)
+    for row in rows:
+        if row.get("error"):
+            continue
+        key = (
+            str(row.get("group", "")),
+            str(row.get("dataset", "")),
+            str(row.get("split", "")),
+            str(row.get("epochs", "")),
+            str(row.get("lr", "")),
+            str(row.get("setting", "")),
+        )
+        grouped[key].append(row)
+
+    out = []
+    for (group, dataset, split, epochs, lr, setting), items in grouped.items():
+        def floats(field: str) -> list[float]:
+            vals = []
+            for item in items:
+                try:
+                    vals.append(float(item.get(field, "")))
+                except Exception:
+                    pass
+            return vals
+
+        wer_values = floats("wer")
+        out.append({
+            "group": group,
+            "dataset": dataset,
+            "split": split,
+            "epochs": epochs,
+            "lr": lr,
+            "setting": setting,
+            "n": len(wer_values),
+            "wer_mean": mean_or_blank(wer_values),
+            "wer_std": stdev_or_blank(wer_values),
+            "ins_rate_mean": mean_or_blank(floats("ins_rate")),
+            "del_rate_mean": mean_or_blank(floats("del_rate")),
+            "sub_rate_mean": mean_or_blank(floats("sub_rate")),
+            "words": items[0].get("words", ""),
+            "repeats": " ".join(str(item.get("repeat", "")) for item in items),
+            "paths": " ".join(str(item.get("path", "")) for item in items),
+        })
+
+    return sorted(out, key=lambda row: (
+        float(row["wer_mean"]) if row.get("wer_mean") else float("inf"),
+        row["group"],
+        row["dataset"],
+        row["lr"],
+        row["setting"],
+    ))
+
+
 def main() -> None:
     rows = load_rows()
     write_outputs(rows)
     print(f"Wrote {len(rows)} rows")
     print(OUT_CSV)
+    print(OUT_GROUPED_CSV)
     print(OUT_MD)
 
 

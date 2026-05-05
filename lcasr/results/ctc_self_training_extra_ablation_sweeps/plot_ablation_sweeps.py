@@ -18,6 +18,8 @@ from __future__ import annotations
 import argparse
 import csv
 import subprocess
+import statistics
+from collections import defaultdict
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -168,15 +170,28 @@ def plot_group(group: str, rows: list[dict[str, str]], out_path: Path, selected_
             if row["group"] == group and row["dataset"] == dataset
         ]
         lrs = [lr for lr in selected_lrs if any(row["lr"] == lr for row in subset)]
+        repeated_values: dict[tuple[str, str], list[float]] = defaultdict(list)
+        for row in subset:
+            if row.get("wer") and row["lr"] in selected_lrs:
+                repeated_values[(row["setting"], row["lr"])].append(float(row["wer"]) * 100.0)
         values = {
-            (row["setting"], row["lr"]): float(row["wer"]) * 100.0
-            for row in subset
-            if row.get("wer") and row["lr"] in selected_lrs
+            key: {
+                "mean": statistics.mean(vals),
+                "std": statistics.stdev(vals) if len(vals) > 1 else 0.0,
+                "n": len(vals),
+            }
+            for key, vals in repeated_values.items()
         }
-        finite_values = [v for v in values.values() if np.isfinite(v)]
+        finite_values = [
+            stat["mean"]
+            for stat in values.values()
+            if np.isfinite(stat["mean"])
+        ]
         if not finite_values:
             continue
-        value_range = max(finite_values) - min(finite_values)
+        lower_values = [stat["mean"] - stat["std"] for stat in values.values()]
+        upper_values = [stat["mean"] + stat["std"] for stat in values.values()]
+        value_range = max(upper_values) - min(lower_values)
         label_offset = max(0.015, value_range * 0.06)
 
         x = np.arange(len(settings))
@@ -184,11 +199,15 @@ def plot_group(group: str, rows: list[dict[str, str]], out_path: Path, selected_
         offsets = (np.arange(len(lrs)) - (len(lrs) - 1) / 2.0) * width
 
         for idx, lr in enumerate(lrs):
-            heights = [values.get((setting, lr), np.nan) for setting in settings]
+            stats = [values.get((setting, lr)) for setting in settings]
+            heights = [stat["mean"] if stat else np.nan for stat in stats]
+            errors = [stat["std"] if stat else 0.0 for stat in stats]
             bars = ax.bar(
                 x + offsets[idx],
                 heights,
                 width,
+                yerr=errors if any(error > 0 for error in errors) else None,
+                capsize=2 if any(error > 0 for error in errors) else 0,
                 label=f"lr={LR_PRETTY[lr]}",
                 color=COLORS[lr],
                 edgecolor="black",
@@ -209,8 +228,8 @@ def plot_group(group: str, rows: list[dict[str, str]], out_path: Path, selected_
 
         lower_pad = max(0.04, value_range * 0.25)
         upper_pad = max(0.10, value_range * 0.45)
-        ymin = max(0.0, min(finite_values) - lower_pad)
-        ymax = max(finite_values) + upper_pad
+        ymin = max(0.0, min(lower_values) - lower_pad)
+        ymax = max(upper_values) + upper_pad
         ax.set_ylim(ymin, ymax)
         ax.set_title(DATASET_TITLES.get(dataset, dataset), fontsize=10)
         ax.set_xticks(x)
