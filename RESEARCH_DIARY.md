@@ -16,3 +16,23 @@
   the adapted recording, and wrote
   `/exp/exp4/acp21rjf/.scratch/rob55_majority_vote_smoke_1.pkl` with WER
   `0.14540816326530612`.
+- Callback incident: ROB-51 completed successfully, but its Linear completion
+  callback failed because the wrapper had `cd`ed into a subdirectory and then
+  called `scripts/linear_experiment_callback.py` with a cwd-relative path. ROB-55
+  had the same bug in its live wrapper. A compatibility shim was added at
+  `lcasr/scripts/linear_experiment_callback.py` for the already-running ROB-55
+  process, and `scripts/run_rob55_majority_vote_initial_sweep_queued.sh` was
+  patched so future exits `cd "${REPO_ROOT}"` before calling the callback.
+- Future agents: always smoke test detached experiment callbacks before queueing
+  a run. At minimum, run the callback helper with `--dry-run` from the exact cwd
+  the wrapper will have at exit, using the same `--log` and `--results` paths
+  passed by the wrapper.
+- 2026-05-08 ROB-55 Stage 1 analysis: the initial TEDLIUM-dev majority-vote
+  sweep produced all 33 pickles despite the wrapper exit 127. Manual aggregation
+  wrote `lcasr/results/enc_dec/enc_dec_majority_vote/summary.csv`. Baseline WER
+  was `0.11203`; best setting was `teacher_ce`, LR `3e-7`,
+  `freq3_width24_time0`, vote `N=8`, temp `0.7`, min count `3`, similarity
+  `0.9`, WER `0.10970` (`-0.00232` absolute, `-2.07%` relative). This is a
+  small signal, not a 5% relative gain. Added a Stage 1b queued wrapper to rerun
+  the plausible frequency-mask/temp-0.7 axis with three repeats before any
+  test-set expansion.

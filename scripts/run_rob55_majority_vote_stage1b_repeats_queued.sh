@@ -11,10 +11,10 @@ if [ -f /exp/exp4/acp21rjf/symphony-config/.env ]; then
 fi
 
 LINEAR_ISSUE="${LINEAR_ISSUE:-ROB-55}"
-SCREEN_NAME="${SCREEN_NAME:-rob55_majority_vote_initial}"
-RESULTS_PATH="${RESULTS_PATH:-lcasr/results/enc_dec/enc_dec_majority_vote}"
-LOG_PATH="${LOG_PATH:-${RESULTS_PATH}/logs/rob55_majority_vote_initial.log}"
-QUEUED_COMMAND="${QUEUED_COMMAND:-/store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob55_majority_vote_initial_sweep_queued.sh}"
+SCREEN_NAME="${SCREEN_NAME:-rob55_majority_vote_stage1b_repeats}"
+RESULTS_PATH="${RESULTS_PATH:-lcasr/results/enc_dec/enc_dec_majority_vote_stage1b}"
+LOG_PATH="${LOG_PATH:-${RESULTS_PATH}/logs/rob55_majority_vote_stage1b_repeats.log}"
+QUEUED_COMMAND="${QUEUED_COMMAND:-/store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob55_majority_vote_stage1b_repeats_queued.sh}"
 GIT_BRANCH="${GIT_BRANCH:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'unknown')}"
 GIT_COMMIT="${GIT_COMMIT:-$(git rev-parse HEAD 2>/dev/null || printf 'unknown')}"
 
@@ -22,7 +22,7 @@ on_exit() {
   status=$?
   set +e
   cd "${REPO_ROOT}"
-  if [ -z "${LINEAR_API_KEY:-}" ]; then
+  if [ -z "${LINEAR_API_KEY:-}" ] && [ "${CALLBACK_DRY_RUN:-0}" != "1" ]; then
     echo "LINEAR_API_KEY is not set; cannot post Linear completion callback" >&2
     exit "${status}"
   fi
@@ -41,7 +41,7 @@ on_exit() {
     --branch "${GIT_BRANCH}" \
     --commit "${GIT_COMMIT}" \
     --target-state Todo \
-    --note "ROB-55 initial bounded majority-vote encoder-decoder self-training sweep finished. Inspect the result pickles and aggregate summary before deciding whether to expand the grid." \
+    --note "ROB-55 Stage 1b repeat check finished. Inspect summary.csv for repeat consistency before expanding to test sets or GRPO/MAXRL." \
     "${callback_extra_args[@]}"
   callback_status=$?
   if [ "${callback_status}" -ne 0 ]; then
@@ -55,20 +55,29 @@ set -euo pipefail
 
 mkdir -p "$(dirname "$LOG_PATH")" "$RESULTS_PATH"
 {
-  echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] ROB-55 majority-vote initial sweep"
+  echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] ROB-55 majority-vote Stage 1b repeat check"
   echo "repo=${REPO_ROOT}"
   echo "branch=${GIT_BRANCH}"
   echo "commit=${GIT_COMMIT}"
   echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-unset}"
   echo "queued_command=${QUEUED_COMMAND}"
+  echo "results=${RESULTS_PATH}"
 } | tee "$LOG_PATH"
 
 cd lcasr
 GPU="${CUDA_VISIBLE_DEVICES:-0}" \
-RESULTS_DIR="./results/enc_dec/enc_dec_majority_vote" \
+RESULTS_DIR="./results/enc_dec/enc_dec_majority_vote_stage1b" \
 RUN_BASELINE=1 \
+REPEATS=3 \
+TRAINING_MODES="teacher_ce teacher_kl" \
+LRS="1e-7 3e-7" \
+AUGS="freq3_width24_time0" \
+VOTE_TEMPS="0.7" \
+VOTE_MIN_COUNTS="3" \
+VOTE_SIMILARITIES="1.0 0.9" \
 bash launch_scripts/tune_enc_dec_majority_vote_tedlium_dev.sh 2>&1 | tee -a "../${LOG_PATH}"
 
 python results/enc_dec/enc_dec_majority_vote/aggregate.py \
-  --csv results/enc_dec/enc_dec_majority_vote/summary.csv \
+  --directory results/enc_dec/enc_dec_majority_vote_stage1b \
+  --csv results/enc_dec/enc_dec_majority_vote_stage1b/summary.csv \
   2>&1 | tee -a "../${LOG_PATH}"

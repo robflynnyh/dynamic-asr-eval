@@ -5,7 +5,8 @@ mean WER and error components across repeats. Filenames are parsed to expose
 dataset, split, training mode, epoch, LR, augmentation, and agreement threshold
 when present.
 
-Run: `python aggregate.py` from this directory.
+Run: `python aggregate.py` from this directory, or pass `--directory` to
+aggregate a sibling results directory.
 """
 import argparse
 import csv
@@ -169,18 +170,24 @@ def write_csv(rows: list[dict], path: Path) -> None:
         return
     fieldnames = sorted({key for row in rows for key in row.keys()})
     with open(path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--directory",
+        type=Path,
+        default=Path(__file__).parent,
+        help="Directory containing result pickles to aggregate",
+    )
     parser.add_argument("--json", action="store_true", help="Print JSON instead of the compact table")
     parser.add_argument("--csv", type=Path, default="summary.csv", help="Optional path to write CSV summary")
     args = parser.parse_args()
 
-    results = aggregate(Path(__file__).parent)
+    results = aggregate(args.directory)
     if args.csv is not None:
         write_csv(results, args.csv)
     if args.json:
