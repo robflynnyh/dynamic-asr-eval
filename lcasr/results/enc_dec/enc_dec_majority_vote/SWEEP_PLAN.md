@@ -54,3 +54,12 @@ Only after Stage 1 has a viable vote threshold:
   worsens dev WER after threshold relaxation.
 - Do not run a full test-set grid until a dev setting has a plausible retained
   label rate and a matching dev improvement.
+
+## Stage 1b Decision
+
+Stage 1b triggered the stop criterion for the current formulation. Exact
+matching gave only a `0.41%` relative best repeat-mean gain on TEDLIUM dev and
+accepted only `22-23` vote updates over three repeats. Relaxed `0.9` similarity
+accepted hundreds of updates but consistently worsened WER by `5.85%` to
+`7.99%` relative. Do not expand this exact vote-selection method to test sets or
+GRPO/MAXRL without changing the teacher agreement primitive.

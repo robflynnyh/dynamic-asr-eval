@@ -78,3 +78,10 @@ cd lcasr
 python results/enc_dec/enc_dec_majority_vote/aggregate.py \
   --csv results/enc_dec/enc_dec_majority_vote/summary.csv
 ```
+
+## Current Conclusion
+
+The Stage 1b repeat check is recorded in
+`../enc_dec_majority_vote_stage1b/OUTCOME.md`. The current majority-vote
+teacher formulation should not be expanded as-is: exact voting is too sparse,
+and relaxed near-match voting degrades WER.

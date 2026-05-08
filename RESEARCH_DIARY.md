@@ -36,3 +36,14 @@
   small signal, not a 5% relative gain. Added a Stage 1b queued wrapper to rerun
   the plausible frequency-mask/temp-0.7 axis with three repeats before any
   test-set expansion.
+- 2026-05-08 ROB-55 Stage 1b analysis: the callback-backed repeat check
+  completed successfully with exit status `0` and wrote
+  `lcasr/results/enc_dec/enc_dec_majority_vote_stage1b/summary.csv`. The best
+  repeat-mean setting was `teacher_kl`, LR `3e-7`, exact vote similarity `1.0`,
+  WER `0.111566` (`-0.000461` absolute, `-0.41%` relative). Exact matching
+  accepted only `22-23` vote updates across three repeats and skipped `892-893`
+  as below threshold. Relaxing to similarity `0.9` accepted `558-582` updates
+  but consistently worsened WER by `5.85%` to `7.99%` relative. Current
+  conclusion: do not expand this exact majority-vote teacher formulation to test
+  sets or GRPO/MAXRL; it needs a different agreement primitive or stronger
+  confidence filter first.
