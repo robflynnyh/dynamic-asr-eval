@@ -31,7 +31,7 @@ hooks:
     fi
 agent:
   max_concurrent_agents: 1
-  max_turns: 20
+  max_turns: 30
 codex:
   command: /home/acp21rjf/.npm-global/bin/codex --config shell_environment_policy.inherit=all app-server
   approval_policy: never
@@ -113,6 +113,11 @@ Local configuration and artifacts:
   The repository is also used by humans, so do not add root-level agent files
   unless an issue explicitly asks for them.
 
+Research diary:
+- Append concise dated entries to `RESEARCH_DIARY.md` for meaningful project
+  changes, experiment launches, completed runs, fixes, and interpretation
+  updates.
+
 Before editing:
 - Inspect the repository state and task context first.
 - Make a concise plan.
@@ -132,6 +137,12 @@ During work:
 - Use structured parsers for structured data when reasonable.
 - Record exact commands, configs, checkpoint paths, output paths, and validation
   outcomes for experiment or result changes.
+- During nontrivial work, periodically post concise Linear progress comments for
+  meaningful implementation progress, design decisions, experiment-launch
+  decisions, blockers, or changes in validation strategy.
+- Before each progress or design-decision comment, re-fetch the issue's recent
+  Linear comments with `linear_graphql`; if a new human comment exists,
+  incorporate it into the work or answer it before posting your update.
 - If a comparison is partial or still running, label it as a snapshot instead of
   presenting it as a final result.
 - Do not silently relax regression checks. If an equivalence test fails,
@@ -139,11 +150,38 @@ During work:
 
 Experiment launching:
 - Do not launch long-running GPU work unless the issue asks for a run.
-- Before launching, report the exact command, target GPU, output path, and log
-  path.
-- Check GPU availability before launch. Do not use a GPU with active compute
-  processes.
-- Use detached `screen` sessions with log files for long runs.
+- Use the cooperative GPU queue at
+  `/store/store5/software/simple-gpu-schedule/with-gpu` for Mimas GPU
+  allocation instead of manually polling for free GPUs. Prefer pool `1,2`
+  unless the issue or experiment requires a different GPU pool.
+- Launch long-running GPU experiments in durable detached `screen` sessions
+  with log files. The detached command should run
+  `with-gpu <pool> -- <experiment-wrapper>` so the queue waiter survives after
+  the agent exits.
+- Do not spend agent turns waiting for a queued or running experiment to start
+  or finish. After queueing a long experiment, post a Linear comment with the
+  queued command, screen name, log path, expected result path, git branch and
+  commit, callback/hook path, and exact completion-check command. Then move the
+  issue back to the Linear state named `Backlog`.
+- Every queued long experiment must have a verified completion callback in the
+  launched wrapper before it is queued. The callback must run when the
+  experiment process exits for any reason, including success, nonzero exit,
+  Python exception, shell error, timeout-wrapper exit, or manual termination
+  where the shell can still run traps.
+- Prefer an `EXIT` trap or equivalent wrapper-level hook that records the
+  experiment exit status, then calls `scripts/linear_experiment_callback.py` or
+  another real Linear API callback script using `LINEAR_API_KEY`. The callback
+  must post a Linear comment with success or failure evidence, log path, output
+  path, and residual risk, then move the issue back to the Linear state named
+  `Todo` so Symphony can resume finalization. Detached experiment processes
+  cannot use Codex-only tools such as `linear_graphql`.
+- Do not queue a long GPU experiment if the launched code lacks this completion
+  callback. First add or fix the hook, then validate the callback path with the
+  smallest practical smoke test.
+- When Symphony relaunches from the callback comment, inspect the log and
+  results before deciding whether to finalize, diagnose, or rerun. If a run
+  failed, fix the concrete issue before queueing another run. Do not blindly
+  relaunch an unchanged failing command.
 - If a run crashes, diagnose the log and fix the concrete issue before rerunning
   the same command.
 
