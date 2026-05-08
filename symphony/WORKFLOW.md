@@ -109,6 +109,12 @@ Local configuration and artifacts:
   read-only inputs unless the issue explicitly says otherwise.
 - Do not commit raw audio, checkpoints, pickles, logs, W&B output, credentials,
   or large generated artifacts.
+- Commit and push generated result outputs when each file is under 95 MB,
+  including small `.pkl` result artifacts, summary tables, plots, and
+  reproducible analysis outputs. If a required result file is 95 MB or larger,
+  do not commit it; instead, write and commit a small index or summary that
+  records the external path, file size, generation command, and reason it was
+  left out of Git.
 - Keep Symphony-specific instructions and runtime files under `symphony/`.
   The repository is also used by humans, so do not add root-level agent files
   unless an issue explicitly asks for them.
