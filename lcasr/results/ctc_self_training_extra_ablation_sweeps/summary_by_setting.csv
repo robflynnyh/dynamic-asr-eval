@@ -1,8 +1,17 @@
 group,dataset,split,epochs,lr,setting,n,wer_mean,wer_std,ins_rate_mean,del_rate_mean,sub_rate_mean,words,repeats,paths
+layer_drop_lr_sweep,tedlium,test,1,9em5,drop-none,1,0.0581959950,,0.0079035974,0.0167995747,0.0334928230,28215,1/1,layer_drop_lr_sweep/tedlium-test-epoch-1-lr-9em5-drop-none_1.pkl
+layer_drop_lr_sweep,tedlium,test,1,9em5,drop-subsampling,1,0.0585149743,,0.0083643452,0.0165869219,0.0335637072,28215,1/1,layer_drop_lr_sweep/tedlium-test-epoch-1-lr-9em5-drop-subsampling_1.pkl
+layer_drop_lr_sweep,tedlium,test,1,9em5,drop-layer-5,1,0.0589402800,,0.0085061138,0.0165160376,0.0339181287,28215,1/1,layer_drop_lr_sweep/tedlium-test-epoch-1-lr-9em5-drop-layer-5_1.pkl
+layer_drop_lr_sweep,tedlium,test,1,9em5,drop-layer-1,1,0.0590111643,,0.0085415559,0.0167995747,0.0336700337,28215,1/1,layer_drop_lr_sweep/tedlium-test-epoch-1-lr-9em5-drop-layer-1_1.pkl
 progressive_top,tedlium,test,1,9em5,freeze-subsampling-through-layer-1,1,0.0590466064,,0.0085061138,0.0169059011,0.0336345915,28215,1/1,progressive_top/tedlium-test-epoch-1-lr-9em5-freeze-subsampling-through-layer-1_1.pkl
+layer_drop_lr_sweep,tedlium,test,1,9em5,drop-layer-0,1,0.0592592593,,0.0082225766,0.0169059011,0.0341307815,28215,1/1,layer_drop_lr_sweep/tedlium-test-epoch-1-lr-9em5-drop-layer-0_1.pkl
+layer_drop_lr_sweep,tedlium,test,1,9em5,drop-layer-3,1,0.0592947014,,0.0082934609,0.0166932483,0.0343079922,28215,1/1,layer_drop_lr_sweep/tedlium-test-epoch-1-lr-9em5-drop-layer-3_1.pkl
 progressive_top,tedlium,test,1,9em5,train-all,1,0.0592947014,,0.0086833245,0.0164805954,0.0341307815,28215,1/1,progressive_top/tedlium-test-epoch-1-lr-9em5-train-all_1.pkl
 train_only,tedlium,test,1,9em5,train-all,1,0.0592947014,,0.0088605352,0.0161616162,0.0342725501,28215,1/1,train_only/tedlium-test-epoch-1-lr-9em5-train-all_1.pkl
+layer_drop_lr_sweep,tedlium,test,1,9em5,drop-layer-4,1,0.0593655857,,0.0083643452,0.0169767854,0.0340244551,28215,1/1,layer_drop_lr_sweep/tedlium-test-epoch-1-lr-9em5-drop-layer-4_1.pkl
+layer_drop_lr_sweep,tedlium,test,1,9em5,drop-ctc-decoder,1,0.0594010278,,0.0079035974,0.0175438596,0.0339535708,28215,1/1,layer_drop_lr_sweep/tedlium-test-epoch-1-lr-9em5-drop-ctc-decoder_1.pkl
 progressive_top,tedlium,test,1,9em5,freeze-subsampling,1,0.0594364700,,0.0086833245,0.0167641326,0.0339890129,28215,1/1,progressive_top/tedlium-test-epoch-1-lr-9em5-freeze-subsampling_1.pkl
+layer_drop_lr_sweep,tedlium,test,1,9em5,drop-layer-2,1,0.0594719121,,0.0087542088,0.0167995747,0.0339181287,28215,1/1,layer_drop_lr_sweep/tedlium-test-epoch-1-lr-9em5-drop-layer-2_1.pkl
 progressive_top,tedlium,test,1,9em5,freeze-subsampling-through-layer-0,1,0.0596136807,,0.0082580188,0.0168350168,0.0345206450,28215,1/1,progressive_top/tedlium-test-epoch-1-lr-9em5-freeze-subsampling-through-layer-0_1.pkl
 progressive_top,tedlium,test,1,9em5,freeze-subsampling-through-layer-2,1,0.0600389864,,0.0091086302,0.0163033847,0.0346269715,28215,1/1,progressive_top/tedlium-test-epoch-1-lr-9em5-freeze-subsampling-through-layer-2_1.pkl
 layer_type,tedlium,test,1,9em5,train-convolution-only,1,0.0603225235,,0.0078681552,0.0178982811,0.0345560872,28215,1/1,layer_type/tedlium-test-epoch-1-lr-9em5-train-convolution-only_1.pkl

@@ -63,6 +63,15 @@ Focused view: **9e-5 only**, averaged by setting. Per-repeat rows remain in `sum
 
 | WER | Setting |
 |---:|---|
+| 5.82% | drop-none |
+| 5.85% | drop-subsampling |
+| 5.89% | drop-layer-5 |
+| 5.90% | drop-layer-1 |
+| 5.93% | drop-layer-0 |
+| 5.93% | drop-layer-3 |
+| 5.94% | drop-layer-4 |
+| 5.94% | drop-ctc-decoder |
+| 5.95% | drop-layer-2 |
 | 15.88% | drop-layer-2 |
 | 15.89% | drop-subsampling |
 | 15.89% | drop-layer-3 |

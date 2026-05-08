@@ -1,0 +1,14 @@
+\begin{table}[t]
+\centering
+\caption{Cross-dataset evaluation summary for epoch 1 (earnings22 $\rightarrow$ tedlium), averaged over 3 repeats and 6 adaptation cases per repeat.}
+\begin{tabular}{lcccc}
+\toprule
+Setting & WER & Ins. & Del. & Sub. \\
+\midrule
+earnings22 baseline & 18.29 & -- & -- & -- \\
+tedlium baseline & 6.23 & -- & -- & -- \\
+earnings22$\rightarrow$tedlium & 6.25 & 0.89 & 1.75 & 3.62 \\
+earnings22$\rightarrow$earnings22 (leave-one-out) & 18.46 & 3.14 & 3.64 & 11.67 \\
+\bottomrule
+\end{tabular}
+\end{table}
