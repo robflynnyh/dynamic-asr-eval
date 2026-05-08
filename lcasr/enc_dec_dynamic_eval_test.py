@@ -147,6 +147,16 @@ if __name__ == '__main__':
                         help='Softmax temperature for --training_mode teacher_kl. Default 1.0.')
     parser.add_argument('--teacher_epoch_relabel', action='store_true',
                         help='For teacher_ce/teacher_kl style modes, label and filter all chunks with the epoch-start teacher before training the student for that epoch.')
+    parser.add_argument('--teacher_vote_num_samples', type=int, default=1,
+                        help='If >1, sample this many teacher decodes and train on the majority-vote pseudo-label.')
+    parser.add_argument('--teacher_vote_temperature', type=float, default=0.7,
+                        help='Sampling temperature for --teacher_vote_num_samples teacher decodes.')
+    parser.add_argument('--teacher_vote_min_count', type=int, default=2,
+                        help='Minimum number of teacher decodes that must support the selected majority-vote label.')
+    parser.add_argument('--teacher_vote_similarity', type=float, default=1.0,
+                        help='Similarity threshold for vote agreement. 1.0 requires exact normalized text equality; lower values use 1-CER text similarity.')
+    parser.add_argument('--teacher_vote_include_deterministic', action='store_true',
+                        help='Include the deterministic teacher decode as an additional vote candidate.')
     parser.add_argument('--student_rollout_temperature', type=float, default=1.0,
                         help='Sampling temperature for RL student rollouts under --training_mode grpo or maxrl. Default 1.0.')
     parser.add_argument('--student_num_rollouts', type=int, default=4,

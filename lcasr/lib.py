@@ -1838,6 +1838,114 @@ def enc_dec_dynamic_eval(
     if teacher_epoch_relabel and training_mode in {'grpo', 'maxrl'}:
         raise ValueError('--teacher_epoch_relabel is only implemented for teacher_ce, teacher_kl, ctc_aux, and adaptive_ce_ctc_aux')
 
+    def canonical_vote_text(text):
+        return " ".join(text.lower().split())
+
+    def teacher_vote_similarity(first_text, second_text):
+        min_similarity = args.__dict__.get('teacher_vote_similarity', 1.0)
+        if min_similarity >= 1.0:
+            return 1.0 if canonical_vote_text(first_text) == canonical_vote_text(second_text) else 0.0
+        return _text_cer_similarity(first_text, second_text)
+
+    def select_teacher_vote(candidates):
+        if len(candidates) == 0:
+            return None, 0, []
+
+        min_similarity = args.__dict__.get('teacher_vote_similarity', 1.0)
+        best_candidate, best_support = None, []
+        for candidate in candidates:
+            support = [
+                other for other in candidates
+                if teacher_vote_similarity(candidate['text'], other['text']) >= min_similarity
+            ]
+            if len(support) > len(best_support):
+                best_candidate, best_support = candidate, support
+        return best_candidate, len(best_support), best_support
+
+    def generate_teacher_label(clean_chunk, encoder_out_for_teacher):
+        teacher_generate_kwargs = {
+            'audio_signal': clean_chunk,
+            'encoder_states': encoder_out_for_teacher,
+            **generation_args,
+        }
+        vote_num_samples = args.__dict__.get('teacher_vote_num_samples', 1)
+        if vote_num_samples <= 0:
+            raise ValueError(f'teacher_vote_num_samples must be positive, got {vote_num_samples}')
+        if vote_num_samples <= 1:
+            teacher_tokens = model.generate(**teacher_generate_kwargs)["text_sequence"][0]
+            teacher_text = tokenizer.decode(teacher_tokens).strip()
+            return {
+                'skip': False,
+                'tokens': teacher_tokens,
+                'text': teacher_text,
+                'vote_count': 1,
+                'vote_support_texts': [teacher_text],
+            }
+
+        vote_temperature = args.__dict__.get('teacher_vote_temperature', 0.7)
+        if vote_temperature <= 0.0:
+            raise ValueError(f'teacher_vote_temperature must be > 0, got {vote_temperature}')
+        vote_min_count = args.__dict__.get('teacher_vote_min_count', 2)
+        if vote_min_count <= 0:
+            raise ValueError(f'teacher_vote_min_count must be positive, got {vote_min_count}')
+        vote_similarity_threshold = args.__dict__.get('teacher_vote_similarity', 1.0)
+        if vote_similarity_threshold <= 0.0 or vote_similarity_threshold > 1.0:
+            raise ValueError(f'teacher_vote_similarity must be in (0, 1], got {vote_similarity_threshold}')
+
+        vote_generate_kwargs = {
+            'audio_signal': clean_chunk,
+            'encoder_states': encoder_out_for_teacher,
+            'sample': True,
+            'temperature': vote_temperature,
+            'num_rollouts': vote_num_samples,
+        }
+        vote_sequences = model.generate(**vote_generate_kwargs)["text_sequence"]
+        if len(vote_sequences) > 0 and isinstance(vote_sequences[0], int):
+            vote_sequences = [vote_sequences]
+
+        candidates = []
+        for sequence in vote_sequences:
+            text = tokenizer.decode(sequence).strip()
+            candidates.append({'tokens': sequence, 'text': text, 'source': 'sample'})
+
+        if args.__dict__.get('teacher_vote_include_deterministic', False):
+            deterministic_tokens = model.generate(**teacher_generate_kwargs)["text_sequence"][0]
+            deterministic_text = tokenizer.decode(deterministic_tokens).strip()
+            candidates.append({'tokens': deterministic_tokens, 'text': deterministic_text, 'source': 'deterministic'})
+
+        selected, vote_count, vote_support = select_teacher_vote(candidates)
+        support_texts = [candidate['text'] for candidate in vote_support]
+        if selected is None:
+            return {
+                'skip': True,
+                'reason': 'teacher majority vote produced no candidates',
+                'vote_count': 0,
+                'vote_support_texts': [],
+            }
+        if vote_count < vote_min_count:
+            return {
+                'skip': True,
+                'reason': (
+                    f'teacher majority vote below threshold '
+                    f'({vote_count} < {vote_min_count}; temp={vote_temperature}; similarity={vote_similarity_threshold})'
+                ),
+                'vote_count': vote_count,
+                'vote_support_texts': support_texts,
+            }
+
+        print(
+            f'Teacher majority vote: selected {vote_count}/{len(candidates)} '
+            f'(temp={vote_temperature}, similarity={vote_similarity_threshold}, source={selected["source"]})'
+        )
+        print(f'Teacher majority support: {support_texts}')
+        return {
+            'skip': False,
+            'tokens': selected['tokens'],
+            'text': selected['text'],
+            'vote_count': vote_count,
+            'vote_support_texts': support_texts,
+        }
+
     def label_teacher_chunk(idx):
         clean_chunk = training_data[training_keys[idx]].clone().to(model.device)
         acoustic_length = torch.LongTensor([clean_chunk.shape[-1]]).to(model.device)
@@ -1845,17 +1953,13 @@ def enc_dec_dynamic_eval(
         with torch.no_grad():
             encoder_out_for_teacher = model.forward(audio_signal=clean_chunk)
 
-        teacher_generate_kwargs = {
-            'audio_signal': clean_chunk,
-            'encoder_states': encoder_out_for_teacher,
-            **generation_args,
-        }
-        teacher_pred = torch.tensor(
-            model.generate(**teacher_generate_kwargs)["text_sequence"][0],
-            dtype=torch.long, device=model.device,
-        )
+        teacher_label = generate_teacher_label(clean_chunk, encoder_out_for_teacher)
+        if teacher_label['skip']:
+            print(f'Skipping teacher update: {teacher_label["reason"]}')
+            return None
+        teacher_pred = torch.tensor(teacher_label['tokens'], dtype=torch.long, device=model.device)
         teacher_pred_tokens = teacher_pred.tolist()
-        teacher_pred_text = tokenizer.decode(teacher_pred_tokens).strip()
+        teacher_pred_text = teacher_label['text']
         text_lengths = torch.LongTensor([teacher_pred.shape[-1]]).to(model.device)
 
         teacher_mean_max_prob, teacher_mean_entropy = None, None
@@ -2028,17 +2132,13 @@ def enc_dec_dynamic_eval(
                 with torch.no_grad():
                     encoder_out_for_teacher = model.forward(audio_signal=audio_chunk[-1, None])
 
-                teacher_generate_kwargs = {
-                    'audio_signal': audio_chunk[-1, None],
-                    'encoder_states': encoder_out_for_teacher,
-                    **generation_args,
-                }
-                teacher_pred = torch.tensor(
-                    model.generate(**teacher_generate_kwargs)["text_sequence"][0],
-                    dtype=torch.long, device=model.device,
-                )
+                teacher_label = generate_teacher_label(audio_chunk[-1, None], encoder_out_for_teacher)
+                if teacher_label['skip']:
+                    print(f'Skipping teacher update: {teacher_label["reason"]}')
+                    continue
+                teacher_pred = torch.tensor(teacher_label['tokens'], dtype=torch.long, device=model.device)
                 teacher_pred_tokens = teacher_pred.tolist()
-                teacher_pred_text = tokenizer.decode(teacher_pred_tokens).strip()
+                teacher_pred_text = teacher_label['text']
 
                 text_lengths = torch.LongTensor([teacher_pred.shape[-1]]).to(model.device)
                 acoustic_length = torch.LongTensor([audio_chunk.shape[-1]]).to(model.device)
