@@ -20,16 +20,19 @@ QUEUED_COMMAND="${QUEUED_COMMAND:-/store/store5/software/simple-gpu-schedule/wit
 GIT_BRANCH="${GIT_BRANCH:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'unknown')}"
 GIT_COMMIT="${GIT_COMMIT:-$(git rev-parse HEAD 2>/dev/null || printf 'unknown')}"
 PYTHON_BIN="${PYTHON_BIN:-python3.10}"
+CALLBACK_SCRIPT="${CALLBACK_SCRIPT:-${REPO_ROOT}/scripts/linear_experiment_callback.py}"
 
 on_exit() {
   status=$?
   trap - EXIT
   set +e
-  if [ -z "${LINEAR_API_KEY:-}" ]; then
+  if [ -z "${LINEAR_API_KEY:-}" ] && [ "${CALLBACK_DRY_RUN:-0}" != "1" ]; then
     echo "LINEAR_API_KEY is not set; cannot post Linear completion callback" >&2
     exit "${status}"
   fi
-  python3 scripts/linear_experiment_callback.py \
+
+  callback_args=(
+    "${CALLBACK_SCRIPT}"
     --issue "${LINEAR_ISSUE}" \
     --status-code "${status}" \
     --log "${LOG_PATH}" \
@@ -41,6 +44,15 @@ on_exit() {
     --commit "${GIT_COMMIT}" \
     --target-state Todo \
     --note "ROB-51 fresh progressive_bottom run. On success, inspect the new progressive_bottom PKLs, summary CSV/Markdown, and progressive_bottom_ablation_bars.pdf before finalizing."
+  )
+  if [ "${CALLBACK_DRY_RUN:-0}" = "1" ]; then
+    callback_args+=(--dry-run)
+  fi
+  if [ "${CALLBACK_CHECK_ONLY:-0}" = "1" ]; then
+    callback_args+=(--check-only)
+  fi
+
+  python3 "${callback_args[@]}"
   callback_status=$?
   if [ "${callback_status}" -ne 0 ]; then
     echo "Linear completion callback failed with status ${callback_status}" >&2
@@ -61,6 +73,12 @@ echo "commit=${GIT_COMMIT}"
 echo "cuda_visible_devices=${CUDA_VISIBLE_DEVICES:-unset}"
 echo "results_path=${RESULTS_PATH}"
 echo "log_path=${LOG_PATH}"
+echo "callback_script=${CALLBACK_SCRIPT}"
+
+if [ "${CALLBACK_SMOKE_ONLY:-0}" = "1" ]; then
+  echo "CALLBACK_SMOKE_ONLY=1; exiting before GPU eval to exercise the EXIT trap callback path."
+  exit 0
+fi
 
 if [ ! -f paths.yaml ]; then
   echo "Missing ${REPO_ROOT}/paths.yaml; copy paths_template.yaml and fill dataset/checkpoint paths before launching." >&2

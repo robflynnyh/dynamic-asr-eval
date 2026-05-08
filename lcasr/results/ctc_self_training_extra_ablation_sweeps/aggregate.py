@@ -97,7 +97,7 @@ def write_outputs(rows: list[dict[str, object]]) -> None:
     rows = sorted(rows, key=sort_key)
     fields = ["group", "lr", "setting", "wer", "ins_rate", "del_rate", "sub_rate", "words", "repeat", "dataset", "split", "epochs", "path", "error"]
     with OUT_CSV.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fields)
+        writer = csv.DictWriter(f, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         for row in rows:
             writer.writerow({k: row.get(k, "") for k in fields})
@@ -109,7 +109,7 @@ def write_outputs(rows: list[dict[str, object]]) -> None:
         "sub_rate_mean", "words", "repeats", "paths",
     ]
     with OUT_GROUPED_CSV.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=grouped_fields)
+        writer = csv.DictWriter(f, fieldnames=grouped_fields, lineterminator="\n")
         writer.writeheader()
         for row in grouped_rows:
             writer.writerow({k: row.get(k, "") for k in grouped_fields})
