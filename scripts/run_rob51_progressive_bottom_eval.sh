@@ -43,7 +43,7 @@ on_exit() {
     --branch "${GIT_BRANCH}" \
     --commit "${GIT_COMMIT}" \
     --target-state Todo \
-    --note "ROB-51 fresh progressive_bottom run. On success, inspect the new progressive_bottom PKLs, summary CSV/Markdown, and progressive_bottom_ablation_bars.pdf before finalizing."
+    --note "ROB-51 fresh progressive_bottom bottom-prefix training run. On success, inspect the new progressive_bottom PKLs, summary CSV/Markdown, and progressive_bottom_ablation_bars.pdf before finalizing."
   )
   if [ "${CALLBACK_DRY_RUN:-0}" = "1" ]; then
     callback_args+=(--dry-run)
@@ -86,6 +86,7 @@ if [ ! -f paths.yaml ]; then
 fi
 
 cd lcasr
+rm -f "${RESULTS_PATH}"/*.pkl
 
 DATASET=earnings22 \
 SPLIT=test \

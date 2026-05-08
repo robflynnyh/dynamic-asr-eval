@@ -264,6 +264,30 @@ def train_encoder_layer_only(model, layer_idx):
     return model
 
 
+def train_subsampling_and_encoder_layers_through(model, layer_idx):
+    freeze_all_params(model)
+
+    subsampling_module = getattr(model, 'subsampling', None)
+    if subsampling_module is None:
+        print('No subsampling module found to train')
+    else:
+        for param in subsampling_module.parameters():
+            param.requires_grad = True
+
+    layers = getattr(model, 'layers', None)
+    if layers is None:
+        print('No encoder layers found to train')
+        return model
+    if layer_idx < 0 or layer_idx >= len(layers):
+        raise ValueError(f'Invalid train_layers_through={layer_idx}; model has {len(layers)} layers')
+
+    for idx in range(layer_idx + 1):
+        for param in layers[idx].parameters():
+            param.requires_grad = True
+    print(f'Training only subsampling and encoder layers: layers.0 through layers.{layer_idx}')
+    return model
+
+
 LAYER_TYPE_MODULES = {
     'attention': ('attend',),
     'feed_forward': ('ff1', 'ff2'),
@@ -305,6 +329,10 @@ def apply_update_freezes(args, model):
     train_only_layer = args.__dict__.get('train_only_layer', None)
     if train_only_layer is not None:
         return train_encoder_layer_only(model, train_only_layer)
+
+    train_layers_through = args.__dict__.get('train_layers_through', None)
+    if train_layers_through is not None:
+        return train_subsampling_and_encoder_layers_through(model, train_layers_through)
 
     if args.__dict__.get('train_only_ctc_decoder', False):
         return train_ctc_decoder_only(model)
@@ -2270,6 +2298,7 @@ def apply_args(parser):
     parser.add_argument('--freeze_layers_through', type=int, default=None, help='Freeze encoder layers from layers.0 through this index during test-time adaptation')
     parser.add_argument('--freeze_ctc_decoder', action='store_true', help='Freeze the CTC decoder/output projection during test-time adaptation')
     parser.add_argument('--train_only_layer', type=int, default=None, help='Train only one encoder layer during test-time adaptation, e.g. 0 for layers.0')
+    parser.add_argument('--train_layers_through', type=int, default=None, help='Train only subsampling and encoder layers from layers.0 through this index during test-time adaptation')
     parser.add_argument('--train_only_ctc_decoder', action='store_true', help='Train only the CTC decoder/output projection during test-time adaptation')
     parser.add_argument('--train_only_layer_type', choices=sorted(LAYER_TYPE_MODULES), default=None, help='Train only one encoder module type across all layers; freezes subsampling, CTC decoder, and all other params')
     parser.add_argument('--freeze_all_but_last_block_and_head', action='store_true', help='Freeze all params except the last encoder block and CTC head during test-time adaptation')

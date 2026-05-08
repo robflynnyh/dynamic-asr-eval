@@ -48,27 +48,6 @@ Focused view: **9e-5 only**, averaged by setting. Per-repeat rows remain in `sum
 | 17.24% | freeze-through-4 |
 | 19.46% | freeze-through-5 |
 
-## progressive_bottom, 9e-5
-
-| WER | Setting |
-|---:|---|
-| 5.81% | drop-none |
-| 5.92% | drop-subsampling-through-layer-0 |
-| 5.93% | drop-subsampling |
-| 5.95% | drop-subsampling-through-layer-1 |
-| 6.02% | drop-subsampling-through-layer-2 |
-| 6.07% | drop-subsampling-through-layer-3 |
-| 6.12% | drop-subsampling-through-layer-4 |
-| 6.79% | drop-subsampling-through-layer-5 |
-| 15.79% | drop-none |
-| 15.81% | drop-subsampling |
-| 15.88% | drop-subsampling-through-layer-0 |
-| 16.27% | drop-subsampling-through-layer-1 |
-| 16.58% | drop-subsampling-through-layer-2 |
-| 16.87% | drop-subsampling-through-layer-3 |
-| 17.13% | drop-subsampling-through-layer-4 |
-| 19.36% | drop-subsampling-through-layer-5 |
-
 ## layer_type, 9e-5
 
 | WER | Setting |

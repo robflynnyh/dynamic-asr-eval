@@ -106,11 +106,10 @@ run_progressive_top_family() {
 run_progressive_bottom_family() {
     for lr in "${LRS[@]}"
     do
-        run_item "progressive_bottom" "$lr" "drop-none"
-        run_item "progressive_bottom" "$lr" "drop-subsampling" --freeze_subsampling
+        run_item "progressive_bottom" "$lr" "train-subsampling-only" --train_subsampling_only
         for layer in "${LAYERS[@]}"
         do
-            run_item "progressive_bottom" "$lr" "drop-subsampling-through-layer-${layer}" --freeze_subsampling --freeze_layers_through "$layer"
+            run_item "progressive_bottom" "$lr" "train-subsampling-through-layer-${layer}" --train_layers_through "$layer"
         done
     done
 }
