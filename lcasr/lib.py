@@ -1,5 +1,6 @@
 from omegaconf import OmegaConf
 import os
+import json
 #paths = OmegaConf.load('paths.yaml')
 # use absolute path
 paths = OmegaConf.load(os.path.join(os.path.dirname(__file__), '../paths.yaml'))
@@ -1837,6 +1838,21 @@ def enc_dec_dynamic_eval(
     teacher_epoch_relabel = args.__dict__.get('teacher_epoch_relabel', False)
     if teacher_epoch_relabel and training_mode in {'grpo', 'maxrl'}:
         raise ValueError('--teacher_epoch_relabel is only implemented for teacher_ce, teacher_kl, ctc_aux, and adaptive_ce_ctc_aux')
+    teacher_diagnostics_path = args.__dict__.get('teacher_diagnostics_path', '')
+    teacher_diagnostics_context = args.__dict__.get('teacher_diagnostics_context', {})
+    if teacher_diagnostics_path:
+        os.makedirs(os.path.dirname(teacher_diagnostics_path) or '.', exist_ok=True)
+
+    def write_teacher_diagnostic(event):
+        if not teacher_diagnostics_path:
+            return
+        payload = {
+            'created_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            **teacher_diagnostics_context,
+            **event,
+        }
+        with open(teacher_diagnostics_path, 'a') as f:
+            f.write(json.dumps(payload, sort_keys=True) + '\n')
 
     def canonical_vote_text(text):
         return " ".join(text.lower().split())
@@ -1897,7 +1913,10 @@ def enc_dec_dynamic_eval(
                 'tokens': teacher_tokens,
                 'text': teacher_text,
                 'vote_count': 1,
+                'vote_total': 1,
+                'selected_source': 'deterministic',
                 'vote_support_texts': [teacher_text],
+                'vote_candidate_texts': [teacher_text],
             }
 
         vote_temperature = args.__dict__.get('teacher_vote_temperature', 0.7)
@@ -1933,12 +1952,16 @@ def enc_dec_dynamic_eval(
 
         selected, vote_count, vote_support = select_teacher_vote(candidates)
         support_texts = [candidate['text'] for candidate in vote_support]
+        candidate_texts = [candidate['text'] for candidate in candidates]
         if selected is None:
             return {
                 'skip': True,
                 'reason': 'teacher majority vote produced no candidates',
                 'vote_count': 0,
+                'vote_total': len(candidates),
+                'selected_source': None,
                 'vote_support_texts': [],
+                'vote_candidate_texts': candidate_texts,
             }
         if vote_count < vote_min_count:
             return {
@@ -1948,7 +1971,11 @@ def enc_dec_dynamic_eval(
                     f'({vote_count} < {vote_min_count}; temp={vote_temperature}; similarity={vote_similarity_threshold})'
                 ),
                 'vote_count': vote_count,
+                'vote_total': len(candidates),
+                'selected_source': selected['source'],
+                'text': selected['text'],
                 'vote_support_texts': support_texts,
+                'vote_candidate_texts': candidate_texts,
             }
 
         print(
@@ -1963,7 +1990,10 @@ def enc_dec_dynamic_eval(
             'tokens': selected['tokens'],
             'text': selected['text'],
             'vote_count': vote_count,
+            'vote_total': len(candidates),
+            'selected_source': selected['source'],
             'vote_support_texts': support_texts,
+            'vote_candidate_texts': candidate_texts,
         }
 
     def label_teacher_chunk(idx):
@@ -1976,6 +2006,18 @@ def enc_dec_dynamic_eval(
         teacher_label = generate_teacher_label(clean_chunk, encoder_out_for_teacher)
         if teacher_label['skip']:
             print(f'Skipping teacher update: {teacher_label["reason"]}')
+            write_teacher_diagnostic({
+                'event': 'teacher_update_skipped',
+                'skip_stage': 'vote',
+                'chunk_idx': idx,
+                'reason': teacher_label['reason'],
+                'teacher_text': teacher_label.get('text'),
+                'vote_count': teacher_label.get('vote_count'),
+                'vote_total': teacher_label.get('vote_total'),
+                'selected_source': teacher_label.get('selected_source'),
+                'vote_support_texts': teacher_label.get('vote_support_texts', []),
+                'vote_candidate_texts': teacher_label.get('vote_candidate_texts', []),
+            })
             return None
         teacher_pred = torch.tensor(teacher_label['tokens'], dtype=torch.long, device=model.device)
         teacher_pred_tokens = teacher_pred.tolist()
@@ -2031,6 +2073,23 @@ def enc_dec_dynamic_eval(
         )
         if skip_teacher_step:
             print(f'Skipping teacher update: {skip_reason}')
+            write_teacher_diagnostic({
+                'event': 'teacher_update_skipped',
+                'skip_stage': 'filter',
+                'chunk_idx': idx,
+                'reason': skip_reason,
+                'teacher_text': teacher_pred_text,
+                'teacher_token_count': len(teacher_pred_tokens),
+                'vote_count': teacher_label.get('vote_count'),
+                'vote_total': teacher_label.get('vote_total'),
+                'selected_source': teacher_label.get('selected_source'),
+                'vote_support_texts': teacher_label.get('vote_support_texts', []),
+                'vote_candidate_texts': teacher_label.get('vote_candidate_texts', []),
+                'teacher_mean_max_prob': teacher_mean_max_prob,
+                'teacher_mean_entropy': teacher_mean_entropy,
+                'agreement_text': agreement_text,
+                'ctc_text': ctc_text,
+            })
             return None
 
         effective_training_mode = training_mode
@@ -2045,6 +2104,23 @@ def enc_dec_dynamic_eval(
                 f'adaptive_ce_ctc_aux: decode agreement 1-CER={agreement_similarity:.2f} '
                 f'(threshold={min_similarity:.2f}); using {effective_training_mode}'
             )
+
+        write_teacher_diagnostic({
+            'event': 'teacher_update_accepted',
+            'chunk_idx': idx,
+            'teacher_text': teacher_pred_text,
+            'teacher_token_count': len(teacher_pred_tokens),
+            'vote_count': teacher_label.get('vote_count'),
+            'vote_total': teacher_label.get('vote_total'),
+            'selected_source': teacher_label.get('selected_source'),
+            'vote_support_texts': teacher_label.get('vote_support_texts', []),
+            'vote_candidate_texts': teacher_label.get('vote_candidate_texts', []),
+            'teacher_mean_max_prob': teacher_mean_max_prob,
+            'teacher_mean_entropy': teacher_mean_entropy,
+            'agreement_text': agreement_text,
+            'ctc_text': ctc_text,
+            'effective_training_mode': effective_training_mode,
+        })
 
         return {
             'idx': idx,
@@ -2155,6 +2231,18 @@ def enc_dec_dynamic_eval(
                 teacher_label = generate_teacher_label(audio_chunk[-1, None], encoder_out_for_teacher)
                 if teacher_label['skip']:
                     print(f'Skipping teacher update: {teacher_label["reason"]}')
+                    write_teacher_diagnostic({
+                        'event': 'teacher_update_skipped',
+                        'skip_stage': 'vote',
+                        'chunk_idx': idx,
+                        'reason': teacher_label['reason'],
+                        'teacher_text': teacher_label.get('text'),
+                        'vote_count': teacher_label.get('vote_count'),
+                        'vote_total': teacher_label.get('vote_total'),
+                        'selected_source': teacher_label.get('selected_source'),
+                        'vote_support_texts': teacher_label.get('vote_support_texts', []),
+                        'vote_candidate_texts': teacher_label.get('vote_candidate_texts', []),
+                    })
                     continue
                 teacher_pred = torch.tensor(teacher_label['tokens'], dtype=torch.long, device=model.device)
                 teacher_pred_tokens = teacher_pred.tolist()
@@ -2202,6 +2290,23 @@ def enc_dec_dynamic_eval(
                 )
                 if skip_teacher_step:
                     print(f'Skipping teacher update: {skip_reason}')
+                    write_teacher_diagnostic({
+                        'event': 'teacher_update_skipped',
+                        'skip_stage': 'filter',
+                        'chunk_idx': idx,
+                        'reason': skip_reason,
+                        'teacher_text': teacher_pred_text,
+                        'teacher_token_count': len(teacher_pred_tokens),
+                        'vote_count': teacher_label.get('vote_count'),
+                        'vote_total': teacher_label.get('vote_total'),
+                        'selected_source': teacher_label.get('selected_source'),
+                        'vote_support_texts': teacher_label.get('vote_support_texts', []),
+                        'vote_candidate_texts': teacher_label.get('vote_candidate_texts', []),
+                        'teacher_mean_max_prob': teacher_mean_max_prob,
+                        'teacher_mean_entropy': teacher_mean_entropy,
+                        'agreement_text': agreement_text,
+                        'ctc_text': ctc_text,
+                    })
                     continue
 
                 teacher_lengths = text_lengths.to(model.device)
@@ -2224,6 +2329,23 @@ def enc_dec_dynamic_eval(
                         f'adaptive_ce_ctc_aux: decode agreement 1-CER={agreement_similarity:.2f} '
                         f'(threshold={min_similarity:.2f}); using {effective_training_mode}'
                     )
+
+                write_teacher_diagnostic({
+                    'event': 'teacher_update_accepted',
+                    'chunk_idx': idx,
+                    'teacher_text': teacher_pred_text,
+                    'teacher_token_count': len(teacher_pred_tokens),
+                    'vote_count': teacher_label.get('vote_count'),
+                    'vote_total': teacher_label.get('vote_total'),
+                    'selected_source': teacher_label.get('selected_source'),
+                    'vote_support_texts': teacher_label.get('vote_support_texts', []),
+                    'vote_candidate_texts': teacher_label.get('vote_candidate_texts', []),
+                    'teacher_mean_max_prob': teacher_mean_max_prob,
+                    'teacher_mean_entropy': teacher_mean_entropy,
+                    'agreement_text': agreement_text,
+                    'ctc_text': ctc_text,
+                    'effective_training_mode': effective_training_mode,
+                })
 
                 if effective_training_mode in {'teacher_ce', 'teacher_kl'}:
                     # Supervised update on the filter-passed teacher prediction.

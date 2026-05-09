@@ -109,3 +109,42 @@ Stop the current majority-vote branch. Do not spend more GPU budget on
 TEDLIUM-test, Earnings22, GRPO, or MAXRL expansion for this formulation. A
 future attempt should change the agreement primitive or teacher confidence
 signal rather than tune these thresholds further.
+
+## Stage 4: Segmented Utterance Diagnostic
+
+Robert's 2026-05-09 follow-up supersedes the Stage 3 stop decision: keep
+researching until May 15 unless explicitly asked to stop, and investigate what
+kind of teacher samples help before handing the issue back.
+
+The next bounded experiment is not another broad grid. Run the current best
+Stage 3 setting on TEDLIUM dev at STM-utterance granularity and record, for each
+utterance:
+
+- baseline WER before adaptation;
+- adapted WER after one teacher-selected update pass;
+- whether the utterance improved, worsened, or stayed unchanged;
+- selected teacher-label WER against the utterance reference when an update is
+  accepted;
+- vote count, vote support, candidate texts, skip stage, and skip reason.
+
+Default setting:
+
+- `teacher_kl`, LR `1e-7`, KL temperature `1.0`
+- `freq3_width24_time0`
+- vote `N=8`, temp `0.7`, min count `2`, exact similarity `1.0`
+- representative `medoid`
+- TEDLIUM dev segmented from STM files (`507` utterances, about `1.6` hours of
+  audio)
+
+Expected runtime after the one-utterance smoke is roughly `1-2` GPU hours,
+depending on queue wait and long-utterance overhead. The result should decide
+whether high-quality teacher samples ever produce local gains and which
+teacher-WER bands deserve a follow-up filter/tuning run.
+
+Queued wrapper:
+
+```bash
+screen -L -Logfile lcasr/results/enc_dec/enc_dec_majority_vote_utterance_diagnostic/logs/screen_rob55_segmented_diagnostic.log \
+  -dmS rob55_segmented_diagnostic \
+  bash -lc '/store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob55_segmented_diagnostic_queued.sh'
+```

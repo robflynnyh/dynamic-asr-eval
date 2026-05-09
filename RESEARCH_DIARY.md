@@ -97,3 +97,27 @@
   majority-vote formulation rather than expand to test sets, Earnings22, GRPO,
   or MAXRL; future work needs a different agreement primitive or teacher
   confidence signal.
+- Robert's 2026-05-09 07:49 UTC Linear comment superseded the Stage 3 stop
+  decision: do not hand the issue back before May 15 unless asked, continue
+  exploring majority-vote axes and alternative diagnostics, and if the current
+  method looks weak, identify which teacher samples help.
+- Added optional teacher-update diagnostics to `lcasr/lib.py`; normal runs are
+  unchanged unless `teacher_diagnostics_path` is set. Diagnostic events record
+  accepted/skipped teacher updates, vote candidates/support, vote count,
+  selected teacher text, confidence fields, CTC/decode agreement fields, and
+  skip reasons.
+- Added
+  `lcasr/results/enc_dec/enc_dec_majority_vote/run_segmented_tedlium_diagnostic.py`
+  and `scripts/run_rob55_segmented_diagnostic_queued.sh`. The runner steps
+  through TEDLIUM dev STM utterances, compares baseline vs adapted WER per
+  utterance, records selected teacher-label WER against gold, and writes
+  `utterance_diagnostics.jsonl`, `teacher_events.jsonl`, `summary.csv`, and
+  `summary.json`.
+- Validation before queueing: `python3.10 -m py_compile` passed for
+  `lcasr/lib.py`, `lcasr/enc_dec_dynamic_eval_test.py`, and the segmented
+  diagnostic runner; `bash -n scripts/run_rob55_segmented_diagnostic_queued.sh`
+  passed; callback dry-run through the wrapper `EXIT` trap succeeded; a real
+  one-utterance smoke through `/store/store5/software/simple-gpu-schedule/with-gpu
+  1,2` loaded the real checkpoint on GPU 1, processed
+  `AlGore_2009:0000:13.04-23.46`, wrote scratch diagnostic artifacts, and
+  exited with status `0`.

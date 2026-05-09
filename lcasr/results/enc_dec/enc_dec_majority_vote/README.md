@@ -164,3 +164,28 @@ Final decision: stop this majority-vote formulation. The evidence now covers
 strict voting, relaxed voting, medoid representative selection, confidence
 filtering, and the min-agreement threshold axis without finding a robust dev
 gain.
+
+## Stage 4: Segmented TEDLIUM Diagnostic
+
+Robert's 2026-05-09 follow-up asks for continued research and a sample-level
+diagnostic before handing the issue back. The Stage 4 runner evaluates TEDLIUM
+dev as STM utterances rather than full recordings and writes:
+
+- `utterance_diagnostics.jsonl`: one row per utterance with baseline/adapted
+  WER, improvement flag, selected teacher-label WER, skip reasons, and decoded
+  text;
+- `teacher_events.jsonl`: per-teacher-update vote candidates, support texts,
+  vote counts, skip stage, and confidence/agreement fields;
+- `summary.csv`: scalar utterance-level metrics for quick inspection;
+- `summary.json`: corpus WER before/after plus teacher-WER-bin summaries.
+
+The callback-backed wrapper is:
+
+```bash
+screen -L -Logfile lcasr/results/enc_dec/enc_dec_majority_vote_utterance_diagnostic/logs/screen_rob55_segmented_diagnostic.log \
+  -dmS rob55_segmented_diagnostic \
+  bash -lc '/store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob55_segmented_diagnostic_queued.sh'
+```
+
+The one-utterance smoke writes to `/exp/exp4/acp21rjf/.scratch` and should be
+run before queueing the full `507`-utterance diagnostic.

@@ -162,6 +162,8 @@ if __name__ == '__main__':
                         help='How to choose the pseudo-label inside the selected vote cluster. '
                              'first preserves the original behavior; medoid chooses the candidate '
                              'with the highest mean similarity to the cluster support.')
+    parser.add_argument('--teacher_diagnostics_path', type=str, default='',
+                        help='Optional JSONL path for per-teacher-update diagnostics.')
     parser.add_argument('--student_rollout_temperature', type=float, default=1.0,
                         help='Sampling temperature for RL student rollouts under --training_mode grpo or maxrl. Default 1.0.')
     parser.add_argument('--student_num_rollouts', type=int, default=4,
