@@ -148,7 +148,7 @@ def write_outputs(rows: list[dict[str, object]]) -> None:
     lines.append("")
 
     ok_rows = [r for r in grouped_rows if r.get('lr') == '9em5']
-    for group in ["train_only", "progressive_top", "progressive_bottom", "layer_type", "layer_drop_lr_sweep"]:
+    for group in ["train_only", "progressive_top", "progressive_bottom", "progressive_bottom_ctc_decoder", "layer_type", "layer_drop_lr_sweep"]:
         subset = [r for r in ok_rows if r.get("group") == group]
         if subset:
             add_table(f"{group}, 9e-5", subset)

@@ -6,7 +6,7 @@ set -euo pipefail
 #
 # Runtime controls:
 #   GPU=2 bash launch_scripts/tune_ctc_self_training_extra_ablation_sweeps.sh
-#   FAMILIES="train_only progressive_top progressive_bottom layer_type"
+#   FAMILIES="train_only progressive_top progressive_bottom progressive_bottom_ctc_decoder layer_type"
 #   LRS="9e-6 9e-5 9e-4"                            # default
 #   DRY_RUN=1                                       # print commands only
 
@@ -114,6 +114,17 @@ run_progressive_bottom_family() {
     done
 }
 
+run_progressive_bottom_ctc_decoder_family() {
+    for lr in "${LRS[@]}"
+    do
+        run_item "progressive_bottom_ctc_decoder" "$lr" "train-subsampling-only" --train_subsampling_only --always_train_ctc_decoder
+        for layer in "${LAYERS[@]}"
+        do
+            run_item "progressive_bottom_ctc_decoder" "$lr" "train-subsampling-through-layer-${layer}" --train_layers_through "$layer" --always_train_ctc_decoder
+        done
+    done
+}
+
 run_layer_type_family() {
     for lr in "${LRS[@]}"
     do
@@ -134,6 +145,9 @@ do
             ;;
         progressive_bottom)
             run_progressive_bottom_family
+            ;;
+        progressive_bottom_ctc_decoder)
+            run_progressive_bottom_ctc_decoder_family
             ;;
         layer_type)
             run_layer_type_family

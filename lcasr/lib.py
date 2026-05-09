@@ -238,16 +238,20 @@ def freeze_all_params(model):
     return model
 
 
-def train_ctc_decoder_only(model):
-    freeze_all_params(model)
+def train_ctc_decoder(model):
     decoder = getattr(model, 'decoder', None)
     if decoder is None:
         print('No CTC decoder/output projection found to train')
         return model
     for param in decoder.parameters():
         param.requires_grad = True
-    print(f'Training only CTC decoder/output projection: {decoder.__class__.__name__}')
+    print(f'Training CTC decoder/output projection: {decoder.__class__.__name__}')
     return model
+
+
+def train_ctc_decoder_only(model):
+    freeze_all_params(model)
+    return train_ctc_decoder(model)
 
 
 def train_encoder_layer_only(model, layer_idx):
@@ -322,17 +326,28 @@ def train_layer_type_only(model, layer_type):
 
 def apply_update_freezes(args, model):
     """Drop selected modules from self-training updates while leaving the rest trainable."""
+    always_train_ctc_decoder = args.__dict__.get('always_train_ctc_decoder', False)
+
     train_only_layer_type = args.__dict__.get('train_only_layer_type', None)
     if train_only_layer_type is not None:
-        return train_layer_type_only(model, train_only_layer_type)
+        model = train_layer_type_only(model, train_only_layer_type)
+        if always_train_ctc_decoder:
+            model = train_ctc_decoder(model)
+        return model
 
     train_only_layer = args.__dict__.get('train_only_layer', None)
     if train_only_layer is not None:
-        return train_encoder_layer_only(model, train_only_layer)
+        model = train_encoder_layer_only(model, train_only_layer)
+        if always_train_ctc_decoder:
+            model = train_ctc_decoder(model)
+        return model
 
     train_layers_through = args.__dict__.get('train_layers_through', None)
     if train_layers_through is not None:
-        return train_subsampling_and_encoder_layers_through(model, train_layers_through)
+        model = train_subsampling_and_encoder_layers_through(model, train_layers_through)
+        if always_train_ctc_decoder:
+            model = train_ctc_decoder(model)
+        return model
 
     if args.__dict__.get('train_only_ctc_decoder', False):
         return train_ctc_decoder_only(model)
@@ -351,6 +366,8 @@ def apply_update_freezes(args, model):
         model = freeze_all_but_last_block_and_head(model)
     if args.__dict__.get('train_subsampling_only', False):
         model = train_subsampling_only(model)
+    if always_train_ctc_decoder:
+        model = train_ctc_decoder(model)
     return model
 
 
@@ -2300,6 +2317,7 @@ def apply_args(parser):
     parser.add_argument('--train_only_layer', type=int, default=None, help='Train only one encoder layer during test-time adaptation, e.g. 0 for layers.0')
     parser.add_argument('--train_layers_through', type=int, default=None, help='Train only subsampling and encoder layers from layers.0 through this index during test-time adaptation')
     parser.add_argument('--train_only_ctc_decoder', action='store_true', help='Train only the CTC decoder/output projection during test-time adaptation')
+    parser.add_argument('--always_train_ctc_decoder', action='store_true', help='Keep the CTC decoder/output projection trainable in addition to the selected adaptation subset')
     parser.add_argument('--train_only_layer_type', choices=sorted(LAYER_TYPE_MODULES), default=None, help='Train only one encoder module type across all layers; freezes subsampling, CTC decoder, and all other params')
     parser.add_argument('--freeze_all_but_last_block_and_head', action='store_true', help='Freeze all params except the last encoder block and CTC head during test-time adaptation')
     parser.add_argument('--freeze_decoder', action='store_true', help='Freeze the encoder-decoder language_model_decoder during test-time adaptation')
