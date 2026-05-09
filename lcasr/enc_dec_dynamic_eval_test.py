@@ -158,10 +158,12 @@ if __name__ == '__main__':
     parser.add_argument('--teacher_vote_include_deterministic', action='store_true',
                         help='Include the deterministic teacher decode as an additional vote candidate.')
     parser.add_argument('--teacher_vote_representative_strategy', type=str, default='first',
-                        choices=['first', 'medoid'],
+                        choices=['first', 'medoid', 'deterministic'],
                         help='How to choose the pseudo-label inside the selected vote cluster. '
                              'first preserves the original behavior; medoid chooses the candidate '
-                             'with the highest mean similarity to the cluster support.')
+                             'with the highest mean similarity to the cluster support; deterministic '
+                             'uses sampled votes only as a gate and trains on the deterministic beam '
+                             'label when it has enough support.')
     parser.add_argument('--teacher_diagnostics_path', type=str, default='',
                         help='Optional JSONL path for per-teacher-update diagnostics.')
     parser.add_argument('--student_rollout_temperature', type=float, default=1.0,

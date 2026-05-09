@@ -228,7 +228,7 @@ def summarize(rows_path: Path, summary_json: Path, summary_csv: Path) -> None:
         "mean_vote_fraction",
     ]
     with summary_csv.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=scalar_fields)
+        writer = csv.DictWriter(f, fieldnames=scalar_fields, lineterminator="\n")
         writer.writeheader()
         for row in rows:
             writer.writerow({field: row.get(field) for field in scalar_fields})

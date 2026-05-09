@@ -35,3 +35,6 @@ representative selection, beam width `5`, and length penalty `0.5`.
 
 Inspect each setting's `summary.json`, `summary.csv`, `utterance_diagnostics.jsonl`,
 and `teacher_events.jsonl` after the callback.
+
+Outcome: see `OUTCOME.md`. The best setting was only `-0.14%` relative WER, and
+stronger settings mostly traded improvements for regressions.

@@ -144,3 +144,18 @@
   loaded the real checkpoint, wrote scratch artifacts under
   `/exp/exp4/acp21rjf/.scratch/rob55_segmented_sensitivity_smoke`, and exited
   with status `0`.
+- Stage 5 completed successfully via callback. The best segmented corpus result
+  was `teacher_ce`, LR `1e-6`, one epoch, no augmentation, vote `N=8`, temp
+  `0.7`: `0.114955` WER vs `0.115121` baseline (`-0.14%` relative). Stronger
+  CE settings moved more utterances but produced as many or more worsened cases
+  than improvements; `N=16`, temp `0.7` accepted `179` labels and worsened WER
+  by `+0.43%` relative. Low teacher-label WER was not sufficient for gains: in
+  the best setting, accepted labels with teacher WER `<=0.25` improved two
+  utterances and worsened two.
+- Added deterministic-anchored voting via
+  `teacher_vote_representative_strategy=deterministic`. This uses stochastic
+  samples as a confidence gate but trains on the deterministic beam teacher
+  label when it has enough support. Added
+  `scripts/run_rob55_majority_vote_stage6_deterministic_anchor_queued.sh` for a
+  bounded TEDLIUM-dev sweep over vote samples `8/16`, temperatures `0.7/1.0`,
+  similarities `1.0/0.95`, `teacher_ce`, `grpo`, and `maxrl`.

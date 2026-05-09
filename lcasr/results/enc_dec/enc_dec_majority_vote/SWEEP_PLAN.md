@@ -191,3 +191,44 @@ screen -L -Logfile lcasr/results/enc_dec/enc_dec_majority_vote_segmented_sensiti
   -dmS rob55_segmented_sensitivity \
   bash -lc '/store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob55_segmented_sensitivity_queued.sh'
 ```
+
+## Stage 5 Decision
+
+Stage 5 completed successfully and wrote per-setting summaries under
+`lcasr/results/enc_dec/enc_dec_majority_vote_segmented_sensitivity/`. The
+best corpus result was only `teacher_ce`, LR `1e-6`, one epoch, no augmentation,
+vote `N=8`, temp `0.7`, at `0.114955` WER versus `0.115121` baseline
+(`-0.14%` relative). Stronger settings moved more utterances but mostly balanced
+improvements with regressions; `N=16`, temp `0.7` accepted the most labels and
+worsened corpus WER by `+0.43%` relative.
+
+This argues against simply increasing update strength, augmentation, or sample
+count. Low teacher-label WER was also not a reliable sufficient condition for
+improvement: in the best Stage 5 setting, accepted labels with WER `<=0.25`
+improved two utterances and worsened two utterances.
+
+## Stage 6: Deterministic-Anchored Vote Gate
+
+Hypothesis: sampled majority labels may be lower quality than the deterministic
+beam teacher label. Instead of selecting a sampled medoid label, use the
+stochastic vote set as a confidence gate and train on the deterministic beam
+label when that deterministic label has enough exact support.
+
+Run a bounded TEDLIUM-dev full-recording sweep:
+
+- `teacher_vote_representative_strategy=deterministic`;
+- `teacher_vote_include_deterministic=1`;
+- vote samples `8` and `16`;
+- vote temperatures `0.7` and `1.0`;
+- similarities `1.0` and `0.95`, min count `2`;
+- `teacher_ce` at LR `1e-7` and `3e-7`;
+- `grpo` and `maxrl` at LR `1e-7`;
+- `freq3_width24_time0`, one epoch, one repeat.
+
+Decision rule:
+
+- If the deterministic-anchored gate gives a plausible TEDLIUM-dev gain, rerun
+  only the best one or two settings with repeats before considering test sets.
+- If CE remains tiny and GRPO/MAXRL are neutral or worse, treat the
+  majority-vote family as unlikely to reach the requested `5%` relative target
+  without a different teacher-quality signal.

@@ -1869,7 +1869,7 @@ def enc_dec_dynamic_eval(
 
         min_similarity = args.__dict__.get('teacher_vote_similarity', 1.0)
         representative_strategy = args.__dict__.get('teacher_vote_representative_strategy', 'first')
-        if representative_strategy not in {'first', 'medoid'}:
+        if representative_strategy not in {'first', 'medoid', 'deterministic'}:
             raise ValueError(f'Unsupported teacher_vote_representative_strategy: {representative_strategy}')
 
         def support_score(candidate, support):
@@ -1877,6 +1877,7 @@ def enc_dec_dynamic_eval(
                 return 0.0
             return sum(teacher_vote_similarity(candidate['text'], other['text']) for other in support) / len(support)
 
+        candidate_supports = []
         best_candidate, best_support, best_score = None, [], -1.0
         for candidate in candidates:
             support = [
@@ -1884,11 +1885,25 @@ def enc_dec_dynamic_eval(
                 if teacher_vote_similarity(candidate['text'], other['text']) >= min_similarity
             ]
             candidate_score = support_score(candidate, support)
+            candidate_supports.append((candidate, support, candidate_score))
             if len(support) > len(best_support) or (
                 len(support) == len(best_support) and candidate_score > best_score
             ):
                 best_candidate, best_support, best_score = candidate, support, candidate_score
 
+        if representative_strategy == 'deterministic':
+            deterministic_supports = [
+                item for item in candidate_supports if item[0].get('source') == 'deterministic'
+            ]
+            if not deterministic_supports:
+                raise ValueError(
+                    'teacher_vote_representative_strategy=deterministic requires '
+                    '--teacher_vote_include_deterministic'
+                )
+            best_candidate, best_support, best_score = max(
+                deterministic_supports,
+                key=lambda item: (len(item[1]), item[2]),
+            )
         if representative_strategy == 'medoid' and best_support:
             best_candidate = max(
                 best_support,

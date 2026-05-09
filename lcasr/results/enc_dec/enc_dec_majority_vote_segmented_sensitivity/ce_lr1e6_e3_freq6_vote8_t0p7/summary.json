@@ -1,0 +1,41 @@
+{
+  "adapted_corpus_wer": 0.11512103459710402,
+  "baseline_corpus_wer": 0.11512103459710402,
+  "corpus_wer_delta": 0.0,
+  "num_improved": 4,
+  "num_unchanged": 498,
+  "num_utterances": 507,
+  "num_worsened": 5,
+  "teacher_bins": {
+    "no_teacher_update": {
+      "count": 391,
+      "improved": 0,
+      "mean_wer_delta": 0.0
+    },
+    "teacher_exact": {
+      "count": 2,
+      "improved": 0,
+      "mean_wer_delta": 0.0
+    },
+    "teacher_wer_gt_0p50": {
+      "count": 84,
+      "improved": 4,
+      "mean_wer_delta": -2.8442814822816248e-05
+    },
+    "teacher_wer_le_0p10": {
+      "count": 10,
+      "improved": 0,
+      "mean_wer_delta": 0.0
+    },
+    "teacher_wer_le_0p25": {
+      "count": 11,
+      "improved": 0,
+      "mean_wer_delta": 0.0
+    },
+    "teacher_wer_le_0p50": {
+      "count": 9,
+      "improved": 0,
+      "mean_wer_delta": 0.0
+    }
+  }
+}
