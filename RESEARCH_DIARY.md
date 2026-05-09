@@ -76,3 +76,14 @@
   updates, decoded, and wrote
   `/exp/exp4/acp21rjf/.scratch/rob55_stage2_medoid_smoke_1.pkl` with WER
   `0.1326530612244898`.
+- Stage 2 completed successfully via callback and wrote
+  `lcasr/results/enc_dec/enc_dec_majority_vote_stage2_medoid_confidence/summary.csv`.
+  Best repeat-mean WER was `0.111722` for `teacher_ce`, LR `1e-7`,
+  similarity `0.95`, medoid representative, vs no-adapt baseline `0.112026`
+  (`-0.27%` relative), smaller than repeat variance. Similarity `0.9`
+  accepted many more updates but still worsened WER by `2.64%` to `7.08%`
+  relative. Do not expand this setting to test sets.
+- Added Stage 3 min-count-2 threshold check wrapper
+  `scripts/run_rob55_majority_vote_stage3_min_count2_queued.sh`. This is the
+  final bounded TEDLIUM-dev check for the majority-vote threshold axis before
+  stopping or expanding only one clearly positive setting.

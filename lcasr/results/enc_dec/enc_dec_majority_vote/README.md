@@ -83,8 +83,8 @@ python results/enc_dec/enc_dec_majority_vote/aggregate.py \
 
 The Stage 1b repeat check is recorded in
 `../enc_dec_majority_vote_stage1b/OUTCOME.md`. The current majority-vote
-teacher formulation should not be expanded as-is: exact voting is too sparse,
-and relaxed near-match voting degrades WER.
+teacher formulation should not be expanded to test sets as-is: exact voting is
+too sparse, and relaxed near-match voting degrades WER.
 
 ## Stage 2: Medoid Representative + Confidence Filter
 
@@ -117,3 +117,37 @@ screen -L -Logfile lcasr/results/enc_dec/enc_dec_majority_vote_stage2_medoid_con
 
 Expand only if the medoid/confidence run recovers most of the retained-label
 rate from relaxed voting without the Stage 1b WER degradation.
+
+Stage 2 is recorded in
+`../enc_dec_majority_vote_stage2_medoid_confidence/OUTCOME.md`. It did not meet
+the expansion criterion: the best repeat-mean setting was `0.27%` relative
+better than baseline, smaller than its repeat standard deviation, while `0.9`
+similarity still degraded WER.
+
+## Stage 3: Min-Count 2 Threshold Check
+
+The remaining bounded question is whether exact or near-exact voting with min
+count `2` can retain enough clean teacher updates to move WER. This tests the
+issue's minimum-agreement axis directly without broadening to test sets.
+
+| Axis | Values |
+|---|---|
+| training modes | `teacher_ce`, `teacher_kl` |
+| LRs | `1e-7`, `3e-7` |
+| augmentation | `freq3_width24_time0` |
+| vote samples / temp / min count | `8` / `0.7` / `2` |
+| vote similarities | `1.0`, `0.95` |
+| representative | `medoid` |
+| repeats | `3` |
+
+Queued wrapper:
+
+```bash
+screen -L -Logfile lcasr/results/enc_dec/enc_dec_majority_vote_stage3_min_count2/logs/screen_rob55_majority_vote_stage3_min_count2.log \
+  -dmS rob55_majority_vote_stage3_min_count2 \
+  bash -lc '/store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob55_majority_vote_stage3_min_count2_queued.sh'
+```
+
+If this does not produce at least a clear `1%` relative repeat-mean dev gain,
+the majority-vote branch should be closed with a negative result rather than
+expanded to Earnings22, TEDLIUM test, or GRPO/MAXRL.

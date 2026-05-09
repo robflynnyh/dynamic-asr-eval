@@ -63,3 +63,34 @@ accepted only `22-23` vote updates over three repeats. Relaxed `0.9` similarity
 accepted hundreds of updates but consistently worsened WER by `5.85%` to
 `7.99%` relative. Do not expand this exact vote-selection method to test sets or
 GRPO/MAXRL without changing the teacher agreement primitive.
+
+## Stage 2 Decision
+
+Stage 2 tested medoid representative selection and a mean-probability/entropy
+confidence filter. It did not justify test-set expansion. The best setting was
+`teacher_ce`, LR `1e-7`, similarity `0.95`, medoid representative, with WER
+`0.111722` vs baseline `0.112026` (`-0.27%` relative), which is smaller than
+the observed repeat standard deviation. Similarity `0.9` still worsened WER by
+`2.64%` to `7.08%` relative.
+
+## Stage 3: Final Threshold Check
+
+Run one final TEDLIUM-dev threshold check before closing the majority-vote path:
+
+- `teacher_vote_min_count=2`
+- `teacher_vote_similarity in {1.0, 0.95}`
+- `teacher_vote_num_samples=8`
+- `teacher_vote_temperature=0.7`
+- `training_mode in {teacher_ce, teacher_kl}`
+- `optim_lr in {1e-7, 3e-7}`
+- `augmentation=freq3_width24_time0`
+- three repeats
+
+Decision rule:
+
+- If exact or `0.95` voting with min count `2` gives a clear repeat-mean dev
+  gain of at least `1%` relative, rerun only the best setting on TEDLIUM test.
+- If it is neutral or worse, stop. The evidence would then cover strict voting,
+  relaxed voting, medoid representative selection, confidence filtering, and the
+  main min-agreement threshold axis without spending test-set or reward-method
+  budget.
