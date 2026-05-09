@@ -1852,14 +1852,32 @@ def enc_dec_dynamic_eval(
             return None, 0, []
 
         min_similarity = args.__dict__.get('teacher_vote_similarity', 1.0)
-        best_candidate, best_support = None, []
+        representative_strategy = args.__dict__.get('teacher_vote_representative_strategy', 'first')
+        if representative_strategy not in {'first', 'medoid'}:
+            raise ValueError(f'Unsupported teacher_vote_representative_strategy: {representative_strategy}')
+
+        def support_score(candidate, support):
+            if len(support) == 0:
+                return 0.0
+            return sum(teacher_vote_similarity(candidate['text'], other['text']) for other in support) / len(support)
+
+        best_candidate, best_support, best_score = None, [], -1.0
         for candidate in candidates:
             support = [
                 other for other in candidates
                 if teacher_vote_similarity(candidate['text'], other['text']) >= min_similarity
             ]
-            if len(support) > len(best_support):
-                best_candidate, best_support = candidate, support
+            candidate_score = support_score(candidate, support)
+            if len(support) > len(best_support) or (
+                len(support) == len(best_support) and candidate_score > best_score
+            ):
+                best_candidate, best_support, best_score = candidate, support, candidate_score
+
+        if representative_strategy == 'medoid' and best_support:
+            best_candidate = max(
+                best_support,
+                key=lambda candidate: support_score(candidate, best_support),
+            )
         return best_candidate, len(best_support), best_support
 
     def generate_teacher_label(clean_chunk, encoder_out_for_teacher):
@@ -1935,7 +1953,9 @@ def enc_dec_dynamic_eval(
 
         print(
             f'Teacher majority vote: selected {vote_count}/{len(candidates)} '
-            f'(temp={vote_temperature}, similarity={vote_similarity_threshold}, source={selected["source"]})'
+            f'(temp={vote_temperature}, similarity={vote_similarity_threshold}, '
+            f'representative={args.__dict__.get("teacher_vote_representative_strategy", "first")}, '
+            f'source={selected["source"]})'
         )
         print(f'Teacher majority support: {support_texts}')
         return {

@@ -157,6 +157,11 @@ if __name__ == '__main__':
                         help='Similarity threshold for vote agreement. 1.0 requires exact normalized text equality; lower values use 1-CER text similarity.')
     parser.add_argument('--teacher_vote_include_deterministic', action='store_true',
                         help='Include the deterministic teacher decode as an additional vote candidate.')
+    parser.add_argument('--teacher_vote_representative_strategy', type=str, default='first',
+                        choices=['first', 'medoid'],
+                        help='How to choose the pseudo-label inside the selected vote cluster. '
+                             'first preserves the original behavior; medoid chooses the candidate '
+                             'with the highest mean similarity to the cluster support.')
     parser.add_argument('--student_rollout_temperature', type=float, default=1.0,
                         help='Sampling temperature for RL student rollouts under --training_mode grpo or maxrl. Default 1.0.')
     parser.add_argument('--student_num_rollouts', type=int, default=4,

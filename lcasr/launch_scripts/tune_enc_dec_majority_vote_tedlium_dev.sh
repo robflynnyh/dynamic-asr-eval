@@ -20,6 +20,10 @@ ENC_DEC_NO_REPEAT_NGRAM_SIZE=${ENC_DEC_NO_REPEAT_NGRAM_SIZE:-0}
 ENC_DEC_MAX_GENERATE=${ENC_DEC_MAX_GENERATE:--1}
 TEACHER_VOTE_NUM_SAMPLES=${TEACHER_VOTE_NUM_SAMPLES:-8}
 TEACHER_VOTE_INCLUDE_DETERMINISTIC=${TEACHER_VOTE_INCLUDE_DETERMINISTIC:-0}
+TEACHER_VOTE_REPRESENTATIVE_STRATEGY=${TEACHER_VOTE_REPRESENTATIVE_STRATEGY:-first}
+TEACHER_FILTER_LOW_CONFIDENCE=${TEACHER_FILTER_LOW_CONFIDENCE:-0}
+TEACHER_MIN_MEAN_MAX_PROB=${TEACHER_MIN_MEAN_MAX_PROB:-0.35}
+TEACHER_MAX_MEAN_ENTROPY=${TEACHER_MAX_MEAN_ENTROPY:-2.5}
 RUN_BASELINE=${RUN_BASELINE:-1}
 DRY_RUN=${DRY_RUN:-0}
 export MPLCONFIGDIR=${MPLCONFIGDIR:-/exp/exp4/acp21rjf/.scratch/matplotlib}
@@ -72,6 +76,17 @@ TEACHER_FILTER_ARGS=(
 VOTE_INCLUDE_ARGS=()
 if [ "$TEACHER_VOTE_INCLUDE_DETERMINISTIC" = "1" ]; then
     VOTE_INCLUDE_ARGS=(--teacher_vote_include_deterministic)
+fi
+
+CONFIDENCE_FILTER_ARGS=()
+CONFIDENCE_TAG=""
+if [ "$TEACHER_FILTER_LOW_CONFIDENCE" = "1" ]; then
+    CONFIDENCE_FILTER_ARGS=(
+        --teacher_filter_low_confidence
+        --teacher_min_mean_max_prob "$TEACHER_MIN_MEAN_MAX_PROB"
+        --teacher_max_mean_entropy "$TEACHER_MAX_MEAN_ENTROPY"
+    )
+    CONFIDENCE_TAG="-confp$(tag_value "$TEACHER_MIN_MEAN_MAX_PROB")_e$(tag_value "$TEACHER_MAX_MEAN_ENTROPY")"
 fi
 
 run_cmd() {
@@ -149,7 +164,7 @@ do
                             kl_tag=$(tag_value "$kl_temp")
                             vote_temp_tag=$(tag_value "$vote_temp")
                             vote_sim_tag=$(tag_value "$vote_similarity")
-                            vote_tag="voteN${TEACHER_VOTE_NUM_SAMPLES}_t${vote_temp_tag}_min${vote_min_count}_sim${vote_sim_tag}"
+                            vote_tag="voteN${TEACHER_VOTE_NUM_SAMPLES}_t${vote_temp_tag}_min${vote_min_count}_sim${vote_sim_tag}_rep${TEACHER_VOTE_REPRESENTATIVE_STRATEGY}${CONFIDENCE_TAG}"
                             run_name="${DATASET}-${SPLIT}-${training_mode}${DECODING_SUFFIX}-epoch-${EPOCHS}-lr-${lr_tag}-${aug}-${vote_tag}"
                             if [ "$training_mode" = "teacher_kl" ]; then
                                 run_name="${run_name}-tau${kl_tag}"
@@ -167,17 +182,23 @@ do
                             echo "teacher_vote_temperature=${vote_temp}" | tee -a "$log_path"
                             echo "teacher_vote_min_count=${vote_min_count}" | tee -a "$log_path"
                             echo "teacher_vote_similarity=${vote_similarity}" | tee -a "$log_path"
+                            echo "teacher_vote_representative_strategy=${TEACHER_VOTE_REPRESENTATIVE_STRATEGY}" | tee -a "$log_path"
+                            echo "teacher_filter_low_confidence=${TEACHER_FILTER_LOW_CONFIDENCE}" | tee -a "$log_path"
+                            echo "teacher_min_mean_max_prob=${TEACHER_MIN_MEAN_MAX_PROB}" | tee -a "$log_path"
+                            echo "teacher_max_mean_entropy=${TEACHER_MAX_MEAN_ENTROPY}" | tee -a "$log_path"
                             echo "augmentation=${aug} kwargs=${aug_kwargs[*]}" | tee -a "$log_path"
 
                             cmd=(
                                 "$PYTHON_BIN" enc_dec_dynamic_eval_test.py
                                 "${TEACHER_FILTER_ARGS[@]}"
+                                "${CONFIDENCE_FILTER_ARGS[@]}"
                                 --training_mode "$training_mode"
                                 --teacher_kl_temperature "$kl_temp"
                                 --teacher_vote_num_samples "$TEACHER_VOTE_NUM_SAMPLES"
                                 --teacher_vote_temperature "$vote_temp"
                                 --teacher_vote_min_count "$vote_min_count"
                                 --teacher_vote_similarity "$vote_similarity"
+                                --teacher_vote_representative_strategy "$TEACHER_VOTE_REPRESENTATIVE_STRATEGY"
                                 "${VOTE_INCLUDE_ARGS[@]}"
                                 -c "$CHECKPOINT"
                                 -dfa

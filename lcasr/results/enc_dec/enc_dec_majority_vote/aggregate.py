@@ -25,7 +25,10 @@ SETTING_RE = re.compile(
 )
 VOTE_AUG_RE = re.compile(
     r"^(?P<spec_aug>.+)-voteN(?P<vote_num_samples>\d+)_t(?P<vote_temperature>[^_]+)"
-    r"_min(?P<vote_min_count>\d+)_sim(?P<vote_similarity>[^-]+)(?:-tau(?P<kl_temp>[^-]+))?$"
+    r"_min(?P<vote_min_count>\d+)_sim(?P<vote_similarity>[^_-]+)"
+    r"(?:_rep(?P<vote_representative_strategy>[^-]+))?"
+    r"(?:-confp(?P<teacher_min_mean_max_prob>[^_]+)_e(?P<teacher_max_mean_entropy>[^-]+))?"
+    r"(?:-tau(?P<kl_temp>[^-]+))?$"
 )
 EPOCH_RELABEL_SWEEP_AUG_RE = re.compile(
     r"^(?P<spec_aug>.+)-tau(?P<kl_temp>[^-]+)-filter_(?P<teacher_filter>.+)$"

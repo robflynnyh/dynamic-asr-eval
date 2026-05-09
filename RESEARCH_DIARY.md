@@ -47,3 +47,32 @@
   conclusion: do not expand this exact majority-vote teacher formulation to test
   sets or GRPO/MAXRL; it needs a different agreement primitive or stronger
   confidence filter first.
+
+## 2026-05-09
+
+- Recent Linear comment from Robert asked to continue the ROB-55 research rather
+  than hand over. This supersedes the previous completion note.
+- Continued from PR #8 on branch
+  `symphony/ROB-55-majority-vote-self-training` at
+  `fb8cd134d6d1fdd6eb6c8f7d59b90fc875de040c`.
+- Stage 2 hypothesis: relaxed voting may have degraded because the selected
+  support-cluster representative was arbitrary. Added
+  `--teacher_vote_representative_strategy medoid`, which chooses the vote
+  candidate with the highest mean similarity to the largest support cluster.
+- Added launcher support for recording representative strategy and optional
+  low-confidence thresholds in the majority-vote run names/logs.
+- Added `scripts/run_rob55_majority_vote_stage2_medoid_confidence_queued.sh`
+  for a bounded TEDLIUM-dev run: `teacher_ce`/`teacher_kl`, LRs `1e-7`/`3e-7`,
+  `freq3_width24_time0`, vote `N=8`, temp `0.7`, min count `3`, similarities
+  `0.9`/`0.95`, medoid representative, low-confidence filter enabled, two
+  repeats.
+- Validation before queueing: copied the ignored local `paths.yaml` into this
+  Symphony checkout from `/exp/exp4/acp21rjf/dynamic-asr-eval/paths.yaml`;
+  py_compile and shell syntax checks passed; the Stage 2 wrapper callback dry
+  run exercised the `EXIT` trap; a real one-recording TEDLIUM-dev smoke through
+  `/store/store5/software/simple-gpu-schedule/with-gpu 1,2` loaded
+  `/store/store5/data/acp21rjf_checkpoints/lcasr/enc_dec_v2/step_105360.pt`,
+  selected medoid vote labels, applied the low-confidence filter, completed CE
+  updates, decoded, and wrote
+  `/exp/exp4/acp21rjf/.scratch/rob55_stage2_medoid_smoke_1.pkl` with WER
+  `0.1326530612244898`.
