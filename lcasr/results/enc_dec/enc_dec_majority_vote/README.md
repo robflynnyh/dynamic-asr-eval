@@ -189,3 +189,34 @@ screen -L -Logfile lcasr/results/enc_dec/enc_dec_majority_vote_utterance_diagnos
 
 The one-utterance smoke writes to `/exp/exp4/acp21rjf/.scratch` and should be
 run before queueing the full `507`-utterance diagnostic.
+
+Stage 4 is recorded in
+`../enc_dec_majority_vote_utterance_diagnostic/OUTCOME.md`. It found that the
+Stage 3 update recipe accepted 88 exact-vote teacher updates on segmented
+TEDLIUM dev, including 24 selected labels with teacher WER `<= 0.10`, but
+changed zero utterance decodes. This points to update strength/augmentation as
+the next diagnostic axis rather than teacher-label quality alone.
+
+## Stage 5: Segmented Sensitivity
+
+Stage 5 keeps the same segmented TEDLIUM-dev diagnostic and varies the local
+student update recipe:
+
+- hard CE vs KL;
+- LR `1e-6` and `3e-6`;
+- one vs three epochs;
+- no augmentation, weak frequency masking, and stronger frequency masking;
+- vote samples `8` vs `16`, with temperature `0.7` and `1.0`.
+
+The callback-backed wrapper is:
+
+```bash
+screen -L -Logfile lcasr/results/enc_dec/enc_dec_majority_vote_segmented_sensitivity/logs/screen_rob55_segmented_sensitivity.log \
+  -dmS rob55_segmented_sensitivity \
+  bash -lc '/store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob55_segmented_sensitivity_queued.sh'
+```
+
+Expected runtime is roughly `2-4` GPU hours after queue acquisition. If no
+setting shows utterance-level movement among the low-teacher-WER accepted
+samples, the next pivot should change the teacher signal rather than keep
+tuning this vote primitive.

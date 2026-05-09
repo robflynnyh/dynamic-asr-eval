@@ -148,3 +148,46 @@ screen -L -Logfile lcasr/results/enc_dec/enc_dec_majority_vote_utterance_diagnos
   -dmS rob55_segmented_diagnostic \
   bash -lc '/store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob55_segmented_diagnostic_queued.sh'
 ```
+
+## Stage 4 Decision
+
+Stage 4 completed successfully and wrote
+`lcasr/results/enc_dec/enc_dec_majority_vote_utterance_diagnostic/summary.json`.
+It processed `507` segmented TEDLIUM-dev utterances and found identical corpus
+WER before and after adaptation: `0.115121 -> 0.115121`. Exact min-count-2
+voting accepted `88` teacher updates and skipped `454`; `447` skips were
+below-threshold vote agreement. Among selected teacher labels, `24` had WER
+`<= 0.10` against the gold utterance and `50` had WER `<= 0.25`, but no
+accepted update changed the beam-search output under the Stage 3 recipe.
+
+Interpretation: the Stage 3 recipe is too weak or too sparse for segmented
+utterance adaptation. Do not conclude from this alone that good teacher samples
+cannot help; first test stronger local updates and augmentation settings.
+
+## Stage 5: Segmented Update Sensitivity
+
+Run a bounded sensitivity sweep on the segmented diagnostic:
+
+- `teacher_ce` vs `teacher_kl`;
+- LR `1e-6` and `3e-6`;
+- one vs three epochs;
+- no augmentation, `freq3_width24_time0`, and `freq6_width34_time0`;
+- vote samples `8` vs `16`, temperature `0.7` vs `1.0`;
+- exact vote similarity `1.0`, min count `2`, medoid representative.
+
+Decision rule:
+
+- If at least one setting improves a meaningful number of low-teacher-WER
+  accepted utterances without a larger worsened count, use that setting to
+  design the next full-recording dev run.
+- If stronger updates still produce no movement or mostly worsen clean-label
+  cases, pivot away from majority-vote teacher labels toward a different
+  teacher signal or objective.
+
+Queued wrapper:
+
+```bash
+screen -L -Logfile lcasr/results/enc_dec/enc_dec_majority_vote_segmented_sensitivity/logs/screen_rob55_segmented_sensitivity.log \
+  -dmS rob55_segmented_sensitivity \
+  bash -lc '/store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob55_segmented_sensitivity_queued.sh'
+```

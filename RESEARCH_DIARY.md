@@ -121,3 +121,26 @@
   1,2` loaded the real checkpoint on GPU 1, processed
   `AlGore_2009:0000:13.04-23.46`, wrote scratch diagnostic artifacts, and
   exited with status `0`.
+- Stage 4 completed successfully via callback. The segmented diagnostic
+  processed `507` TEDLIUM-dev utterances and wrote
+  `lcasr/results/enc_dec/enc_dec_majority_vote_utterance_diagnostic/summary.json`.
+  Baseline and adapted corpus WER were identical at `0.115121`; no utterances
+  improved or worsened. Exact min-count-2 voting accepted `88` teacher updates
+  and skipped `454`; `24` selected labels had WER `<=0.10` against gold and
+  `50` had WER `<=0.25`, but none moved the beam output under `teacher_kl`,
+  LR `1e-7`, one epoch, and `freq3_width24_time0`.
+- Added
+  `lcasr/results/enc_dec/enc_dec_majority_vote_utterance_diagnostic/OUTCOME.md`,
+  `lcasr/results/enc_dec/enc_dec_majority_vote_segmented_sensitivity/README.md`,
+  and `scripts/run_rob55_segmented_sensitivity_queued.sh`. Stage 5 will keep
+  the same segmented diagnostic while varying CE/KL, LR, epochs, augmentation,
+  vote sample count, and vote temperature to test whether accepted clean
+  teacher labels can help under stronger local updates.
+- Stage 5 validation before queueing: `bash -n
+  scripts/run_rob55_segmented_sensitivity_queued.sh` passed; `git diff --check`
+  passed; callback dry-run through the wrapper `EXIT` trap succeeded; a real
+  one-setting, one-utterance smoke through
+  `/store/store5/software/simple-gpu-schedule/with-gpu 1,2` acquired GPU 1,
+  loaded the real checkpoint, wrote scratch artifacts under
+  `/exp/exp4/acp21rjf/.scratch/rob55_segmented_sensitivity_smoke`, and exited
+  with status `0`.
