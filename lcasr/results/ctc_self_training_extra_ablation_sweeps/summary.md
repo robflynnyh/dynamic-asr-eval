@@ -48,6 +48,25 @@ Focused view: **9e-5 only**, averaged by setting. Per-repeat rows remain in `sum
 | 17.24% | freeze-through-4 |
 | 19.46% | freeze-through-5 |
 
+## progressive_bottom, 9e-5
+
+| WER | Setting |
+|---:|---|
+| 5.99% | train-subsampling-through-layer-5 |
+| 6.05% | train-subsampling-through-layer-4 |
+| 6.06% | train-subsampling-through-layer-3 |
+| 6.10% | train-subsampling-through-layer-2 |
+| 6.15% | train-subsampling-through-layer-1 |
+| 6.23% | train-subsampling-through-layer-0 |
+| 6.38% | train-subsampling-only |
+| 16.03% | train-subsampling-through-layer-5 |
+| 16.10% | train-subsampling-through-layer-4 |
+| 16.81% | train-subsampling-through-layer-3 |
+| 17.13% | train-subsampling-through-layer-2 |
+| 17.54% | train-subsampling-through-layer-1 |
+| 18.07% | train-subsampling-through-layer-0 |
+| 18.54% | train-subsampling-only |
+
 ## layer_type, 9e-5
 
 | WER | Setting |
