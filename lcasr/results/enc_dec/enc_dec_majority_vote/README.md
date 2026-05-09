@@ -81,10 +81,11 @@ python results/enc_dec/enc_dec_majority_vote/aggregate.py \
 
 ## Current Conclusion
 
-The Stage 1b repeat check is recorded in
-`../enc_dec_majority_vote_stage1b/OUTCOME.md`. The current majority-vote
-teacher formulation should not be expanded to test sets as-is: exact voting is
-too sparse, and relaxed near-match voting degrades WER.
+The final Stage 3 threshold check is recorded in
+`../enc_dec_majority_vote_stage3_min_count2/OUTCOME.md`. The current
+majority-vote teacher formulation should not be expanded to test sets as-is:
+exact voting is too sparse, and relaxed or near-exact voting retains more
+updates but does not produce reliable WER gains.
 
 ## Stage 2: Medoid Representative + Confidence Filter
 
@@ -151,3 +152,15 @@ screen -L -Logfile lcasr/results/enc_dec/enc_dec_majority_vote_stage3_min_count2
 If this does not produce at least a clear `1%` relative repeat-mean dev gain,
 the majority-vote branch should be closed with a negative result rather than
 expanded to Earnings22, TEDLIUM test, or GRPO/MAXRL.
+
+Stage 3 is recorded in
+`../enc_dec_majority_vote_stage3_min_count2/OUTCOME.md`. It did not meet the
+expansion criterion: the best repeat-mean setting was `teacher_kl`, LR `1e-7`,
+exact similarity `1.0`, min count `2`, with WER `0.111455` vs baseline
+`0.112026` (`-0.51%` relative). Exact voting accepted only `3.0-3.7%` of
+updates, while `0.95` similarity accepted about `39%` but was neutral or worse.
+
+Final decision: stop this majority-vote formulation. The evidence now covers
+strict voting, relaxed voting, medoid representative selection, confidence
+filtering, and the min-agreement threshold axis without finding a robust dev
+gain.

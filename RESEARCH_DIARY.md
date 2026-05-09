@@ -87,3 +87,13 @@
   `scripts/run_rob55_majority_vote_stage3_min_count2_queued.sh`. This is the
   final bounded TEDLIUM-dev check for the majority-vote threshold axis before
   stopping or expanding only one clearly positive setting.
+- Stage 3 completed successfully via callback and wrote
+  `lcasr/results/enc_dec/enc_dec_majority_vote_stage3_min_count2/summary.csv`.
+  Best repeat-mean WER was `0.111455` for `teacher_kl`, LR `1e-7`, exact
+  similarity `1.0`, min count `2`, vs no-adapt baseline `0.112026`
+  (`-0.51%` relative). Exact voting accepted only `27-34` updates per setting
+  (`3.0-3.7%`). Near-exact `0.95` voting accepted `353-374` updates per setting
+  (`38.6-40.9%`) but was neutral or worse. Final decision for ROB-55: stop this
+  majority-vote formulation rather than expand to test sets, Earnings22, GRPO,
+  or MAXRL; future work needs a different agreement primitive or teacher
+  confidence signal.

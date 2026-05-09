@@ -94,3 +94,18 @@ Decision rule:
   relaxed voting, medoid representative selection, confidence filtering, and the
   main min-agreement threshold axis without spending test-set or reward-method
   budget.
+
+## Stage 3 Decision
+
+Stage 3 completed the final threshold check and triggered the stop rule. The
+best repeat-mean setting was `teacher_kl`, LR `1e-7`, exact similarity `1.0`,
+min count `2`, with WER `0.111455` vs baseline `0.112026` (`-0.51%`
+relative). Exact voting remained too sparse, accepting only `27-34` updates per
+setting (`3.0-3.7%`). Near-exact `0.95` voting accepted `353-374` updates per
+setting (`38.6-40.9%`) but was neutral or worse, including `+5%` relative
+degradations in two settings.
+
+Stop the current majority-vote branch. Do not spend more GPU budget on
+TEDLIUM-test, Earnings22, GRPO, or MAXRL expansion for this formulation. A
+future attempt should change the agreement primitive or teacher confidence
+signal rather than tune these thresholds further.
