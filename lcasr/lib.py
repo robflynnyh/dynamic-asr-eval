@@ -1,4 +1,5 @@
 from omegaconf import OmegaConf
+import json
 import os
 #paths = OmegaConf.load('paths.yaml')
 # use absolute path
@@ -97,6 +98,32 @@ def entropy_augmentation(spec, model, **kwargs):
      
         spec = (audio + grad).detach()
     return spec
+
+
+def _ctc_entropy_stats(log_probs: torch.Tensor) -> dict:
+    log_probs = log_probs.detach().float()
+    probs = log_probs.exp()
+    entropy = -(probs * log_probs).sum(dim=-1).reshape(-1)
+    return {
+        'mean_entropy': float(entropy.mean().item()),
+        'std_entropy': float(entropy.std(unbiased=False).item()),
+        'num_frames': int(entropy.numel()),
+    }
+
+
+def _write_entropy_trace(args, row: dict) -> None:
+    trace_path = args.__dict__.get('entropy_trace_path', '')
+    if not trace_path:
+        return
+
+    context = args.__dict__.get('_entropy_trace_context', {})
+    out = dict(context)
+    out.update(row)
+    trace_dir = os.path.dirname(trace_path)
+    if trace_dir:
+        os.makedirs(trace_dir, exist_ok=True)
+    with open(trace_path, 'a') as f:
+        f.write(json.dumps(out, sort_keys=True) + '\n')
 
 
 def get_specaugment_config_from_args(args):
@@ -678,10 +705,10 @@ def dynamic_eval_ctc_loss(
 
     if print_runtimes: print('Spectrogram length:', spec_n)
 
-    entropy = []
     model.eval() # don't update batchrenorm
     training_data, training_keys = prepare_chunks(spec, seq_len, overlap)
     #print('USING INTERLEAVE AS A TEST DONT FORGET TO REMOVE!')
+    update_step = 0
     for epoch in range(args.__dict__.get('epochs', 1)):
         print(f'Epoch {epoch + 1} / {epochs}')
         training_keys = list(training_data.keys())
@@ -691,7 +718,7 @@ def dynamic_eval_ctc_loss(
         
         epochs_stime = time.time()
         pbar = tqdm(training_keys) if use_tqdm else training_keys
-        for i in pbar:
+        for chunk_order, i in enumerate(pbar):
             audio_chunk = training_data[i].clone()
             audio_chunk = audio_chunk.repeat(num_negatives+1, 1, 1) # [B, C, T]
             print(audio_chunk[:num_negatives].shape)
@@ -705,6 +732,16 @@ def dynamic_eval_ctc_loss(
             u_len = audio_chunk.shape[-1]
             audio_chunk = audio_chunk.to(model.device)
             out = model(audio_signal = audio_chunk)
+            clean_log_probs = out['final_posteriors'][-1]
+            _write_entropy_trace(args, {
+                **_ctc_entropy_stats(clean_log_probs),
+                'measurement': 'pre_update',
+                'update_step': update_step,
+                'epoch': epoch + 1,
+                'chunk_key': int(i),
+                'chunk_order': int(chunk_order),
+                'chunk_len': int(u_len),
+            })
             
             # entrop = torch.distributions.Categorical(probs = out['final_posteriors'][-1,None].detach().cpu().exp()).entropy()
             # print(f'Entropy: {entrop.mean()}')
@@ -736,6 +773,21 @@ def dynamic_eval_ctc_loss(
             loss.backward()
             #torch.nn.utils.clip_grad_norm_(model.parameters(), 0.8) # add clip value to args
             optimizer.step()
+            update_step += 1
+
+            if args.__dict__.get('entropy_trace_path', ''):
+                with torch.no_grad():
+                    clean_out = model(audio_signal=audio_chunk[-1:].detach())
+                _write_entropy_trace(args, {
+                    **_ctc_entropy_stats(clean_out['final_posteriors'][0]),
+                    'measurement': 'post_update',
+                    'update_step': update_step,
+                    'epoch': epoch + 1,
+                    'chunk_key': int(i),
+                    'chunk_order': int(chunk_order),
+                    'chunk_len': int(u_len),
+                    'loss': float(loss.detach().cpu().item()),
+                })
 
             if online:
                 logits = out['final_posteriors'][-1].detach().cpu() 
