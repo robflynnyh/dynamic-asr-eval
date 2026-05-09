@@ -12,6 +12,7 @@ SEQ=${SEQ:-2048}
 OVERLAP=${OVERLAP:-1792}
 REPEATS=${REPEATS:-1}
 LR=${LR:-9e-5}
+LRS_STR=${LRS:-"$LR"}
 CHECKPOINT=${CHECKPOINT:-"/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_2048_rp_1/step_105360.pt"}
 PYTHON_BIN=${PYTHON_BIN:-python3.10}
 RESULTS_DIR=${RESULTS_DIR:-"./results/ctc_seq2048_self_training_eval"}
@@ -20,6 +21,7 @@ DRY_RUN=${DRY_RUN:-0}
 
 read -r -a DATASETS <<< "$DATASETS_STR"
 read -r -a EPOCHS <<< "$EPOCHS_STR"
+read -r -a LRS_ARR <<< "$LRS_STR"
 
 mkdir -p "$RESULTS_DIR" "$LOG_DIR"
 
@@ -30,8 +32,9 @@ lr_tag() {
 run_eval() {
     local dataset="$1"
     local epoch="$2"
+    local lr="$3"
     local lr_slug
-    lr_slug=$(lr_tag "$LR")
+    lr_slug=$(lr_tag "$lr")
 
     local base_name="${dataset}-${SPLIT}-ctc-seq${SEQ}-overlap${OVERLAP}-epoch-${epoch}-lr-${lr_slug}"
     local save_path="${RESULTS_DIR}/${base_name}.pkl"
@@ -54,7 +57,7 @@ run_eval() {
         -d "$dataset"
         -r "$REPEATS"
         -kwargs
-        optim_lr="$LR"
+        optim_lr="$lr"
         spec_augment_n_freq_masks=6
         spec_augment_freq_mask_param=34
         spec_augment_n_time_masks=0
@@ -80,6 +83,8 @@ run_eval() {
 
 for dataset in "${DATASETS[@]}"; do
     for epoch in "${EPOCHS[@]}"; do
-        run_eval "$dataset" "$epoch"
+        for lr in "${LRS_ARR[@]}"; do
+            run_eval "$dataset" "$epoch" "$lr"
+        done
     done
 done

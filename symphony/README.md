@@ -11,3 +11,8 @@ The repository is also used directly by humans, so keep agent-specific files in
 
 Do not commit raw datasets, checkpoints, experiment logs, or large generated
 artifacts from agent runs.
+
+Detached experiment callbacks must keep Linear comments below the API limit.
+Use `scripts/linear_experiment_callback.py` instead of hand-built callback
+posts; it caps log excerpts and the final comment body while leaving full log
+paths in the comment for inspection.

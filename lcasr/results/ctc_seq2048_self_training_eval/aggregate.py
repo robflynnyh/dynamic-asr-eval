@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import csv
+import argparse
 import pickle
 import re
 import statistics
@@ -149,6 +150,20 @@ def write_markdown(rows: list[dict[str, object]], grouped_rows: list[dict[str, o
 
 
 def main() -> None:
+    global ROOT, OUT_CSV, OUT_GROUPED_CSV, OUT_MD
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=ROOT,
+        help="Result directory containing ROB-56 CTC self-training PKL files",
+    )
+    args = parser.parse_args()
+    ROOT = args.root.resolve()
+    OUT_CSV = ROOT / "summary.csv"
+    OUT_GROUPED_CSV = ROOT / "summary_by_setting.csv"
+    OUT_MD = ROOT / "summary.md"
+
     rows = load_rows()
     row_fields = [
         "dataset", "split", "seq_len", "overlap", "epochs", "lr", "repeat",
