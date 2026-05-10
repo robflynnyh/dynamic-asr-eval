@@ -67,6 +67,25 @@ Focused view: **9e-5 only**, averaged by setting. Per-repeat rows remain in `sum
 | 18.07% | train-subsampling-through-layer-0 |
 | 18.54% | train-subsampling-only |
 
+## progressive_bottom_ctc_decoder, 9e-5
+
+| WER | Setting |
+|---:|---|
+| 5.92% | train-subsampling-through-layer-4 |
+| 5.94% | train-subsampling-through-layer-5 |
+| 5.98% | train-subsampling-through-layer-3 |
+| 6.04% | train-subsampling-through-layer-1 |
+| 6.04% | train-subsampling-through-layer-2 |
+| 6.16% | train-subsampling-through-layer-0 |
+| 6.34% | train-subsampling-only |
+| 15.85% | train-subsampling-through-layer-5 |
+| 15.87% | train-subsampling-through-layer-4 |
+| 16.08% | train-subsampling-through-layer-3 |
+| 16.51% | train-subsampling-through-layer-2 |
+| 16.84% | train-subsampling-through-layer-1 |
+| 17.41% | train-subsampling-through-layer-0 |
+| 18.21% | train-subsampling-only |
+
 ## layer_type, 9e-5
 
 | WER | Setting |
