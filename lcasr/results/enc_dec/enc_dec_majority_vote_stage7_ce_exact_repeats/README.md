@@ -1,5 +1,12 @@
 # ROB-55 Stage 7 CE Exact-Gate Repeat Sweep
 
+Status: cancelled before start.
+
+Robert's 2026-05-10 Linear comment asked to end the investigation and minimize
+unnecessary changes in the final commit. The queued Stage 7 screen was stopped
+while still waiting inside `with-gpu`; the wrapper did not start, no GPU work
+ran, and no Stage 7 result log or summary was produced.
+
 Stage 7 follows the Stage 6 deterministic-anchor result. It tests whether the
 best Stage 6 signal is stable across repeats and whether CE update strength or
 augmentation explains the gain.

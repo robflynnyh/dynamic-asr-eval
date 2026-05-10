@@ -177,3 +177,11 @@
   samples `8/16`, temp `0.7`, `sim=1.0`, and three repeats per setting. This
   validates whether the Stage 6 near-`1%` gain is repeat-stable before spending
   more budget on new agreement primitives.
+- Robert's 2026-05-10 Linear comment asked to end the investigation and keep
+  the final commit focused on a summary for future agents. Cancelled the queued
+  Stage 7 screen `rob55_majority_vote_stage7_ce_exact_repeats` while it was
+  still waiting in `with-gpu`; no wrapper log, result log, GPU work, or Stage 7
+  summary was produced. Final conclusion: the completed majority-vote variants
+  did not find a robust gain near the requested `5%` relative target, and future
+  work should pivot to a different teacher-quality signal or objective rather
+  than resume threshold tuning by default.

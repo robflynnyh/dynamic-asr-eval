@@ -79,13 +79,38 @@ python results/enc_dec/enc_dec_majority_vote/aggregate.py \
   --csv results/enc_dec/enc_dec_majority_vote/summary.csv
 ```
 
-## Current Conclusion
+## Final Conclusion
 
-The final Stage 3 threshold check is recorded in
-`../enc_dec_majority_vote_stage3_min_count2/OUTCOME.md`. The current
-majority-vote teacher formulation should not be expanded to test sets as-is:
-exact voting is too sparse, and relaxed or near-exact voting retains more
-updates but does not produce reliable WER gains.
+Robert's 2026-05-10 follow-up asked to end the investigation and keep the final
+commit focused on future-agent summary rather than more experiment machinery.
+The queued Stage 7 confirmation sweep was cancelled before it acquired a GPU or
+started the wrapper.
+
+The best full-recording result across the completed ROB-55 stages was Stage 6:
+deterministic-anchored `teacher_ce`, LR `3e-7`, vote `N=16`, temp `0.7`, exact
+support, with WER `0.110921` vs baseline `0.112026` (`-0.99%` relative). This
+is below the issue target of a consistent `5%` relative gain and was only a
+one-repeat dev-set signal.
+
+The completed evidence argues against expanding this majority-vote family to
+test sets:
+
+- exact sampled-label voting was too sparse;
+- relaxed or near-exact voting retained many more updates but repeatedly
+  worsened WER;
+- medoid representative selection and confidence filters did not recover a
+  stable gain;
+- segmented diagnostics found that clean accepted teacher labels were not
+  sufficient for reliable improvements;
+- stronger CE/KL update settings, more epochs, more augmentation, and more vote
+  samples mostly produced balanced or negative utterance-level changes;
+- deterministic anchoring was safer than sampled-label training but still only
+  reached a near-`1%` dev gain.
+
+Future work should change the teacher-quality signal or objective rather than
+continue tuning this vote primitive. Good candidates would be calibrated
+sequence confidence, model-ensemble agreement, or a filter tied to downstream
+student-output movement rather than transcript-string agreement alone.
 
 ## Stage 2: Medoid Representative + Confidence Filter
 

@@ -44,6 +44,13 @@ Interpretation:
   admits too many harmful labels even when the deterministic beam output is the
   final target.
 
-Next step: run a bounded exact-gate CE confirmation sweep with repeats. Stage 7
-keeps `sim=1.0`, focuses on CE, and varies LR, augmentation, and vote sample
-count to test whether the `N=16`, temp `0.7`, LR `3e-7` signal is stable.
+The planned Stage 7 exact-gate CE confirmation sweep was cancelled after
+Robert's 2026-05-10 request to end the investigation. The queued screen was
+still waiting in `with-gpu`; it had not acquired a GPU, started the wrapper, or
+written result logs.
+
+Final interpretation: this is the safest majority-vote variant tested, but it
+is still only a one-repeat TEDLIUM-dev gain of about `1%` relative. It should
+not be expanded to test sets as-is. Future work should change the
+teacher-quality signal or objective rather than keep tuning transcript-string
+agreement thresholds.

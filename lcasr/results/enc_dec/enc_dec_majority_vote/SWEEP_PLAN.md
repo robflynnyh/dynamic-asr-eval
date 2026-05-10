@@ -232,3 +232,27 @@ Decision rule:
 - If CE remains tiny and GRPO/MAXRL are neutral or worse, treat the
   majority-vote family as unlikely to reach the requested `5%` relative target
   without a different teacher-quality signal.
+
+## Stage 6 Decision and Final Stop
+
+Stage 6 completed successfully and wrote
+`lcasr/results/enc_dec/enc_dec_majority_vote_stage6_deterministic_anchor/summary.csv`.
+The best setting was deterministic-anchored `teacher_ce`, LR `3e-7`, vote
+`N=16`, temp `0.7`, exact support, with WER `0.110921` versus baseline
+`0.112026` (`-0.99%` relative). GRPO and MAXRL remained nearly neutral, with
+best relative deltas of `-0.25%` and `-0.10%`. Relaxed `0.95` deterministic
+support remained fragile and produced CE degradations up to `+6.51%` relative.
+
+A Stage 7 CE exact-gate repeat sweep was prepared to test whether the Stage 6
+near-`1%` signal was stable, but Robert's 2026-05-10 comment asked to end the
+investigation. The queued Stage 7 screen was cancelled while still waiting in
+`with-gpu`; it had not acquired a GPU, started the wrapper, or written result
+logs.
+
+Final decision: stop this majority-vote investigation. The completed stages
+cover the main agreement threshold, sampling temperature, sample-count,
+augmentation, CE/KL, GRPO/MAXRL, medoid representative, confidence-filter, and
+deterministic-anchor axes without finding a robust gain near the requested
+`5%` relative target. Future agents should not resume Stage 7 by default;
+instead, pivot to a different teacher-quality signal or objective if the
+encoder-decoder self-training line is reopened.
