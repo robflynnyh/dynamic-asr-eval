@@ -72,7 +72,7 @@ def write_trace_rows(rows: list[dict[str, object]]) -> None:
         "error",
     ]
     with TRACE_ROWS_CSV.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fields)
+        writer = csv.DictWriter(f, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         for row in rows:
             writer.writerow({field: row.get(field, "") for field in fields})
@@ -151,7 +151,7 @@ def write_per_step(rows: list[dict[str, object]]) -> None:
         int(row["update_step"]),
     ))
     with PER_STEP_CSV.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fields)
+        writer = csv.DictWriter(f, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         for row in out_rows:
             writer.writerow({field: row.get(field, "") for field in fields})
