@@ -24,3 +24,7 @@
   `20000`, and `30000` from Stanage to Mimas under
   `/store/store5/data/acp21rjf_checkpoints/lcasr/`. The benchmark uses greedy
   and `beam5_lp0p5` decoding only; no self-training or adaptation.
+- ROB-61: The queued benchmark completed all 20 expected normal-eval PKLs and
+  produced `summary.csv` plus `OUTCOME.md`. The detached callback failed because
+  generated log lines made the Linear comment exceed the body size limit, so the
+  callback helper now caps log excerpts and final comment bodies by characters.
