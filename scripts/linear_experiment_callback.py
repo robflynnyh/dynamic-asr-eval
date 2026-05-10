@@ -18,6 +18,8 @@ from typing import Any
 
 
 LINEAR_API_URL = "https://api.linear.app/graphql"
+DEFAULT_MAX_LOG_CHARS = 30000
+DEFAULT_MAX_BODY_CHARS = 90000
 
 
 class LinearError(RuntimeError):
@@ -116,7 +118,14 @@ def move_issue(api_key: str, issue_id: str, target_state_id: str) -> None:
         raise LinearError("Linear issueUpdate returned success=false")
 
 
-def tail(path: str | None, lines: int) -> str:
+def truncate_text(text: str, max_chars: int, label: str) -> str:
+    if max_chars <= 0 or len(text) <= max_chars:
+        return text
+    marker = f"[{label} truncated to last {max_chars} characters]\n"
+    return marker + text[-max_chars:]
+
+
+def tail(path: str | None, lines: int, max_chars: int) -> str:
     if not path:
         return ""
     file_path = Path(path)
@@ -127,7 +136,7 @@ def tail(path: str | None, lines: int) -> str:
     except OSError as error:
         return f"Could not read log file `{path}`: {error}"
     selected = content[-lines:]
-    return "\n".join(selected)
+    return truncate_text("\n".join(selected), max_chars, "log excerpt")
 
 
 def existing_path_status(path: str | None) -> str:
@@ -148,7 +157,7 @@ def build_comment(args: argparse.Namespace, issue: dict[str, Any]) -> str:
         runner_label = f"screen:{screen_name}"
     if not runner_label:
         runner_label = "not provided"
-    log_tail = tail(args.log, args.tail_lines)
+    log_tail = tail(args.log, args.tail_lines, args.max_log_chars)
 
     parts = [
         f"Queued experiment {outcome}.",
@@ -167,7 +176,7 @@ def build_comment(args: argparse.Namespace, issue: dict[str, Any]) -> str:
         parts.extend(["", args.note])
     if log_tail:
         parts.extend(["", f"Last {args.tail_lines} log lines:", "```text", log_tail, "```"])
-    return "\n".join(parts)
+    return truncate_text("\n".join(parts), args.max_body_chars, "callback comment")
 
 
 def parse_args() -> argparse.Namespace:
@@ -184,6 +193,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--target-state", default="Todo", help="Linear state to move the issue to")
     parser.add_argument("--note", help="Extra Markdown note to include in the Linear comment")
     parser.add_argument("--tail-lines", type=int, default=80, help="Number of log lines to include")
+    parser.add_argument(
+        "--max-log-chars",
+        type=int,
+        default=DEFAULT_MAX_LOG_CHARS,
+        help="Maximum characters of log excerpt to include after selecting tail lines",
+    )
+    parser.add_argument(
+        "--max-body-chars",
+        type=int,
+        default=DEFAULT_MAX_BODY_CHARS,
+        help="Maximum Linear comment body characters to send",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Print the comment and skip Linear mutations")
     parser.add_argument(
         "--check-only",
