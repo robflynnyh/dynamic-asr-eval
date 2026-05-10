@@ -76,7 +76,7 @@ def stdev(values: list[float]) -> str:
 
 
 def summarize(rows: list[dict[str, object]]) -> list[dict[str, object]]:
-    grouped: dict[tuple[str, str, str, str, str], list[dict[str, object]]] = defaultdict(list)
+    grouped: dict[tuple[str, str, str, str, str, str], list[dict[str, object]]] = defaultdict(list)
     for row in rows:
         if row.get("error"):
             continue
@@ -86,11 +86,12 @@ def summarize(rows: list[dict[str, object]]) -> list[dict[str, object]]:
             str(row.get("seq_len", "")),
             str(row.get("overlap", "")),
             str(row.get("epochs", "")),
+            str(row.get("lr", "")),
         )
         grouped[key].append(row)
 
     out: list[dict[str, object]] = []
-    for (dataset, split, seq_len, overlap, epochs), items in grouped.items():
+    for (dataset, split, seq_len, overlap, epochs, lr), items in grouped.items():
         def floats(field: str) -> list[float]:
             vals: list[float] = []
             for item in items:
@@ -106,6 +107,7 @@ def summarize(rows: list[dict[str, object]]) -> list[dict[str, object]]:
             "seq_len": seq_len,
             "overlap": overlap,
             "epochs": epochs,
+            "lr": lr,
             "n": len(floats("wer")),
             "wer_mean": mean(floats("wer")),
             "wer_std": stdev(floats("wer")),
@@ -116,7 +118,7 @@ def summarize(rows: list[dict[str, object]]) -> list[dict[str, object]]:
             "repeats": " ".join(str(item.get("repeat", "")) for item in items),
             "paths": " ".join(str(item.get("path", "")) for item in items),
         })
-    return sorted(out, key=lambda row: (row["dataset"], int(row["epochs"] or 0)))
+    return sorted(out, key=lambda row: (row["dataset"], int(row["epochs"] or 0), row["lr"]))
 
 
 def write_csv(path: Path, rows: list[dict[str, object]], fields: list[str]) -> None:
@@ -135,8 +137,8 @@ def write_markdown(rows: list[dict[str, object]], grouped_rows: list[dict[str, o
         "",
         f"Per-repeat rows: `{len(rows)}`.",
         "",
-        "| Dataset | Epochs | WER | Ins | Del | Sub |",
-        "|---|---:|---:|---:|---:|---:|",
+        "| Dataset | Epochs | LR | WER | Ins | Del | Sub |",
+        "|---|---:|---:|---:|---:|---:|---:|",
     ]
     for row in grouped_rows:
         def pct(field: str) -> str:
@@ -144,7 +146,7 @@ def write_markdown(rows: list[dict[str, object]], grouped_rows: list[dict[str, o
             return f"{100 * float(value):.2f}%" if value != "" else ""
 
         lines.append(
-            f"| {row.get('dataset', '')} | {row.get('epochs', '')} | {pct('wer_mean')} | {pct('ins_rate_mean')} | {pct('del_rate_mean')} | {pct('sub_rate_mean')} |"
+            f"| {row.get('dataset', '')} | {row.get('epochs', '')} | {row.get('lr', '')} | {pct('wer_mean')} | {pct('ins_rate_mean')} | {pct('del_rate_mean')} | {pct('sub_rate_mean')} |"
         )
     OUT_MD.write_text("\n".join(lines) + "\n")
 
@@ -171,7 +173,7 @@ def main() -> None:
     ]
     grouped_rows = summarize(rows)
     grouped_fields = [
-        "dataset", "split", "seq_len", "overlap", "epochs", "n", "wer_mean",
+        "dataset", "split", "seq_len", "overlap", "epochs", "lr", "n", "wer_mean",
         "wer_std", "ins_rate_mean", "del_rate_mean", "sub_rate_mean", "words",
         "repeats", "paths",
     ]

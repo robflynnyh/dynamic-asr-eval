@@ -28,3 +28,10 @@ After the callback completes, aggregate with:
 python lcasr/results/ctc_seq2048_self_training_eval/aggregate.py \
   --root lcasr/results/ctc_seq2048_self_training_lr_sweep
 ```
+
+Pilot outcome:
+
+- Epoch 1: `1e-5` and `3e-5` tied the best TEDLIUM WER at `5.98%`; `1e-5` is
+  used for the selected-LR all-dataset pass.
+- Epoch 5: `1e-6` gave the best TEDLIUM WER at `5.85%`; this is used for the
+  selected-LR all-dataset pass.
