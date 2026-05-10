@@ -2,6 +2,7 @@
 
 ## 2026-05-10
 
+- ROB-63: Added a queued 1-epoch encoder-decoder self-training comparison scaffold for old seed versus RL `step_30000` on TEDLIUM and Earnings22. The grid uses `teacher_ce` and `teacher_kl`, learning rates `1e-7` and `3e-7`, frequency-mask augmentations `freq6_width34_time0` and `freq3_width24_time0`, beam5/lp0.5 decoding, and deliberately passes no teacher filters. The aggregate records both RL-vs-seed deltas and per-checkpoint relative change against the normal decoding benchmark from ROB-61.
 - ROB-57 entropy ablation: inspected the completed 5-epoch TED-LIUM/Earnings22 test run, regenerated aggregates and plots from the raw traces, and recorded the final WER/entropy summary in `lcasr/results/entropy_ablation/OUTCOME.md`.
 
 ## 2026-05-09

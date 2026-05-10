@@ -13,6 +13,7 @@ sets.
 | `enc_dec_teacher_kl_entropy_filter` | Teacher-KL sweep with additional low-confidence entropy filtering. |
 | `enc_dec_teacher_kl_relaxed_filters` | Teacher-KL sweep with relaxed repeated-token filtering and no CTC agreement filter. |
 | `enc_dec_teacher_epoch_relabel` | Opt-in CE/KL teacher relabel ablation where each epoch labels and filters all chunks before student training. |
+| `rob63_rl_self_training_compare` | ROB-63 seed vs RL `step_30000` encoder-decoder self-training comparison without teacher filters. |
 
 Each child folder contains:
 
@@ -50,6 +51,7 @@ python results/enc_dec/enc_dec_teacher_kl/aggregate.py
 python results/enc_dec/enc_dec_teacher_kl_entropy_filter/aggregate.py
 python results/enc_dec/enc_dec_teacher_kl_relaxed_filters/aggregate.py
 python results/enc_dec/enc_dec_teacher_epoch_relabel/aggregate.py
+python results/enc_dec/rob63_rl_self_training_compare/aggregate.py
 ```
 
 To refresh CSV summaries:
@@ -60,6 +62,7 @@ python results/enc_dec/enc_dec_teacher_kl/aggregate.py --csv results/enc_dec/enc
 python results/enc_dec/enc_dec_teacher_kl_entropy_filter/aggregate.py --csv results/enc_dec/enc_dec_teacher_kl_entropy_filter/summary.csv
 python results/enc_dec/enc_dec_teacher_kl_relaxed_filters/aggregate.py --csv results/enc_dec/enc_dec_teacher_kl_relaxed_filters/summary.csv
 python results/enc_dec/enc_dec_teacher_epoch_relabel/aggregate.py --csv results/enc_dec/enc_dec_teacher_epoch_relabel/summary.csv
+python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --csv results/enc_dec/rob63_rl_self_training_compare/summary.csv
 ```
 
 ## Launch Notes
