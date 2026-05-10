@@ -159,3 +159,21 @@
   `scripts/run_rob55_majority_vote_stage6_deterministic_anchor_queued.sh` for a
   bounded TEDLIUM-dev sweep over vote samples `8/16`, temperatures `0.7/1.0`,
   similarities `1.0/0.95`, `teacher_ce`, `grpo`, and `maxrl`.
+
+## 2026-05-10
+
+- Stage 6 completed successfully via callback and wrote
+  `lcasr/results/enc_dec/enc_dec_majority_vote_stage6_deterministic_anchor/summary.csv`.
+  Best result was `teacher_ce`, LR `3e-7`, deterministic-anchor exact support
+  (`sim=1.0`), vote `N=16`, temp `0.7`: WER `0.110921` vs `0.112026`
+  baseline (`-0.99%` relative). GRPO and MAXRL were near neutral, with best
+  relative deltas `-0.25%` and `-0.10%`. The relaxed `0.95` gate remained
+  fragile and produced large CE degradations up to `+6.51%` relative.
+- Added
+  `lcasr/results/enc_dec/enc_dec_majority_vote_stage6_deterministic_anchor/OUTCOME.md`
+  and prepared Stage 7 as a bounded CE-only exact-gate confirmation sweep:
+  `scripts/run_rob55_majority_vote_stage7_ce_exact_repeats_queued.sh` tests
+  LRs `1e-7/3e-7/1e-6`, augmentations `freq3_width24_time0/no_aug`, vote
+  samples `8/16`, temp `0.7`, `sim=1.0`, and three repeats per setting. This
+  validates whether the Stage 6 near-`1%` gain is repeat-stable before spending
+  more budget on new agreement primitives.
