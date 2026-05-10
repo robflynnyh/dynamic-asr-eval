@@ -9,7 +9,7 @@ if [ -f /exp/exp4/acp21rjf/symphony-config/.env ]; then
 fi
 
 LINEAR_ISSUE=${LINEAR_ISSUE:-ROB-56}
-SCREEN_NAME=${SCREEN_NAME:-rob56_ctc_seq2048_selected_lr_all_datasets}
+SCREEN_NAME=${SCREEN_NAME:-rob56_ctc_seq2048_shared_lr_all_datasets}
 RESULTS_PATH=${RESULTS_PATH:-"${REPO_ROOT}/lcasr/results/ctc_seq2048_self_training_final_lr"}
 LOG_PATH=${LOG_PATH:-"${RESULTS_PATH}/logs/${SCREEN_NAME}.log"}
 RUNNER_LABEL=${RUNNER_LABEL:-"screen:${SCREEN_NAME}"}
@@ -37,7 +37,7 @@ on_exit() {
     --target-state "${CALLBACK_TARGET_STATE}"
     --max-log-chars "${CALLBACK_MAX_LOG_CHARS:-20000}"
     --max-comment-chars "${CALLBACK_MAX_COMMENT_CHARS:-60000}"
-    --note "ROB-56 final all-dataset selected-LR run for the CTC 2048-context self-training eval. Epoch 1 uses lr=1e-5; epoch 5 uses lr=1e-6, selected from the TEDLIUM lower-LR pilot."
+    --note "ROB-56 final all-dataset shared-LR run for the CTC 2048-context self-training eval. Both epoch counts use lr=1e-5, selected as the best single LR across TEDLIUM epoch-1 and epoch-5 pilot WER."
   )
 
   if [ "${CALLBACK_DRY_RUN:-0}" = "1" ]; then
@@ -64,7 +64,7 @@ mkdir -p "$(dirname "${LOG_PATH}")" "${RESULTS_PATH}"
 cd "$REPO_ROOT"
 
 {
-  echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] ROB-56 selected-LR all-dataset wrapper starting"
+  echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] ROB-56 shared-LR all-dataset wrapper starting"
   echo "repo_root=${REPO_ROOT}"
   echo "branch=${GIT_BRANCH}"
   echo "commit=${GIT_COMMIT}"
@@ -72,8 +72,7 @@ cd "$REPO_ROOT"
   echo "results_path=${RESULTS_PATH}"
   echo "log_path=${LOG_PATH}"
   echo "callback_target_state=${CALLBACK_TARGET_STATE}"
-  echo "epoch1_lr=${EPOCH1_LR:-1e-5}"
-  echo "epoch5_lr=${EPOCH5_LR:-1e-6}"
+  echo "shared_lr=${LR:-1e-5}"
 } | tee -a "$LOG_PATH"
 
 if [ "${CALLBACK_SMOKE_ONLY:-0}" = "1" ]; then
@@ -93,8 +92,5 @@ COMMON_ENV=(
   OVERLAP=${OVERLAP:-1792}
 )
 
-env "${COMMON_ENV[@]}" EPOCHS=1 LR=${EPOCH1_LR:-1e-5} \
-  bash launch_scripts/run_ctc_seq2048_self_training_eval.sh 2>&1 | tee -a "$LOG_PATH"
-
-env "${COMMON_ENV[@]}" EPOCHS=5 LR=${EPOCH5_LR:-1e-6} \
+env "${COMMON_ENV[@]}" EPOCHS="${EPOCHS:-1 5}" LR=${LR:-1e-5} \
   bash launch_scripts/run_ctc_seq2048_self_training_eval.sh 2>&1 | tee -a "$LOG_PATH"

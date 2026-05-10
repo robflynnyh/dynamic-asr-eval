@@ -8,4 +8,4 @@
 
 ## 2026-05-10
 
-- Aggregated the ROB-56 TEDLIUM lower-LR pilot and updated the aggregator so grouped summaries include LR. The pilot selected `lr=1e-5` for the 1-epoch setup and `lr=1e-6` for the 5-epoch setup for the final all-dataset pass.
+- Aggregated the ROB-56 TEDLIUM lower-LR pilot and updated the aggregator so grouped summaries include LR. An initial final pass used epoch-specific LRs, but a later human clarification requested one LR for both epoch counts; under that rule, `lr=1e-5` has the best mean TEDLIUM WER across the epoch-1 and epoch-5 pilot rows and is the shared LR for the replacement final all-dataset pass.
