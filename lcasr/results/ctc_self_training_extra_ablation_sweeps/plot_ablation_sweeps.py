@@ -6,6 +6,8 @@ experiment group:
 
   - train_only_ablation_bars.pdf
   - progressive_top_ablation_bars.pdf
+  - progressive_bottom_ablation_bars.pdf
+  - progressive_bottom_ctc_decoder_ablation_bars.pdf
   - layer_type_ablation_bars.pdf
   - layer_drop_lr_sweep_ablation_bars.pdf
 
@@ -38,6 +40,8 @@ FALLBACK_BASELINE_WER = {
 GROUP_TITLES = {
     "train_only": "Train-only ablation",
     "progressive_top": "Progressive top-layer freezing",
+    "progressive_bottom": "Progressive bottom-prefix training",
+    "progressive_bottom_ctc_decoder": "Progressive bottom-prefix training with CTC decoder",
     "layer_type": "Layer-type ablation",
     "layer_drop_lr_sweep": "Layer-drop ablation",
 }
@@ -82,6 +86,24 @@ SETTING_ORDER = {
         "freeze-subsampling-through-layer-4",
         "freeze-subsampling-through-layer-5",
     ],
+    "progressive_bottom": [
+        "train-subsampling-only",
+        "train-subsampling-through-layer-0",
+        "train-subsampling-through-layer-1",
+        "train-subsampling-through-layer-2",
+        "train-subsampling-through-layer-3",
+        "train-subsampling-through-layer-4",
+        "train-subsampling-through-layer-5",
+    ],
+    "progressive_bottom_ctc_decoder": [
+        "train-subsampling-only",
+        "train-subsampling-through-layer-0",
+        "train-subsampling-through-layer-1",
+        "train-subsampling-through-layer-2",
+        "train-subsampling-through-layer-3",
+        "train-subsampling-through-layer-4",
+        "train-subsampling-through-layer-5",
+    ],
     "layer_type": [
         "train-attention-only",
         "train-convolution-only",
@@ -110,13 +132,19 @@ SETTING_LABELS = {
     "train-layer-3-only": "L3",
     "train-layer-4-only": "L4",
     "train-layer-5-only": "L5",
-    "freeze-subsampling": "sub.",
-    "freeze-subsampling-through-layer-0": "L0",
-    "freeze-subsampling-through-layer-1": "L1",
-    "freeze-subsampling-through-layer-2": "L2",
-    "freeze-subsampling-through-layer-3": "L3",
-    "freeze-subsampling-through-layer-4": "L4",
-    "freeze-subsampling-through-layer-5": "L5",
+    "freeze-subsampling": "freeze sub.",
+    "freeze-subsampling-through-layer-0": "freeze <=L0",
+    "freeze-subsampling-through-layer-1": "freeze <=L1",
+    "freeze-subsampling-through-layer-2": "freeze <=L2",
+    "freeze-subsampling-through-layer-3": "freeze <=L3",
+    "freeze-subsampling-through-layer-4": "freeze <=L4",
+    "freeze-subsampling-through-layer-5": "freeze <=L5",
+    "train-subsampling-through-layer-0": "train <=L0",
+    "train-subsampling-through-layer-1": "train <=L1",
+    "train-subsampling-through-layer-2": "train <=L2",
+    "train-subsampling-through-layer-3": "train <=L3",
+    "train-subsampling-through-layer-4": "train <=L4",
+    "train-subsampling-through-layer-5": "train <=L5",
     "train-attention-only": "attention",
     "train-convolution-only": "convolution",
     "train-feed-forward-only": "feed-forward",
@@ -270,7 +298,17 @@ def plot_group(
             )
         ax.set_xticks(x)
         labels = [SETTING_LABELS.get(setting, setting) for setting in settings]
-        if group in {"progressive_top", "train_only", "layer_drop_lr_sweep"}:
+        if group == "progressive_bottom":
+            labels = [
+                "train sub. only" if setting == "train-subsampling-only" else label
+                for setting, label in zip(settings, labels)
+            ]
+        if group == "progressive_bottom_ctc_decoder":
+            labels = [
+                "train sub.\n+ ctc" if setting == "train-subsampling-only" else f"{label}\n+ ctc"
+                for setting, label in zip(settings, labels)
+            ]
+        if group in {"progressive_top", "progressive_bottom", "progressive_bottom_ctc_decoder", "train_only", "layer_drop_lr_sweep"}:
             ax.set_xticklabels(labels, fontsize=8, rotation=35, ha="right")
         else:
             ax.set_xticklabels(labels, fontsize=8)
@@ -293,7 +331,7 @@ def main() -> None:
     parser.add_argument(
         "--groups",
         nargs="+",
-        default=["train_only", "progressive_top", "layer_type", "layer_drop_lr_sweep"],
+        default=["train_only", "progressive_top", "progressive_bottom", "progressive_bottom_ctc_decoder", "layer_type", "layer_drop_lr_sweep"],
         choices=sorted(GROUP_TITLES),
     )
     parser.add_argument(
@@ -311,6 +349,9 @@ def main() -> None:
     selected_lrs = [LR_TAG[lr] for lr in args.lrs]
     baseline_wer = load_baseline_wer()
     for group in args.groups:
+        if not any(row["group"] == group for row in rows):
+            print(f"Skipping {group}: no rows found")
+            continue
         plot_group(group, rows, ROOT / f"{group}_ablation_bars.pdf", selected_lrs, baseline_wer)
 
 
