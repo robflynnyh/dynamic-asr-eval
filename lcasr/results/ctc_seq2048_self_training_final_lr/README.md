@@ -34,3 +34,20 @@ After the callback completes, aggregate with:
 python lcasr/results/ctc_seq2048_self_training_eval/aggregate.py \
   --root lcasr/results/ctc_seq2048_self_training_final_lr
 ```
+
+The final callback completed with exit status `0` on 2026-05-10. The aggregate
+command above wrote eight per-repeat rows to `summary.csv` and the grouped
+metrics in `summary_by_setting.csv` / `summary.md`.
+
+Final WER:
+
+| Dataset | Epochs | WER |
+|---|---:|---:|
+| `chime6` | 1 | 61.96% |
+| `chime6` | 5 | 59.10% |
+| `earnings22` | 1 | 15.60% |
+| `earnings22` | 5 | 15.38% |
+| `rev16` | 1 | 14.22% |
+| `rev16` | 5 | 14.17% |
+| `tedlium` | 1 | 5.98% |
+| `tedlium` | 5 | 5.86% |
