@@ -6,7 +6,7 @@ Normal deltas compare each self-training cell against the same checkpoint's norm
 
 ## Summary
 
-- Completed 32 one-epoch cells from 32 expected cells: 2 datasets x 2 checkpoints x 2 training modes x 2 learning rates x 2 frequency-mask settings.
+- Completed 32 one-epoch cells: 2 datasets x 2 checkpoints x 2 training modes x 2 learning rates x 2 frequency-mask settings.
 - The sweep used no teacher filtering. `Delta vs old seed` is only meaningful for the RL rows because old-seed rows are the matching-cell reference.
 - earnings22: RL `step_30000` beats the matching old-seed cell in 6/8 cells; RL-vs-old absolute WER deltas span -0.01454 to +0.00135. Best RL cell is rl_step_30000 teacher_ce lr=1em7 freq3_width24_time0 at 0.21365 WER; best old-seed cell is old_seed teacher_ce lr=3em7 freq3_width24_time0 at 0.21686 WER. Relative change vs normal decoding spans -7.14% to +0.68% for RL and -13.85% to -2.26% for old seed.
 - tedlium: RL `step_30000` beats the matching old-seed cell in 8/8 cells; RL-vs-old absolute WER deltas span -0.13418 to -0.00457. Best RL cell is rl_step_30000 teacher_ce lr=1em7 freq3_width24_time0 at 0.07992 WER; best old-seed cell is old_seed teacher_ce lr=3em7 freq3_width24_time0 at 0.08747 WER. Relative change vs normal decoding spans -4.69% to +1.86% for RL and -1.67% to +143.98% for old seed.

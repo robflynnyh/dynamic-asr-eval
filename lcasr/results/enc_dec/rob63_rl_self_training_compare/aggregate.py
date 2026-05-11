@@ -143,13 +143,27 @@ def format_range(values: list[float]) -> str:
     return f"{min(values):+.5f} to {max(values):+.5f}"
 
 
+def describe_grid(rows: list[dict[str, Any]]) -> str:
+    dimensions = [
+        ("datasets", "dataset"),
+        ("checkpoints", "checkpoint"),
+        ("training modes", "training_mode"),
+        ("learning rates", "lr"),
+        ("frequency-mask settings", "augmentation"),
+    ]
+    parts = []
+    for label, key in dimensions:
+        count = len({str(row.get(key, "")) for row in rows if row.get(key) is not None})
+        parts.append(f"{count} {label}")
+    return " x ".join(parts)
+
+
 def write_summary(lines: list[str], rows: list[dict[str, Any]]) -> None:
     lines.extend(
         [
             "## Summary",
             "",
-            f"- Completed {len(rows)} one-epoch cells from 32 expected cells: "
-            "2 datasets x 2 checkpoints x 2 training modes x 2 learning rates x 2 frequency-mask settings.",
+            f"- Completed {len(rows)} one-epoch cells: {describe_grid(rows)}.",
             "- The sweep used no teacher filtering. `Delta vs old seed` is only meaningful for the RL rows "
             "because old-seed rows are the matching-cell reference.",
         ]
@@ -176,15 +190,22 @@ def write_summary(lines: list[str], rows: list[dict[str, Any]]) -> None:
             for row in rl_rows
             if row.get("relative_delta_vs_normal_decode") is not None
         ]
-        lines.append(
+        summary = (
             f"- {dataset}: RL `step_30000` beats the matching old-seed cell in "
             f"{better_count}/{len(rl_rows)} cells; RL-vs-old absolute WER deltas span "
             f"{format_range(rl_deltas)}. Best RL cell is {format_cell(best_rl)} at "
             f"{best_rl['wer']:.5f} WER; best old-seed cell is {format_cell(best_old)} "
-            f"at {best_old['wer']:.5f} WER. Relative change vs normal decoding spans "
-            f"{min(rl_normal_rel):+.2%} to {max(rl_normal_rel):+.2%} for RL and "
-            f"{min(old_normal_rel):+.2%} to {max(old_normal_rel):+.2%} for old seed."
+            f"at {best_old['wer']:.5f} WER."
         )
+        if old_normal_rel and rl_normal_rel:
+            summary += (
+                " Relative change vs normal decoding spans "
+                f"{min(rl_normal_rel):+.2%} to {max(rl_normal_rel):+.2%} for RL and "
+                f"{min(old_normal_rel):+.2%} to {max(old_normal_rel):+.2%} for old seed."
+            )
+        else:
+            summary += " Matching normal-decoding baselines were not available for this dataset in the ROB-61 CSV."
+        lines.append(summary)
 
     outliers = [
         row

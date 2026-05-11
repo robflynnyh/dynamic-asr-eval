@@ -25,6 +25,14 @@ This grid is intentionally limited to frequency-mask augmentation and two
 conservative learning rates because the issue asks for the checkpoint
 comparison rather than a broad hyperparameter search.
 
+The completed TEDLIUM/Earnings22 sweep gives the strongest encoder-decoder
+self-training result recorded in this repository so far: RL `step_30000` with
+`teacher_ce`, `lr=1e-7`, `freq3_width24_time0`, and beam5/lp0.5 reaches
+`7.99%` WER on TEDLIUM and `21.37%` WER on Earnings22. A follow-up pass for
+the remaining runner datasets lives in
+`results/enc_dec/rob63_best_ce_remaining_datasets/` and reuses that best CE
+configuration for both checkpoints.
+
 ## Running
 
 Dry run:
