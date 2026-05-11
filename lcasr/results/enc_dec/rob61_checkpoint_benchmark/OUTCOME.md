@@ -5,6 +5,8 @@ Greedy uses the default autoregressive decode. Beam uses `beam_width=5` and `len
 
 | Dataset | Decode | Checkpoint | WER | Delta vs old | Relative delta | Ins | Del | Sub |
 |---|---|---|---:|---:|---:|---:|---:|---:|
+| chime6 | beam5_lp0p5 | old_seed | 0.86477 | +0.00000 | +0.00% | 0.00474 | 0.80701 | 0.05301 |
+| chime6 | beam5_lp0p5 | rl_step_30000 | 0.85160 | -0.01317 | -1.52% | 0.00310 | 0.79466 | 0.05384 |
 | earnings22 | beam5_lp0p5 | old_seed | 0.25172 | +0.00000 | +0.00% | 0.04352 | 0.05518 | 0.15301 |
 | earnings22 | beam5_lp0p5 | rl_step_10000 | 0.23369 | -0.01803 | -7.16% | 0.02931 | 0.05745 | 0.14693 |
 | earnings22 | beam5_lp0p5 | rl_step_2000 | 0.23418 | -0.01754 | -6.97% | 0.02955 | 0.06000 | 0.14462 |
@@ -15,6 +17,8 @@ Greedy uses the default autoregressive decode. Beam uses `beam_width=5` and `len
 | earnings22 | greedy | rl_step_2000 | 0.25237 | -0.01419 | -5.32% | 0.03429 | 0.05808 | 0.16000 |
 | earnings22 | greedy | rl_step_20000 | 0.24588 | -0.02069 | -7.76% | 0.03211 | 0.05745 | 0.15632 |
 | earnings22 | greedy | rl_step_30000 | 0.24543 | -0.02114 | -7.93% | 0.03037 | 0.05966 | 0.15540 |
+| rev16 | beam5_lp0p5 | old_seed | 0.17663 | +0.00000 | +0.00% | 0.02331 | 0.07728 | 0.07604 |
+| rev16 | beam5_lp0p5 | rl_step_30000 | 0.17206 | -0.00457 | -2.58% | 0.01925 | 0.07895 | 0.07386 |
 | tedlium | beam5_lp0p5 | old_seed | 0.08896 | +0.00000 | +0.00% | 0.01216 | 0.03349 | 0.04331 |
 | tedlium | beam5_lp0p5 | rl_step_10000 | 0.08456 | -0.00439 | -4.94% | 0.00815 | 0.03317 | 0.04324 |
 | tedlium | beam5_lp0p5 | rl_step_2000 | 0.08623 | -0.00273 | -3.07% | 0.00829 | 0.03480 | 0.04313 |
