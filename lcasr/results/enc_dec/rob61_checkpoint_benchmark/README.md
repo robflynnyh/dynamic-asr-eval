@@ -8,6 +8,8 @@ the old encoder-decoder seed checkpoint.
 - Runner: `enc_dec_inference_test.py`
 - Launcher: `launch_scripts/run_rob61_checkpoint_benchmark.sh`
 - Datasets: `tedlium`, `earnings22`
+- ROB-63 follow-up also adds the beam5/lp0.5 normal baselines for
+  `chime6` and `rev16` for `old_seed` and `rl_step_30000`.
 - Split: `test`
 - Sequence length / overlap: `2048 / 0`
 - Decode settings: greedy and `beam5_lp0p5`
@@ -35,6 +37,16 @@ Queued Mimas launch:
 screen -L -Logfile lcasr/results/enc_dec/rob61_checkpoint_benchmark/screen.log \
   -dmS rob61_checkpoint_benchmark \
   bash -lc '/store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob61_checkpoint_benchmark_queued.sh'
+```
+
+ROB-63 CHiME-6/Rev16 normal-baseline follow-up:
+
+```bash
+DRY_RUN=1 bash launch_scripts/run_rob63_remaining_normal_baselines.sh
+
+screen -L -Logfile lcasr/results/enc_dec/rob61_checkpoint_benchmark/rob63_remaining_normal_baselines_screen.log \
+  -dmS rob63_remaining_normal_baselines \
+  bash -lc 'cd /exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-63 && /store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob63_remaining_normal_baselines_queued.sh'
 ```
 
 ## Outputs

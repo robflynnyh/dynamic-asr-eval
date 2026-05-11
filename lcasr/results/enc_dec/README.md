@@ -52,6 +52,7 @@ python results/enc_dec/enc_dec_teacher_kl/aggregate.py
 python results/enc_dec/enc_dec_teacher_kl_entropy_filter/aggregate.py
 python results/enc_dec/enc_dec_teacher_kl_relaxed_filters/aggregate.py
 python results/enc_dec/enc_dec_teacher_epoch_relabel/aggregate.py
+python results/enc_dec/rob61_checkpoint_benchmark/aggregate.py --csv results/enc_dec/rob61_checkpoint_benchmark/summary.csv --outcome results/enc_dec/rob61_checkpoint_benchmark/OUTCOME.md
 python results/enc_dec/rob63_rl_self_training_compare/aggregate.py
 python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_best_ce_remaining_datasets/pkl --csv results/enc_dec/rob63_best_ce_remaining_datasets/summary.csv --outcome results/enc_dec/rob63_best_ce_remaining_datasets/OUTCOME.md
 ```
@@ -64,6 +65,7 @@ python results/enc_dec/enc_dec_teacher_kl/aggregate.py --csv results/enc_dec/enc
 python results/enc_dec/enc_dec_teacher_kl_entropy_filter/aggregate.py --csv results/enc_dec/enc_dec_teacher_kl_entropy_filter/summary.csv
 python results/enc_dec/enc_dec_teacher_kl_relaxed_filters/aggregate.py --csv results/enc_dec/enc_dec_teacher_kl_relaxed_filters/summary.csv
 python results/enc_dec/enc_dec_teacher_epoch_relabel/aggregate.py --csv results/enc_dec/enc_dec_teacher_epoch_relabel/summary.csv
+python results/enc_dec/rob61_checkpoint_benchmark/aggregate.py --csv results/enc_dec/rob61_checkpoint_benchmark/summary.csv --outcome results/enc_dec/rob61_checkpoint_benchmark/OUTCOME.md
 python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --csv results/enc_dec/rob63_rl_self_training_compare/summary.csv
 python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_best_ce_remaining_datasets/pkl --csv results/enc_dec/rob63_best_ce_remaining_datasets/summary.csv --outcome results/enc_dec/rob63_best_ce_remaining_datasets/OUTCOME.md
 ```
