@@ -42,15 +42,16 @@ def parse_setting(setting: str) -> dict[str, Any]:
     return row
 
 
-def load_groups(directory: Path) -> dict[str, list[dict[str, Any]]]:
+def load_groups(directories: list[Path]) -> dict[str, list[dict[str, Any]]]:
     groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for path in sorted(directory.glob("*.pkl")):
-        match = REPEAT_RE.search(path.name)
-        if match is None:
-            continue
-        setting = path.name[: match.start()]
-        with open(path, "rb") as handle:
-            groups[setting].append(pickle.load(handle))
+    for directory in directories:
+        for path in sorted(directory.glob("*.pkl")):
+            match = REPEAT_RE.search(path.name)
+            if match is None:
+                continue
+            setting = path.name[: match.start()]
+            with open(path, "rb") as handle:
+                groups[setting].append(pickle.load(handle))
     return groups
 
 
@@ -65,9 +66,13 @@ def load_normal_baselines(path: Path | None) -> dict[tuple[Any, ...], float]:
     return baselines
 
 
-def aggregate(directory: Path, normal_baseline_csv: Path | None = DEFAULT_NORMAL_BASELINE_CSV) -> list[dict[str, Any]]:
+def aggregate(
+    directory: Path | list[Path],
+    normal_baseline_csv: Path | None = DEFAULT_NORMAL_BASELINE_CSV,
+) -> list[dict[str, Any]]:
+    directories = [directory] if isinstance(directory, Path) else directory
     rows: list[dict[str, Any]] = []
-    for setting, repeats in sorted(load_groups(directory).items()):
+    for setting, repeats in sorted(load_groups(directories).items()):
         wers = [float(rep["wer"]) for rep in repeats]
         row = parse_setting(setting)
         row.update(
@@ -143,6 +148,18 @@ def format_range(values: list[float]) -> str:
     return f"{min(values):+.5f} to {max(values):+.5f}"
 
 
+def format_wer(value: float | None) -> str:
+    return "" if value is None else f"{value:.5f}"
+
+
+def format_signed(value: float | None) -> str:
+    return "" if value is None else f"{value:+.5f}"
+
+
+def format_percent(value: float | None) -> str:
+    return "" if value is None else f"{value:+.2%}"
+
+
 def describe_grid(rows: list[dict[str, Any]]) -> str:
     dimensions = [
         ("datasets", "dataset"),
@@ -155,7 +172,7 @@ def describe_grid(rows: list[dict[str, Any]]) -> str:
     for label, key in dimensions:
         count = len({str(row.get(key, "")) for row in rows if row.get(key) is not None})
         parts.append(f"{count} {label}")
-    return " x ".join(parts)
+    return ", ".join(parts)
 
 
 def write_summary(lines: list[str], rows: list[dict[str, Any]]) -> None:
@@ -163,7 +180,7 @@ def write_summary(lines: list[str], rows: list[dict[str, Any]]) -> None:
         [
             "## Summary",
             "",
-            f"- Completed {len(rows)} one-epoch cells: {describe_grid(rows)}.",
+            f"- Completed {len(rows)} one-epoch result rows covering {describe_grid(rows)}.",
             "- The sweep used no teacher filtering. `Delta vs old seed` is only meaningful for the RL rows "
             "because old-seed rows are the matching-cell reference.",
         ]
@@ -222,6 +239,63 @@ def write_summary(lines: list[str], rows: list[dict[str, Any]]) -> None:
     lines.append("")
 
 
+def write_paired_comparison(lines: list[str], rows: list[dict[str, Any]]) -> None:
+    lines.extend(
+        [
+            "## Unadapted vs adapted WER",
+            "",
+            "This is the main readout. `Old normal WER` and `RL normal WER` are the unadapted "
+            "beam5/lp0.5 decoding baselines for each checkpoint. The adapted columns are the "
+            "one-epoch self-training WERs for the listed setting.",
+            "",
+            "| Dataset | Mode | LR | Augmentation | Old normal WER | Old adapted WER | Old adapted vs normal | RL normal WER | RL adapted WER | RL adapted vs normal | RL adapted vs old adapted |",
+            "|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+    grouped: dict[tuple[Any, ...], dict[str, dict[str, Any]]] = defaultdict(dict)
+    for row in rows:
+        key = (
+            row.get("dataset"),
+            row.get("training_mode"),
+            row.get("lr"),
+            row.get("augmentation"),
+            row.get("decode"),
+            row.get("epoch"),
+        )
+        grouped[key][str(row.get("checkpoint"))] = row
+
+    for key in sorted(grouped):
+        dataset, mode, lr, augmentation, _decode, _epoch = key
+        old = grouped[key].get("old_seed")
+        rl = grouped[key].get("rl_step_30000")
+        if old is None and rl is None:
+            continue
+        old_normal = None if old is None else old.get("normal_decode_wer")
+        old_adapted = None if old is None else float(old["wer"])
+        old_delta = None if old is None else old.get("delta_vs_normal_decode")
+        rl_normal = None if rl is None else rl.get("normal_decode_wer")
+        rl_adapted = None if rl is None else float(rl["wer"])
+        rl_delta = None if rl is None else rl.get("delta_vs_normal_decode")
+        rl_vs_old = None if rl is None else rl.get("delta_vs_old_seed")
+        lines.append(
+            "| {dataset} | {mode} | {lr} | {augmentation} | {old_normal} | {old_adapted} | "
+            "{old_delta} | {rl_normal} | {rl_adapted} | {rl_delta} | {rl_vs_old} |".format(
+                dataset=dataset,
+                mode=mode,
+                lr=lr,
+                augmentation=augmentation,
+                old_normal=format_wer(old_normal),
+                old_adapted=format_wer(old_adapted),
+                old_delta=format_signed(old_delta),
+                rl_normal=format_wer(rl_normal),
+                rl_adapted=format_wer(rl_adapted),
+                rl_delta=format_signed(rl_delta),
+                rl_vs_old=format_signed(rl_vs_old),
+            )
+        )
+    lines.append("")
+
+
 def write_outcome(rows: list[dict[str, Any]], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
@@ -229,16 +303,17 @@ def write_outcome(rows: list[dict[str, Any]], path: Path) -> None:
         "",
         "Snapshot generated from completed ROB-63 pickles.",
         "RL deltas compare each RL `step_30000` self-training cell against the matching old-seed cell.",
-        "Normal deltas compare each self-training cell against the same checkpoint's normal decoding WER.",
+        "Normal/unadapted deltas compare each self-training cell against the same checkpoint's normal decoding WER.",
         "",
     ]
     if rows:
         write_summary(lines, rows)
+        write_paired_comparison(lines, rows)
     lines.extend(
         [
             "## Full table",
             "",
-            "| Dataset | Mode | LR | Augmentation | Checkpoint | WER | Normal WER | Delta vs normal | Relative vs normal | Delta vs old seed | Relative vs old seed | Ins | Del | Sub |",
+            "| Dataset | Mode | LR | Augmentation | Checkpoint | Adapted WER | Unadapted WER | Delta vs unadapted | Relative vs unadapted | Delta vs old seed | Relative vs old seed | Ins | Del | Sub |",
             "|---|---|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
@@ -267,11 +342,11 @@ def write_outcome(rows: list[dict[str, Any]], path: Path) -> None:
                 aug=row.get("augmentation", ""),
                 checkpoint=row.get("checkpoint", ""),
                 wer=row["wer"],
-                normal="" if normal is None else f"{normal:.5f}",
-                normal_delta="" if normal_delta is None else f"{normal_delta:+.5f}",
-                normal_rel_delta="" if normal_rel_delta is None else f"{normal_rel_delta:+.2%}",
-                delta="" if delta is None else f"{delta:+.5f}",
-                rel_delta="" if rel_delta is None else f"{rel_delta:+.2%}",
+                normal=format_wer(normal),
+                normal_delta=format_signed(normal_delta),
+                normal_rel_delta=format_percent(normal_rel_delta),
+                delta=format_signed(delta),
+                rel_delta=format_percent(rel_delta),
                 ins=row["ins_rate"],
                 dele=row["del_rate"],
                 sub=row["sub_rate"],
@@ -341,6 +416,13 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--directory", type=Path, default=Path(__file__).parent / "pkl")
     parser.add_argument(
+        "--extra-directory",
+        type=Path,
+        action="append",
+        default=[],
+        help="Additional pickle directories to include in the same aggregate.",
+    )
+    parser.add_argument(
         "--normal-baseline-csv",
         type=Path,
         default=DEFAULT_NORMAL_BASELINE_CSV,
@@ -351,7 +433,7 @@ def main() -> int:
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
-    rows = aggregate(args.directory, args.normal_baseline_csv)
+    rows = aggregate([args.directory, *args.extra_directory], args.normal_baseline_csv)
     if args.csv is not None:
         write_csv(rows, args.csv)
     if args.outcome is not None:

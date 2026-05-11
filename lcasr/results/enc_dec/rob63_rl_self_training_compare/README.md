@@ -55,6 +55,7 @@ screen -L -Logfile lcasr/results/enc_dec/rob63_rl_self_training_compare/screen.l
 - Logs: `results/enc_dec/rob63_rl_self_training_compare/logs/`
 - Summary CSV: `results/enc_dec/rob63_rl_self_training_compare/summary.csv`
 - Markdown outcome: `results/enc_dec/rob63_rl_self_training_compare/OUTCOME.md`
+- Combined ROB-63 readout: `results/enc_dec/rob63_rl_self_training_compare/COMBINED_OUTCOME.md`
 
 Aggregation:
 
@@ -62,6 +63,16 @@ Aggregation:
 python3.10 results/enc_dec/rob63_rl_self_training_compare/aggregate.py \
   --csv results/enc_dec/rob63_rl_self_training_compare/summary.csv \
   --outcome results/enc_dec/rob63_rl_self_training_compare/OUTCOME.md
+```
+
+Combined TEDLIUM/Earnings22 grid plus the CHiME-6/Rev16 best-CE follow-up:
+
+```bash
+python3.10 results/enc_dec/rob63_rl_self_training_compare/aggregate.py \
+  --directory results/enc_dec/rob63_rl_self_training_compare/pkl \
+  --extra-directory results/enc_dec/rob63_best_ce_remaining_datasets/pkl \
+  --csv results/enc_dec/rob63_rl_self_training_compare/combined_summary.csv \
+  --outcome results/enc_dec/rob63_rl_self_training_compare/COMBINED_OUTCOME.md
 ```
 
 The aggregator also reads the normal decoding benchmark at

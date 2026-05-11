@@ -13,8 +13,8 @@ sets.
 | `enc_dec_teacher_kl_entropy_filter` | Teacher-KL sweep with additional low-confidence entropy filtering. |
 | `enc_dec_teacher_kl_relaxed_filters` | Teacher-KL sweep with relaxed repeated-token filtering and no CTC agreement filter. |
 | `enc_dec_teacher_epoch_relabel` | Opt-in CE/KL teacher relabel ablation where each epoch labels and filters all chunks before student training. |
-| `rob63_rl_self_training_compare` | ROB-63 seed vs RL `step_30000` encoder-decoder self-training comparison without teacher filters. |
-| `rob63_best_ce_remaining_datasets` | ROB-63 best-CE follow-up on CHiME-6 and Rev16 for both encoder-decoder checkpoints. |
+| `rob63_rl_self_training_compare` | ROB-63 seed vs RL `step_30000` encoder-decoder self-training comparison without teacher filters; use `COMBINED_OUTCOME.md` here as the single readout for normal/unadapted WER and adapted WER. |
+| `rob63_best_ce_remaining_datasets` | Auxiliary ROB-63 best-CE CHiME-6/Rev16 follow-up whose pickles are rolled into `rob63_rl_self_training_compare/COMBINED_OUTCOME.md`. |
 
 Each child folder contains:
 
@@ -55,6 +55,7 @@ python results/enc_dec/enc_dec_teacher_epoch_relabel/aggregate.py
 python results/enc_dec/rob61_checkpoint_benchmark/aggregate.py --csv results/enc_dec/rob61_checkpoint_benchmark/summary.csv --outcome results/enc_dec/rob61_checkpoint_benchmark/OUTCOME.md
 python results/enc_dec/rob63_rl_self_training_compare/aggregate.py
 python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_best_ce_remaining_datasets/pkl --csv results/enc_dec/rob63_best_ce_remaining_datasets/summary.csv --outcome results/enc_dec/rob63_best_ce_remaining_datasets/OUTCOME.md
+python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_rl_self_training_compare/pkl --extra-directory results/enc_dec/rob63_best_ce_remaining_datasets/pkl --csv results/enc_dec/rob63_rl_self_training_compare/combined_summary.csv --outcome results/enc_dec/rob63_rl_self_training_compare/COMBINED_OUTCOME.md
 ```
 
 To refresh CSV summaries:
@@ -68,6 +69,7 @@ python results/enc_dec/enc_dec_teacher_epoch_relabel/aggregate.py --csv results/
 python results/enc_dec/rob61_checkpoint_benchmark/aggregate.py --csv results/enc_dec/rob61_checkpoint_benchmark/summary.csv --outcome results/enc_dec/rob61_checkpoint_benchmark/OUTCOME.md
 python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --csv results/enc_dec/rob63_rl_self_training_compare/summary.csv
 python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_best_ce_remaining_datasets/pkl --csv results/enc_dec/rob63_best_ce_remaining_datasets/summary.csv --outcome results/enc_dec/rob63_best_ce_remaining_datasets/OUTCOME.md
+python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_rl_self_training_compare/pkl --extra-directory results/enc_dec/rob63_best_ce_remaining_datasets/pkl --csv results/enc_dec/rob63_rl_self_training_compare/combined_summary.csv --outcome results/enc_dec/rob63_rl_self_training_compare/COMBINED_OUTCOME.md
 ```
 
 ## Launch Notes
