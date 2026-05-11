@@ -20,6 +20,7 @@ from typing import Any
 LINEAR_API_URL = "https://api.linear.app/graphql"
 DEFAULT_MAX_LOG_CHARS = 20_000
 DEFAULT_MAX_COMMENT_CHARS = 60_000
+DEFAULT_MAX_BODY_CHARS = DEFAULT_MAX_COMMENT_CHARS
 
 
 class LinearError(RuntimeError):
@@ -200,7 +201,12 @@ def build_comment(args: argparse.Namespace, issue: dict[str, Any]) -> str:
         parts.extend(["", args.note])
     if log_tail:
         parts.extend(["", f"Last {args.tail_lines} log lines:", "```text", log_tail, "```"])
-    return enforce_comment_limit("\n".join(parts), args.max_comment_chars)
+    max_body_chars = getattr(
+        args,
+        "max_body_chars",
+        getattr(args, "max_comment_chars", DEFAULT_MAX_COMMENT_CHARS),
+    )
+    return enforce_comment_limit("\n".join(parts), max_body_chars)
 
 
 def parse_args() -> argparse.Namespace:
@@ -221,10 +227,12 @@ def parse_args() -> argparse.Namespace:
         "--max-log-chars",
         type=int,
         default=DEFAULT_MAX_LOG_CHARS,
-        help="Maximum characters of log excerpt to include in the Linear comment",
+        help="Maximum characters of log excerpt to include after selecting tail lines",
     )
     parser.add_argument(
         "--max-comment-chars",
+        "--max-body-chars",
+        dest="max_body_chars",
         type=int,
         default=DEFAULT_MAX_COMMENT_CHARS,
         help="Maximum Linear comment body characters; keeps headroom below Linear's 100K limit",

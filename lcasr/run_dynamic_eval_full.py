@@ -1,4 +1,5 @@
 import argparse
+import os
 import pickle
 import time
 
@@ -52,6 +53,17 @@ def main(args):
 
     decoder = GreedyCTCDecoder(tokenizer=tokenizer, blank_id=model.decoder.num_classes - 1)
     data = datasets_functions[args.dataset](args.split)
+    if args.max_records is not None:
+        data = data[:args.max_records]
+        print(f'Limiting evaluation to first {len(data)} record(s)')
+
+    if args.entropy_trace_path:
+        trace_dir = os.path.dirname(args.entropy_trace_path)
+        if trace_dir:
+            os.makedirs(trace_dir, exist_ok=True)
+        with open(args.entropy_trace_path, 'w') as f:
+            pass
+        print(f'Writing entropy trace to {args.entropy_trace_path}')
 
     beamsearch = None
     if args.beamsearch:
@@ -84,6 +96,23 @@ def main(args):
             audio_spec, gold_text = data[rec]['process_fn'](data[rec])
 
             stime = time.time()
+            args._entropy_trace_context = {
+                'dataset': args.dataset,
+                'split': args.split,
+                'repeat_index': repeat + 1,
+                'repeats': args.repeats,
+                'record_index': rec,
+                'record_id': data[rec]['id'],
+                'setting': args.entropy_trace_setting,
+                'seq_len': args.seq_len,
+                'overlap': args.overlap,
+                'epochs': args.epochs,
+                'checkpoint': args.checkpoint,
+                'optim_lr': args.__dict__.get('optim_lr', ''),
+                'spec_augment_n_freq_masks': args.__dict__.get('spec_augment_n_freq_masks', 0),
+                'spec_augment_freq_mask_param': args.__dict__.get('spec_augment_freq_mask_param', 42),
+                'spec_augment_n_time_masks': args.__dict__.get('spec_augment_n_time_masks', 0),
+            }
             logits = eval_fn(
                 args,
                 model,
@@ -131,6 +160,7 @@ def main(args):
                 'gold': all_golds,
                 'elapsed_times': elapsed_times,
                 'args_dict': vars(args),
+                'entropy_trace_path': args.entropy_trace_path,
                 'repeat': f'{repeat + 1}/{args.repeats}',
             }
             save_path = args.save_path
@@ -154,6 +184,9 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', '-d', type=str, default='earnings22', choices=datasets_functions.keys())
     parser.add_argument('--repeats', '-r', type=int, default=1, help='Number of times to repeat the evaluation')
     parser.add_argument('--save_path', '-s', type=str, default='', help='path to save')
+    parser.add_argument('--max_records', type=int, default=None, help='Optional cap for smoke tests.')
+    parser.add_argument('--entropy_trace_path', type=str, default='', help='Optional JSONL output path for per-update CTC entropy traces.')
+    parser.add_argument('--entropy_trace_setting', type=str, default='', help='Human-readable setting label stored in entropy trace rows.')
 
     args = lib.apply_args(parser)
     main(args)
