@@ -2,6 +2,7 @@
 
 ## 2026-05-11
 
+- ROB-63: The best-CE remaining-dataset follow-up completed for `chime6` and `rev16` with the old seed and RL `step_30000` checkpoints. Regenerated `lcasr/results/enc_dec/rob63_best_ce_remaining_datasets/summary.csv` and `OUTCOME.md` from the four PKLs. Rev16 slightly favors the RL checkpoint under the selected CE setting (`0.23599` versus `0.23790` WER, `-0.80%` relative to old seed). CHiME-6 is a 100% deletion-dominated result for both checkpoints in this encoder-decoder setup, so it is useful as a checked artifact but not as evidence of a checkpoint difference.
 - ROB-63: Added a best-CE remaining-dataset pass for the current strongest encoder-decoder self-training configuration: `teacher_ce`, `lr=1e-7`, `spec_augment_freq_mask_param=24`, `spec_augment_n_freq_masks=3`, `spec_augment_n_time_masks=0`, no filters, beam5/lp0.5, and one epoch. The queued wrapper targets `chime6` and `rev16` for both the old seed and RL `step_30000` checkpoints, with callback-backed results under `lcasr/results/enc_dec/rob63_best_ce_remaining_datasets/`.
 - ROB-63: The queued encoder-decoder self-training comparison completed all 32 cells under `lcasr/results/enc_dec/rob63_rl_self_training_compare/`. Regenerated `summary.csv` and `OUTCOME.md` from the PKLs, including relative change versus each checkpoint's normal decoding benchmark. RL `step_30000` beats the matching old-seed cell in 6/8 Earnings22 cells and 8/8 TED-LIUM cells, with TED-LIUM old-seed `teacher_ce`/`1e-7`/`freq6_width34_time0` flagged as a high-deletion outlier.
 
