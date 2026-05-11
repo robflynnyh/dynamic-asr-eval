@@ -147,6 +147,7 @@ done
 
 if [ "$DRY_RUN" != "1" ]; then
     "$PYTHON_BIN" results/enc_dec/rob63_rl_self_training_compare/aggregate.py \
-        --csv results/enc_dec/rob63_rl_self_training_compare/summary.csv \
-        --outcome results/enc_dec/rob63_rl_self_training_compare/OUTCOME.md
+        --directory "${PKL_ROOT}" \
+        --csv "${RESULTS_ROOT}/summary.csv" \
+        --outcome "${RESULTS_ROOT}/OUTCOME.md"
 fi
