@@ -2,6 +2,7 @@
 
 ## 2026-05-11
 
+- ROB-68: Added an opt-in RMM random mixed-mask augmentation policy to the CTC dynamic-eval self-training path and scaffolded an all-dataset 2048-context RMM evaluation for epochs `1` and `5`. The run uses checkpoint `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_2048_rp_1/step_105360.pt`, `seq_len=2048`, `overlap=1792`, `lr=1e-5`, and writes under `lcasr/results/ctc_seq2048_rmm_eval/`.
 - ROB-66: Added the no-adapt 2048-context CTC baseline scaffold for the ROB-56 checkpoint. The queued wrapper uses `epochs=0`, `seq_len=2048`, `overlap=1792`, test splits for `earnings22`, `tedlium`, `chime6`, and `rev16`, and regenerates thesis-friendly `summary.csv` / `summary.md` under `lcasr/results/ctc_seq2048_unadapted_baseline/`.
 
 ## 2026-05-10

@@ -109,6 +109,7 @@ def main(args):
                 'epochs': args.epochs,
                 'checkpoint': args.checkpoint,
                 'optim_lr': args.__dict__.get('optim_lr', ''),
+                'augmentation_policy': args.__dict__.get('augmentation_policy', 'specaugment'),
                 'spec_augment_n_freq_masks': args.__dict__.get('spec_augment_n_freq_masks', 0),
                 'spec_augment_freq_mask_param': args.__dict__.get('spec_augment_freq_mask_param', 42),
                 'spec_augment_n_time_masks': args.__dict__.get('spec_augment_n_time_masks', 0),
