@@ -132,6 +132,75 @@ def write_csv(rows: list[dict[str, Any]], path: Path) -> None:
         writer.writerows(rows)
 
 
+def format_cell(row: dict[str, Any]) -> str:
+    return (
+        f"{row.get('checkpoint')} {row.get('training_mode')} "
+        f"lr={row.get('lr')} {row.get('augmentation')}"
+    )
+
+
+def format_range(values: list[float]) -> str:
+    return f"{min(values):+.5f} to {max(values):+.5f}"
+
+
+def write_summary(lines: list[str], rows: list[dict[str, Any]]) -> None:
+    lines.extend(
+        [
+            "## Summary",
+            "",
+            f"- Completed {len(rows)} one-epoch cells from 32 expected cells: "
+            "2 datasets x 2 checkpoints x 2 training modes x 2 learning rates x 2 frequency-mask settings.",
+            "- The sweep used no teacher filtering. `Delta vs old seed` is only meaningful for the RL rows "
+            "because old-seed rows are the matching-cell reference.",
+        ]
+    )
+    for dataset in sorted({str(row.get("dataset", "")) for row in rows}):
+        dataset_rows = [row for row in rows if row.get("dataset") == dataset]
+        rl_rows = [row for row in dataset_rows if row.get("checkpoint") == "rl_step_30000"]
+        old_rows = [row for row in dataset_rows if row.get("checkpoint") == "old_seed"]
+        rl_deltas = [
+            float(row["delta_vs_old_seed"])
+            for row in rl_rows
+            if row.get("delta_vs_old_seed") is not None
+        ]
+        better_count = sum(delta < 0 for delta in rl_deltas)
+        best_rl = min(rl_rows, key=lambda row: float(row["wer"]))
+        best_old = min(old_rows, key=lambda row: float(row["wer"]))
+        old_normal_rel = [
+            float(row["relative_delta_vs_normal_decode"])
+            for row in old_rows
+            if row.get("relative_delta_vs_normal_decode") is not None
+        ]
+        rl_normal_rel = [
+            float(row["relative_delta_vs_normal_decode"])
+            for row in rl_rows
+            if row.get("relative_delta_vs_normal_decode") is not None
+        ]
+        lines.append(
+            f"- {dataset}: RL `step_30000` beats the matching old-seed cell in "
+            f"{better_count}/{len(rl_rows)} cells; RL-vs-old absolute WER deltas span "
+            f"{format_range(rl_deltas)}. Best RL cell is {format_cell(best_rl)} at "
+            f"{best_rl['wer']:.5f} WER; best old-seed cell is {format_cell(best_old)} "
+            f"at {best_old['wer']:.5f} WER. Relative change vs normal decoding spans "
+            f"{min(rl_normal_rel):+.2%} to {max(rl_normal_rel):+.2%} for RL and "
+            f"{min(old_normal_rel):+.2%} to {max(old_normal_rel):+.2%} for old seed."
+        )
+
+    outliers = [
+        row
+        for row in rows
+        if row.get("relative_delta_vs_normal_decode") is not None
+        and float(row["relative_delta_vs_normal_decode"]) > 0.25
+    ]
+    for row in sorted(outliers, key=lambda item: float(item["relative_delta_vs_normal_decode"]), reverse=True):
+        lines.append(
+            f"- Sanity note: {row.get('dataset')} {format_cell(row)} is an outlier versus normal decoding "
+            f"({float(row['relative_delta_vs_normal_decode']):+.2%}, WER {row['wer']:.5f}); "
+            f"the error mix is dominated by deletion rate {row['del_rate']:.5f}."
+        )
+    lines.append("")
+
+
 def write_outcome(rows: list[dict[str, Any]], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
@@ -141,9 +210,17 @@ def write_outcome(rows: list[dict[str, Any]], path: Path) -> None:
         "RL deltas compare each RL `step_30000` self-training cell against the matching old-seed cell.",
         "Normal deltas compare each self-training cell against the same checkpoint's normal decoding WER.",
         "",
-        "| Dataset | Mode | LR | Augmentation | Checkpoint | WER | Normal WER | Delta vs normal | Relative vs normal | Delta vs old seed | Relative vs old seed | Ins | Del | Sub |",
-        "|---|---|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
+    if rows:
+        write_summary(lines, rows)
+    lines.extend(
+        [
+            "## Full table",
+            "",
+            "| Dataset | Mode | LR | Augmentation | Checkpoint | WER | Normal WER | Delta vs normal | Relative vs normal | Delta vs old seed | Relative vs old seed | Ins | Del | Sub |",
+            "|---|---|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
     for row in sorted(
         rows,
         key=lambda item: (

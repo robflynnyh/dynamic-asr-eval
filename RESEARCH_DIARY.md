@@ -1,5 +1,9 @@
 # Research Diary
 
+## 2026-05-11
+
+- ROB-63: The queued encoder-decoder self-training comparison completed all 32 cells under `lcasr/results/enc_dec/rob63_rl_self_training_compare/`. Regenerated `summary.csv` and `OUTCOME.md` from the PKLs, including relative change versus each checkpoint's normal decoding benchmark. RL `step_30000` beats the matching old-seed cell in 6/8 Earnings22 cells and 8/8 TED-LIUM cells, with TED-LIUM old-seed `teacher_ce`/`1e-7`/`freq6_width34_time0` flagged as a high-deletion outlier.
+
 ## 2026-05-10
 
 - ROB-63: Added a queued 1-epoch encoder-decoder self-training comparison scaffold for old seed versus RL `step_30000` on TEDLIUM and Earnings22. The grid uses `teacher_ce` and `teacher_kl`, learning rates `1e-7` and `3e-7`, frequency-mask augmentations `freq6_width34_time0` and `freq3_width24_time0`, beam5/lp0.5 decoding, and deliberately passes no teacher filters. The aggregate records both RL-vs-seed deltas and per-checkpoint relative change against the normal decoding benchmark from ROB-61.
