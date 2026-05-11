@@ -6,8 +6,18 @@ datasets:
     test:
     dev:
     text:
+  chime6:
+    audio:
+      test:
+      dev:
+    text:
+      test:
+      dev:
+  rev16:
+    test:
 
-checkpoint:
+checkpoints:
   lcasr:
   nvidia_ctc:
   wav2vec2:
+  lm:

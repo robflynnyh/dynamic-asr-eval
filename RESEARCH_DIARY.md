@@ -2,6 +2,7 @@
 
 ## 2026-05-11
 
+- ROB-67: Prepared callback-backed Stanage scaffolding for the 65536-context CTC checkpoint. The setup uses `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_65536_rp_1/step_105360.pt` on Mimas and `/mnt/parscratch/users/acp21rjf/spotify/checkpoints_seq_scheduler_rb/n_seq_sched_65536_rp_1/step_105360.pt` on Stanage, with `seq_len=65536`, `overlap=57344`, no-adapt plus self-training epochs `1` and `5`, and `lr=1e-5`. Added a CPU-only Stanage smoke job and a 12-cell Stanage GPU array with an `afterany` finalizer callback.
 - ROB-66: Added the no-adapt 2048-context CTC baseline scaffold for the ROB-56 checkpoint. The queued wrapper uses `epochs=0`, `seq_len=2048`, `overlap=1792`, test splits for `earnings22`, `tedlium`, `chime6`, and `rev16`, and regenerates thesis-friendly `summary.csv` / `summary.md` under `lcasr/results/ctc_seq2048_unadapted_baseline/`.
 
 ## 2026-05-10
