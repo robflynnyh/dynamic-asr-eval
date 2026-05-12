@@ -90,6 +90,12 @@ do
                         freq3_width24_time0)
                             aug_kwargs=(spec_augment_freq_mask_param=24 spec_augment_n_time_masks=0 spec_augment_n_freq_masks=3)
                             ;;
+                        freq1_width12_time0)
+                            aug_kwargs=(spec_augment_freq_mask_param=12 spec_augment_n_time_masks=0 spec_augment_n_freq_masks=1)
+                            ;;
+                        no_aug)
+                            aug_kwargs=(spec_augment_freq_mask_param=0 spec_augment_n_time_masks=0 spec_augment_n_freq_masks=0)
+                            ;;
                         *)
                             echo "Unknown augmentation setting: $aug" >&2
                             exit 1

@@ -103,20 +103,22 @@ def write_outcome(rows: list[dict[str, Any]], path: Path) -> None:
         "Normal encoder-decoder inference benchmark; no self-training or test-time adaptation.",
         "Greedy uses the default autoregressive decode. Beam uses `beam_width=5` and `length_penalty=0.5`.",
         "",
-        "| Dataset | Decode | Checkpoint | WER | Delta vs old | Relative delta | Ins | Del | Sub |",
-        "|---|---|---|---:|---:|---:|---:|---:|---:|",
+        "| Dataset | Split | Decode | Checkpoint | WER | Delta vs old | Relative delta | Ins | Del | Sub |",
+        "|---|---|---|---|---:|---:|---:|---:|---:|---:|",
     ]
     for row in sorted(rows, key=lambda item: (
         str(item.get("dataset", "")),
+        str(item.get("split", "")),
         str(item.get("decode", "")),
         str(item.get("checkpoint", "")),
     )):
         delta = row.get("delta_vs_old_seed")
         rel_delta = row.get("relative_delta_vs_old_seed")
         lines.append(
-            "| {dataset} | {decode} | {checkpoint} | {wer:.5f} | {delta} | {rel_delta} | "
+            "| {dataset} | {split} | {decode} | {checkpoint} | {wer:.5f} | {delta} | {rel_delta} | "
             "{ins:.5f} | {dele:.5f} | {sub:.5f} |".format(
                 dataset=row.get("dataset", ""),
+                split=row.get("split", ""),
                 decode=row.get("decode", ""),
                 checkpoint=row.get("checkpoint", ""),
                 wer=row["wer"],
@@ -134,9 +136,10 @@ def print_table(rows: list[dict[str, Any]]) -> None:
     if not rows:
         print("No result pickles found.", file=sys.stderr)
         return
-    print("\t".join(("dataset", "decode", "checkpoint", "wer", "delta_vs_old", "rel_delta", "n")))
+    print("\t".join(("dataset", "split", "decode", "checkpoint", "wer", "delta_vs_old", "rel_delta", "n")))
     for row in sorted(rows, key=lambda item: (
         str(item.get("dataset", "")),
+        str(item.get("split", "")),
         str(item.get("decode", "")),
         float(item.get("wer", 0.0)),
     )):
@@ -144,6 +147,7 @@ def print_table(rows: list[dict[str, Any]]) -> None:
         rel_delta = row.get("relative_delta_vs_old_seed")
         print("\t".join([
             str(row.get("dataset", "")),
+            str(row.get("split", "")),
             str(row.get("decode", "")),
             str(row.get("checkpoint", "")),
             f"{row['wer']:.5f}",

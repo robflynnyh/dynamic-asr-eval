@@ -1,5 +1,9 @@
 # Research Diary
 
+## 2026-05-12
+
+- ROB-63: The lower-LR CHiME-6 dev / Rev16 test follow-up completed under `lcasr/results/enc_dec/rob63_lower_lr_dev_followup/`. CHiME-6 remained deletion-collapsed at `1.00000` WER for the old seed and `1.00000` to `1.45427` WER for RL `step_30000`, despite matching normal beam5/lp0.5 dev baselines of `0.83439` and `0.81157`. Rev16 had one useful RL cell (`teacher_ce`, `lr=1e-8`, `freq3_width24_time0`) at `0.17357` WER, essentially matching its normal baseline and beating the matching old-seed adapted cell. Added a bounded augmentation follow-up scaffold under `lcasr/results/enc_dec/rob63_aug_followup/` to test `no_aug` and `freq1_width12_time0` at `1e-8` and `3e-8`, with no filters and one epoch, before treating CHiME-6 as exhausted for this comparison.
+
 ## 2026-05-11
 
 - ROB-63: Added a lower-LR follow-up plan for the CHiME-6/Rev16 degradation seen in the best-CE remaining-dataset pass. The queued wrapper targets CHiME-6 dev plus Rev16 test, because the current Rev16 encoder-decoder runner asserts test-only split support, and tries CE self-training at `3e-8`, `1e-8`, and `3e-9` with the less aggressive `freq3_width24_time0` augmentation. It also runs CHiME-6 dev normal baselines first so the lower-LR dev rows can be compared against matching unadapted WER.

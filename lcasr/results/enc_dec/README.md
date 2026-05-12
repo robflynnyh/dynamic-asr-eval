@@ -15,6 +15,8 @@ sets.
 | `enc_dec_teacher_epoch_relabel` | Opt-in CE/KL teacher relabel ablation where each epoch labels and filters all chunks before student training. |
 | `rob63_rl_self_training_compare` | ROB-63 seed vs RL `step_30000` encoder-decoder self-training comparison without teacher filters; use `COMBINED_OUTCOME.md` here as the single readout for normal/unadapted WER and adapted WER. |
 | `rob63_best_ce_remaining_datasets` | Auxiliary ROB-63 best-CE CHiME-6/Rev16 follow-up whose pickles are rolled into `rob63_rl_self_training_compare/COMBINED_OUTCOME.md`. |
+| `rob63_lower_lr_dev_followup` | Auxiliary ROB-63 lower-LR CHiME-6 dev / Rev16 test CE follow-up after the first remaining-dataset pass degraded versus normal decoding. |
+| `rob63_aug_followup` | Auxiliary ROB-63 CHiME-6 dev / Rev16 test CE follow-up that tries no augmentation and lighter frequency masking after the lower-LR pass remained deletion-heavy. |
 
 Each child folder contains:
 
@@ -55,6 +57,8 @@ python results/enc_dec/enc_dec_teacher_epoch_relabel/aggregate.py
 python results/enc_dec/rob61_checkpoint_benchmark/aggregate.py --csv results/enc_dec/rob61_checkpoint_benchmark/summary.csv --outcome results/enc_dec/rob61_checkpoint_benchmark/OUTCOME.md
 python results/enc_dec/rob63_rl_self_training_compare/aggregate.py
 python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_best_ce_remaining_datasets/pkl --csv results/enc_dec/rob63_best_ce_remaining_datasets/summary.csv --outcome results/enc_dec/rob63_best_ce_remaining_datasets/OUTCOME.md
+python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_lower_lr_dev_followup/pkl --csv results/enc_dec/rob63_lower_lr_dev_followup/summary.csv --outcome results/enc_dec/rob63_lower_lr_dev_followup/OUTCOME.md
+python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_aug_followup/pkl --csv results/enc_dec/rob63_aug_followup/summary.csv --outcome results/enc_dec/rob63_aug_followup/OUTCOME.md
 python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_rl_self_training_compare/pkl --extra-directory results/enc_dec/rob63_best_ce_remaining_datasets/pkl --csv results/enc_dec/rob63_rl_self_training_compare/combined_summary.csv --outcome results/enc_dec/rob63_rl_self_training_compare/COMBINED_OUTCOME.md
 ```
 
@@ -69,6 +73,8 @@ python results/enc_dec/enc_dec_teacher_epoch_relabel/aggregate.py --csv results/
 python results/enc_dec/rob61_checkpoint_benchmark/aggregate.py --csv results/enc_dec/rob61_checkpoint_benchmark/summary.csv --outcome results/enc_dec/rob61_checkpoint_benchmark/OUTCOME.md
 python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --csv results/enc_dec/rob63_rl_self_training_compare/summary.csv
 python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_best_ce_remaining_datasets/pkl --csv results/enc_dec/rob63_best_ce_remaining_datasets/summary.csv --outcome results/enc_dec/rob63_best_ce_remaining_datasets/OUTCOME.md
+python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_lower_lr_dev_followup/pkl --csv results/enc_dec/rob63_lower_lr_dev_followup/summary.csv --outcome results/enc_dec/rob63_lower_lr_dev_followup/OUTCOME.md
+python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_aug_followup/pkl --csv results/enc_dec/rob63_aug_followup/summary.csv --outcome results/enc_dec/rob63_aug_followup/OUTCOME.md
 python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_rl_self_training_compare/pkl --extra-directory results/enc_dec/rob63_best_ce_remaining_datasets/pkl --csv results/enc_dec/rob63_rl_self_training_compare/combined_summary.csv --outcome results/enc_dec/rob63_rl_self_training_compare/COMBINED_OUTCOME.md
 ```
 
