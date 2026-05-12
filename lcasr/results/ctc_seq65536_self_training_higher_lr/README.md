@@ -8,7 +8,7 @@ ROB-67 follow-up sweep requested after the completed `lr=1e-5` 65536-context ada
 - Datasets: `earnings22`, `tedlium`, `chime6`, `rev16`
 - Split: `test`
 - Adaptation epochs: `1`, `5`
-- LRs: `3e-5`, `9e-5`
+- LRs: `9e-5`, `3e-4`
 - Augmentation: `spec_augment_n_freq_masks=6`, `spec_augment_freq_mask_param=34`, `spec_augment_n_time_masks=0`
 - Repeats: `1`
 

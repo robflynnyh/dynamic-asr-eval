@@ -2,7 +2,7 @@
 
 ## 2026-05-12
 
-- ROB-67: Inspected the completed Stanage finalizer output for the 65536-context CTC eval. The final run used `lr=1e-5` for adapted `epochs=1` and `epochs=5`, produced 4 unadapted PKLs and 8 adapted PKLs, and regenerated summaries under `lcasr/results/ctc_seq65536_unadapted_baseline/` and `lcasr/results/ctc_seq65536_self_training_eval/`. Added a separate callback-backed Stanage follow-up sweep for higher LRs `3e-5` and `9e-5`, writing to `lcasr/results/ctc_seq65536_self_training_higher_lr/` so those rows do not overwrite the completed `lr=1e-5` result set.
+- ROB-67: Inspected the completed Stanage finalizer output for the 65536-context CTC eval. The final run used `lr=1e-5` for adapted `epochs=1` and `epochs=5`, produced 4 unadapted PKLs and 8 adapted PKLs, and regenerated summaries under `lcasr/results/ctc_seq65536_unadapted_baseline/` and `lcasr/results/ctc_seq65536_self_training_eval/`. Added a separate callback-backed Stanage follow-up sweep for higher LRs `9e-5` and `3e-4`, writing to `lcasr/results/ctc_seq65536_self_training_higher_lr/` so those rows do not overwrite the completed `lr=1e-5` result set.
 
 ## 2026-05-11
 

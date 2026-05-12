@@ -17,7 +17,7 @@ CHECKPOINT=${CHECKPOINT:-"/mnt/parscratch/users/acp21rjf/spotify/checkpoints_seq
 ADAPTED_RESULTS_DIR=${ADAPTED_RESULTS_DIR:-"./results/ctc_seq65536_self_training_higher_lr"}
 DATASETS_STR=${DATASETS:-"earnings22 tedlium chime6 rev16"}
 EPOCHS_STR=${EPOCHS:-"1 5"}
-LRS_STR=${LRS:-"3e-5 9e-5"}
+LRS_STR=${LRS:-"9e-5 3e-4"}
 
 read -r -a DATASETS_ARR <<< "$DATASETS_STR"
 read -r -a EPOCHS_ARR <<< "$EPOCHS_STR"

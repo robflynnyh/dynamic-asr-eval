@@ -37,7 +37,7 @@ on_exit() {
     --target-state "$CALLBACK_TARGET_STATE"
     --max-log-chars "${CALLBACK_MAX_LOG_CHARS:-20000}"
     --max-comment-chars "${CALLBACK_MAX_COMMENT_CHARS:-60000}"
-    --note "ROB-67 higher-LR follow-up for the completed 65536-context CTC adapted eval. Expected outputs: 16 adapted PKLs for 4 datasets x 2 epoch counts x LRs {3e-5,9e-5}, plus refreshed summary tables."
+    --note "ROB-67 higher-LR follow-up for the completed 65536-context CTC adapted eval. Expected outputs: 16 adapted PKLs for 4 datasets x 2 epoch counts x LRs {9e-5,3e-4}, plus refreshed summary tables."
   )
   if [ "${CALLBACK_DRY_RUN:-0}" = "1" ]; then
     callback_args+=(--dry-run)
