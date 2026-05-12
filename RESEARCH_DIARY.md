@@ -1,5 +1,9 @@
 # Research Diary
 
+## 2026-05-12
+
+- ROB-67: Inspected the completed Stanage finalizer output for the 65536-context CTC eval. The final run used `lr=1e-5` for adapted `epochs=1` and `epochs=5`, produced 4 unadapted PKLs and 8 adapted PKLs, and regenerated summaries under `lcasr/results/ctc_seq65536_unadapted_baseline/` and `lcasr/results/ctc_seq65536_self_training_eval/`. Added a separate callback-backed Stanage follow-up sweep for higher LRs `3e-5` and `9e-5`, writing to `lcasr/results/ctc_seq65536_self_training_higher_lr/` so those rows do not overwrite the completed `lr=1e-5` result set.
+
 ## 2026-05-11
 
 - ROB-67: Prepared callback-backed Stanage scaffolding for the 65536-context CTC checkpoint. The setup uses `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_65536_rp_1/step_105360.pt` on Mimas and `/mnt/parscratch/users/acp21rjf/spotify/checkpoints_seq_scheduler_rb/n_seq_sched_65536_rp_1/step_105360.pt` on Stanage, with `seq_len=65536`, `overlap=57344`, no-adapt plus self-training epochs `1` and `5`, and `lr=1e-5`. Added a CPU-only Stanage smoke job and a 12-cell Stanage GPU array with an `afterany` finalizer callback.
