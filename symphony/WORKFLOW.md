@@ -118,6 +118,14 @@ Local configuration and artifacts:
 - Keep Symphony-specific instructions and runtime files under `symphony/`.
   The repository is also used by humans, so do not add root-level agent files
   unless an issue explicitly asks for them.
+- On Mimas, never use `/tmp` for agent scratch space, caches, logs,
+  intermediate outputs, or experiment artifacts. Use repo-local ignored paths
+  such as `symphony/.scratch/`, `symphony/tmp/`, `symphony/logs/`, or a
+  result-scoped directory, and use `/store/...` only for durable read-only
+  inputs or explicitly requested external artifacts. When a command or library
+  needs temporary/cache directories, set variables such as `TMPDIR`, `TEMP`,
+  `TMP`, `MPLCONFIGDIR`, `HF_HOME`, or `XDG_CACHE_HOME` to one of those
+  non-`/tmp` locations before running it.
 
 Research diary:
 - Append concise dated entries to `RESEARCH_DIARY.md` for meaningful project
@@ -160,6 +168,9 @@ Experiment launching:
   `/store/store5/software/simple-gpu-schedule/with-gpu` for Mimas GPU
   allocation instead of manually polling for free GPUs. Prefer pool `1,2`
   unless the issue or experiment requires a different GPU pool.
+- Before queueing Mimas work, verify launch wrappers and commands do not write
+  to `/tmp`; set temp/cache env vars to repo-local ignored directories or
+  result-scoped paths in the wrapper itself.
 - Launch long-running GPU experiments in durable detached `screen` sessions
   with log files. The detached command should run
   `with-gpu <pool> -- <experiment-wrapper>` so the queue waiter survives after
