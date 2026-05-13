@@ -1,5 +1,12 @@
 # Research Diary
 
+## 2026-05-13
+
+- ROB-84: Updated the repo-local Symphony guidance so future Mimas work must
+  avoid `/tmp` for scratch, caches, logs, intermediate files, and experiment
+  artifacts, using repo-local ignored directories or result-scoped paths
+  instead.
+
 ## 2026-05-11
 
 - ROB-66: Added the no-adapt 2048-context CTC baseline scaffold for the ROB-56 checkpoint. The queued wrapper uses `epochs=0`, `seq_len=2048`, `overlap=1792`, test splits for `earnings22`, `tedlium`, `chime6`, and `rev16`, and regenerates thesis-friendly `summary.csv` / `summary.md` under `lcasr/results/ctc_seq2048_unadapted_baseline/`.
