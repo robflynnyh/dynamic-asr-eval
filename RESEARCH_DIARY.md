@@ -2,6 +2,11 @@
 
 ## 2026-05-13
 
+- ROB-84: Updated the repo-local Symphony guidance so future Mimas work must
+  avoid `/tmp` for scratch, caches, logs, intermediate files, and experiment
+  artifacts, using repo-local ignored directories or result-scoped paths
+  instead.
+
 - ROB-63: The Earnings22 unadapted sanity-check rerun completed for the
   historical `enc_dec_v2/step_105360.pt` checkpoint and the ROB-63 `old_seed`
   checkpoint under the same beam5/lp0.5 decode. The historical checkpoint is

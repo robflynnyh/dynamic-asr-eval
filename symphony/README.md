@@ -8,6 +8,9 @@ The repository is also used directly by humans, so keep agent-specific files in
 - Keep local credentials in `symphony/.env`; it is ignored by Git.
 - Keep temporary agent artifacts under `symphony/.scratch/`, `symphony/tmp/`, or
   `symphony/logs/`; these are ignored by Git.
+- On Mimas, do not use `/tmp` for scratch, caches, logs, intermediate files, or
+  experiment artifacts. Point temp/cache environment variables at repo-local
+  ignored directories or result-scoped paths instead.
 
 Do not commit raw datasets, checkpoints, experiment logs, or large generated
 artifacts from agent runs.
