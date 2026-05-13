@@ -16,9 +16,9 @@ checkpoint and the ROB-61/ROB-26 RL `step_30000` checkpoint.
 - Learning rates: `1e-7`, `3e-7`
 - Augmentations: `freq6_width34_time0`, `freq3_width24_time0`
 - Teacher filters: none
-- Old seed checkpoint:
+- `old_seed` checkpoint:
   `/store/store5/data/acp21rjf_checkpoints/lcasr/enc_dec_no_anorm_V2_lr_2e3_ctcw_0_05/step_210720.pt`
-- RL checkpoint:
+- `rl_step_30000` checkpoint:
   `/store/store5/data/acp21rjf_checkpoints/lcasr/rob61_rl_floras50_30k_b36_r24_grpo_wer70_cer30_std001_const_lr_1e-5/step_30000.pt`
 
 This grid is intentionally limited to frequency-mask augmentation and two
@@ -84,3 +84,5 @@ The aggregator also reads the normal decoding benchmark at
 `results/enc_dec/rob61_checkpoint_benchmark/summary.csv` by default. It records
 the absolute and relative self-training change against the matching normal
 decoding row for each checkpoint, dataset, split, and decode setting.
+The generated `summary.csv`, `OUTCOME.md`, and `COMBINED_OUTCOME.md` include
+the full checkpoint path for each ROB-63 checkpoint label.

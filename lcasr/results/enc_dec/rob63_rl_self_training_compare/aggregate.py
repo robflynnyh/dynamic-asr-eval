@@ -19,6 +19,14 @@ SETTING_RE = re.compile(
     r"-lr-(?P<lr>[^-]+)-(?P<augmentation>.+)$"
 )
 DEFAULT_NORMAL_BASELINE_CSV = Path(__file__).parent.parent / "rob61_checkpoint_benchmark" / "summary.csv"
+CHECKPOINT_PATHS = {
+    "old_seed": "/store/store5/data/acp21rjf_checkpoints/lcasr/enc_dec_no_anorm_V2_lr_2e3_ctcw_0_05/step_210720.pt",
+    "rl_step_30000": "/store/store5/data/acp21rjf_checkpoints/lcasr/rob61_rl_floras50_30k_b36_r24_grpo_wer70_cer30_std001_const_lr_1e-5/step_30000.pt",
+}
+CHECKPOINT_DESCRIPTIONS = {
+    "old_seed": "normal encoder-decoder seed checkpoint",
+    "rl_step_30000": "30K RL-trained checkpoint from the ROB-61/PR #11 lineage",
+}
 
 
 def mean(values: list[float]) -> float:
@@ -77,6 +85,7 @@ def aggregate(
         row = parse_setting(setting)
         row.update(
             {
+                "checkpoint_path": CHECKPOINT_PATHS.get(str(row.get("checkpoint", ""))),
                 "wer": mean(wers),
                 "wer_std": std(wers),
                 "n_repeats": len(repeats),
@@ -262,9 +271,11 @@ def write_paired_comparison(lines: list[str], rows: list[dict[str, Any]]) -> Non
         [
             "## Unadapted vs adapted WER",
             "",
-            "This is the main readout. `Old normal WER` and `RL normal WER` are the unadapted "
-            "beam5/lp0.5 decoding baselines for each checkpoint. The adapted columns are the "
-            "one-epoch self-training WERs for the listed setting.",
+            "This is the main readout. `Old normal WER` uses the `old_seed` checkpoint from "
+            "the checkpoint key above, and `RL normal WER` uses the `rl_step_30000` checkpoint "
+            "from the same key. Both are unadapted beam5/lp0.5 decoding baselines for the "
+            "matching checkpoint. The adapted columns are the one-epoch self-training WERs "
+            "for the listed setting.",
             "",
             "| Dataset | Split | Mode | LR | Augmentation | Old normal WER | Old adapted WER | Old adapted vs normal | RL normal WER | RL adapted WER | RL adapted vs normal | RL adapted vs old adapted |",
             "|---|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|",
@@ -325,7 +336,18 @@ def write_outcome(rows: list[dict[str, Any]], path: Path) -> None:
         "RL deltas compare each RL `step_30000` self-training cell against the matching old-seed cell.",
         "Normal/unadapted deltas compare each self-training cell against the same checkpoint's normal decoding WER.",
         "",
+        "## Checkpoint Key",
+        "",
     ]
+    for checkpoint, checkpoint_path in CHECKPOINT_PATHS.items():
+        lines.append(f"- `{checkpoint}`: {CHECKPOINT_DESCRIPTIONS[checkpoint]} at `{checkpoint_path}`.")
+    lines.extend(
+        [
+            "",
+            "Every row in the full table also carries the exact `checkpoint_path` used for that row.",
+            "",
+        ]
+    )
     if rows:
         write_summary(lines, rows)
         write_paired_comparison(lines, rows)
@@ -333,8 +355,8 @@ def write_outcome(rows: list[dict[str, Any]], path: Path) -> None:
         [
             "## Full table",
             "",
-            "| Dataset | Split | Mode | LR | Augmentation | Checkpoint | Adapted WER | Unadapted WER | Delta vs unadapted | Relative vs unadapted | Delta vs old seed | Relative vs old seed | Ins | Del | Sub |",
-            "|---|---|---|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+            "| Dataset | Split | Mode | LR | Augmentation | Checkpoint | Checkpoint path | Adapted WER | Unadapted WER | Delta vs unadapted | Relative vs unadapted | Delta vs old seed | Relative vs old seed | Ins | Del | Sub |",
+            "|---|---|---|---:|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
     for row in sorted(
@@ -354,7 +376,7 @@ def write_outcome(rows: list[dict[str, Any]], path: Path) -> None:
         normal_delta = row.get("delta_vs_normal_decode")
         normal_rel_delta = row.get("relative_delta_vs_normal_decode")
         lines.append(
-            "| {dataset} | {split} | {mode} | {lr} | {aug} | {checkpoint} | {wer:.5f} | {normal} | "
+            "| {dataset} | {split} | {mode} | {lr} | {aug} | {checkpoint} | `{checkpoint_path}` | {wer:.5f} | {normal} | "
             "{normal_delta} | {normal_rel_delta} | {delta} | {rel_delta} | "
             "{ins:.5f} | {dele:.5f} | {sub:.5f} |".format(
                 dataset=row.get("dataset", ""),
@@ -363,6 +385,7 @@ def write_outcome(rows: list[dict[str, Any]], path: Path) -> None:
                 lr=row.get("lr", ""),
                 aug=row.get("augmentation", ""),
                 checkpoint=row.get("checkpoint", ""),
+                checkpoint_path=row.get("checkpoint_path", ""),
                 wer=row["wer"],
                 normal=format_wer(normal),
                 normal_delta=format_signed(normal_delta),

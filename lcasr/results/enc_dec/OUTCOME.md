@@ -13,6 +13,16 @@ adaptation delta.
 The current adaptation sweeps generally use `beam=5`, `length_penalty=0.5`.
 The decode sweep folder mixes greedy/default and beam settings by design.
 
+Checkpoint provenance also matters. The older `enc_dec_dynamic_eval` result
+folder uses `/store/store5/data/acp21rjf_checkpoints/lcasr/enc_dec_v2/step_105360.pt`.
+ROB-63-specific outcome files use these explicit checkpoint labels:
+
+- `old_seed`: normal encoder-decoder seed checkpoint at `/store/store5/data/acp21rjf_checkpoints/lcasr/enc_dec_no_anorm_V2_lr_2e3_ctcw_0_05/step_210720.pt`.
+- `rl_step_30000`: 30K RL-trained checkpoint at `/store/store5/data/acp21rjf_checkpoints/lcasr/rob61_rl_floras50_30k_b36_r24_grpo_wer70_cer30_std001_const_lr_1e-5/step_30000.pt`.
+
+Use the per-folder checkpoint key and `checkpoint_path` columns in ROB-63
+summary CSVs before comparing rows across outcome files.
+
 ## Decode Sweep
 
 Folder: `enc_dec_beam_tedlium_dev`

@@ -2,6 +2,8 @@
 
 ## 2026-05-13
 
+- ROB-63: Updated ROB-63 outcome reporting after a human request to make checkpoint provenance explicit. The ROB-63 aggregator now emits a `checkpoint_path` column, every regenerated ROB-63 `OUTCOME.md` starts with a checkpoint key for `old_seed` and `rl_step_30000`, and the top-level encoder-decoder `OUTCOME.md` warns that older `enc_dec_dynamic_eval` rows use the separate `enc_dec_v2/step_105360.pt` checkpoint. The targeted high-augmentation follow-up is still running separately under `lcasr/results/enc_dec/rob63_targeted_high_aug_followup/`.
+
 - ROB-63: Added a targeted high-augmentation follow-up for the latest human request. The queued plan tests Rev16 `test` at `lr=1e-7` and Earnings22 `test` at `lr=3e-8`, both with `teacher_ce`, `freq9_width44_time0`, no teacher filtering, one epoch, and old seed versus RL `step_30000`. Results will live under `lcasr/results/enc_dec/rob63_targeted_high_aug_followup/`.
 
 - ROB-63: The stronger-augmentation/filter resume completed the missing Rev16 RL `step_30000`, `lr=3e-8` no-filter and `basic_repeat_filter` cells, bringing `lcasr/results/enc_dec/rob63_strong_aug_filter_followup/` to 16/16 PKLs. Regenerated `summary.csv` and `OUTCOME.md`. CHiME-6 dev remains deletion-collapsed for both checkpoints despite stronger frequency masking and the light repeat filter. Rev16 favors the RL checkpoint in all four matched cells: at `1e-8` RL avoids the old-seed deletion outlier (`0.17252`/`0.17178` WER versus old-seed `0.24006`/`0.23693`), and at `3e-8` RL is slightly better than the old seed (`0.17176`/`0.17204` versus `0.17446`/`0.17524`).

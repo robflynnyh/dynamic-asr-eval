@@ -10,7 +10,7 @@ augmentation, with a small teacher-filtering check.
 - Launcher: `launch_scripts/run_rob63_strong_aug_filter_followup.sh`
 - Queued wrapper: `scripts/run_rob63_strong_aug_filter_followup_queued.sh`
 - Resume wrapper: `scripts/run_rob63_strong_aug_filter_resume_queued.sh`
-- Checkpoints: old seed `step_210720.pt` versus RL `step_30000.pt`
+- Checkpoints: `old_seed` versus `rl_step_30000`
 - Decode setting: `beam5_lp0p5`
 - Training mode: `teacher_ce`
 - Learning rates: `1e-8`, `3e-8`
@@ -18,6 +18,11 @@ augmentation, with a small teacher-filtering check.
 - Sequence length / overlap: `2048 / 0`
 - Augmentation: `freq9_width44_time0`
 - Teacher filter settings: `no_filter`, `basic_repeat_filter`
+
+Checkpoint key:
+
+- `old_seed`: normal encoder-decoder seed checkpoint at `/store/store5/data/acp21rjf_checkpoints/lcasr/enc_dec_no_anorm_V2_lr_2e3_ctcw_0_05/step_210720.pt`.
+- `rl_step_30000`: 30K RL-trained checkpoint at `/store/store5/data/acp21rjf_checkpoints/lcasr/rob61_rl_floras50_30k_b36_r24_grpo_wer70_cer30_std001_const_lr_1e-5/step_30000.pt`.
 
 `basic_repeat_filter` keeps the filter light: maximum teacher length, maximum
 consecutive token repeat, and maximum consecutive word repeat. It avoids

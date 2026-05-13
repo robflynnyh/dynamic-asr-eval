@@ -11,7 +11,7 @@ stronger Rev16 augmentation result:
 - Runner: `enc_dec_dynamic_eval_test.py`
 - Launcher: `launch_scripts/run_rob63_targeted_high_aug_followup.sh`
 - Queued wrapper: `scripts/run_rob63_targeted_high_aug_followup_queued.sh`
-- Checkpoints: old seed `step_210720.pt` versus RL `step_30000.pt`
+- Checkpoints: `old_seed` versus `rl_step_30000`
 - Decode setting: `beam5_lp0p5`
 - Training mode: `teacher_ce`
 - Rev16 learning rate: `1e-7`
@@ -20,6 +20,11 @@ stronger Rev16 augmentation result:
 - Sequence length / overlap: `2048 / 0`
 - Augmentation: `freq9_width44_time0`
 - Teacher filter setting: `no_filter`
+
+Checkpoint key:
+
+- `old_seed`: normal encoder-decoder seed checkpoint at `/store/store5/data/acp21rjf_checkpoints/lcasr/enc_dec_no_anorm_V2_lr_2e3_ctcw_0_05/step_210720.pt`.
+- `rl_step_30000`: 30K RL-trained checkpoint at `/store/store5/data/acp21rjf_checkpoints/lcasr/rob61_rl_floras50_30k_b36_r24_grpo_wer70_cer30_std001_const_lr_1e-5/step_30000.pt`.
 
 ## Split Policy
 
