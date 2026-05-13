@@ -18,10 +18,12 @@ ENC_DEC_NO_REPEAT_NGRAM_SIZE=${ENC_DEC_NO_REPEAT_NGRAM_SIZE:-0}
 ENC_DEC_MAX_GENERATE=${ENC_DEC_MAX_GENERATE:--1}
 TEACHER_KL_TEMPERATURE=${TEACHER_KL_TEMPERATURE:-1.0}
 DRY_RUN=${DRY_RUN:-0}
+SKIP_EXISTING=${SKIP_EXISTING:-0}
 export MPLCONFIGDIR=${MPLCONFIGDIR:-/tmp/matplotlib}
 
 OLD_CHECKPOINT=${OLD_CHECKPOINT:-"/store/store5/data/acp21rjf_checkpoints/lcasr/enc_dec_no_anorm_V2_lr_2e3_ctcw_0_05/step_210720.pt"}
 RL_CHECKPOINT=${RL_CHECKPOINT:-"/store/store5/data/acp21rjf_checkpoints/lcasr/rob61_rl_floras50_30k_b36_r24_grpo_wer70_cer30_std001_const_lr_1e-5/step_30000.pt"}
+CHECKPOINTS_STR=${CHECKPOINTS:-"old_seed rl_step_30000"}
 DATASETS_STR=${DATASETS:-"tedlium earnings22"}
 TRAINING_MODES_STR=${TRAINING_MODES:-"teacher_ce teacher_kl"}
 LRS_STR=${LRS:-"1e-7 3e-7"}
@@ -38,9 +40,27 @@ read -r -a TRAINING_MODES <<< "$TRAINING_MODES_STR"
 read -r -a LRS <<< "$LRS_STR"
 read -r -a AUGS <<< "$AUGS_STR"
 read -r -a FILTERS <<< "$FILTERS_STR"
+read -r -a REQUESTED_CHECKPOINTS <<< "$CHECKPOINTS_STR"
 
-CHECKPOINT_LABELS=("old_seed" "rl_step_30000")
-CHECKPOINT_PATHS=("$OLD_CHECKPOINT" "$RL_CHECKPOINT")
+CHECKPOINT_LABELS=()
+CHECKPOINT_PATHS=()
+for requested_checkpoint in "${REQUESTED_CHECKPOINTS[@]}"
+do
+    case "$requested_checkpoint" in
+        old_seed)
+            CHECKPOINT_LABELS+=("old_seed")
+            CHECKPOINT_PATHS+=("$OLD_CHECKPOINT")
+            ;;
+        rl_step_30000)
+            CHECKPOINT_LABELS+=("rl_step_30000")
+            CHECKPOINT_PATHS+=("$RL_CHECKPOINT")
+            ;;
+        *)
+            echo "Unknown checkpoint setting: $requested_checkpoint" >&2
+            exit 1
+            ;;
+    esac
+done
 
 lr_tag() {
     echo "$1" | sed 's/-/m/g; s/+//g; s/\./p/g'
@@ -135,6 +155,22 @@ do
                         run_name="${dataset}-${SPLIT}-${checkpoint_label}-${training_mode}-${decode_suffix}-epoch-${EPOCHS}-lr-${lr_name}-${run_aug}"
                         save_path="${PKL_ROOT}/${run_name}.pkl"
                         log_path="${LOG_ROOT}/${run_name}.log"
+
+                        existing_repeats=1
+                        for repeat_id in $(seq 1 "$REPEATS")
+                        do
+                            repeated_save_path="${save_path%.pkl}_${repeat_id}.pkl"
+                            if [ ! -s "$repeated_save_path" ]; then
+                                existing_repeats=0
+                            fi
+                        done
+                        if [ "$SKIP_EXISTING" = "1" ] && { [ -s "$save_path" ] || [ "$existing_repeats" = "1" ]; }; then
+                            {
+                                echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] skipping existing ${run_name}"
+                                echo "save_path=${save_path}"
+                            } | tee -a "$log_path"
+                            continue
+                        fi
 
                         {
                             echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] starting ${run_name}"

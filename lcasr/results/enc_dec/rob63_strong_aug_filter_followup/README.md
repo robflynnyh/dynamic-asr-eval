@@ -9,6 +9,7 @@ augmentation, with a small teacher-filtering check.
 - Runner: `enc_dec_dynamic_eval_test.py`
 - Launcher: `launch_scripts/run_rob63_strong_aug_filter_followup.sh`
 - Queued wrapper: `scripts/run_rob63_strong_aug_filter_followup_queued.sh`
+- Resume wrapper: `scripts/run_rob63_strong_aug_filter_resume_queued.sh`
 - Checkpoints: old seed `step_210720.pt` versus RL `step_30000.pt`
 - Decode setting: `beam5_lp0p5`
 - Training mode: `teacher_ce`
@@ -44,6 +45,15 @@ Queued Mimas launch:
 screen -L -Logfile lcasr/results/enc_dec/rob63_strong_aug_filter_followup/screen.log \
   -dmS rob63_strong_aug_filter_followup \
   bash -lc 'cd /exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-63 && /store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob63_strong_aug_filter_followup_queued.sh'
+```
+
+Narrow resume launch for the two Rev16 RL `3e-8` cells, with existing PKLs
+skipped:
+
+```bash
+screen -L -Logfile lcasr/results/enc_dec/rob63_strong_aug_filter_followup/resume_screen.log \
+  -dmS rob63_strong_aug_filter_resume \
+  bash -lc 'cd /exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-63 && /store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob63_strong_aug_filter_resume_queued.sh'
 ```
 
 ## Outputs

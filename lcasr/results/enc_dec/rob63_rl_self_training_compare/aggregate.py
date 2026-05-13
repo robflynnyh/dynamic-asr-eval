@@ -177,12 +177,19 @@ def describe_grid(rows: list[dict[str, Any]]) -> str:
 
 
 def write_summary(lines: list[str], rows: list[dict[str, Any]]) -> None:
+    has_filtered_rows = any("filter" in str(row.get("augmentation", "")) for row in rows)
+    filter_note = (
+        "- Teacher filtering is encoded in the augmentation label when present; "
+        "`basic_repeat_filter` rows use the light repeat/length teacher filter."
+        if has_filtered_rows
+        else "- The sweep used no teacher filtering."
+    )
     lines.extend(
         [
             "## Summary",
             "",
             f"- Completed {len(rows)} one-epoch result rows covering {describe_grid(rows)}.",
-            "- The sweep used no teacher filtering. `Delta vs old seed` is only meaningful for the RL rows "
+            f"{filter_note} `Delta vs old seed` is only meaningful for the RL rows "
             "because old-seed rows are the matching-cell reference.",
         ]
     )
