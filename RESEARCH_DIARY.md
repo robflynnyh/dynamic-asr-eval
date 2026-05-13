@@ -2,7 +2,11 @@
 
 ## 2026-05-13
 
-- ROB-63: Updated ROB-63 outcome reporting after a human request to make checkpoint provenance explicit. The ROB-63 aggregator now emits a `checkpoint_path` column, every regenerated ROB-63 `OUTCOME.md` starts with a checkpoint key for `old_seed` and `rl_step_30000`, and the top-level encoder-decoder `OUTCOME.md` warns that older `enc_dec_dynamic_eval` rows use the separate `enc_dec_v2/step_105360.pt` checkpoint. The targeted high-augmentation follow-up is still running separately under `lcasr/results/enc_dec/rob63_targeted_high_aug_followup/`.
+- ROB-63: Added an Earnings22 unadapted sanity-check scaffold for the latest human request to rerun `old_seed` versus the older checkpoint used by `enc_dec/OUTCOME`. The callback-backed wrapper compares `old_seed` (`enc_dec_no_anorm_V2_lr_2e3_ctcw_0_05/step_210720.pt`) and `enc_dec_outcome_seed` (`enc_dec_v2/step_105360.pt`) on Earnings22 `test` with beam5/lp0.5 and writes small artifacts under `lcasr/results/enc_dec/rob63_earnings_unadapted_sanity/`.
+
+- ROB-63: The targeted high-augmentation follow-up completed under `lcasr/results/enc_dec/rob63_targeted_high_aug_followup/` with 4 PKLs. Earnings22 `teacher_ce`, `lr=3e-8`, `freq9_width44_time0` slightly favors RL `step_30000` over old seed (`0.24741` versus `0.24929` WER), but both are worse than or near their unadapted normal baselines. Rev16 at `lr=1e-7` diverges for RL (`0.23628` WER versus old seed `0.17507`), dominated by deletions. Regenerated the combined ROB-63 summary to include the completed stronger-augmentation/filter and targeted follow-up directories.
+
+- ROB-63: Updated ROB-63 outcome reporting after a human request to make checkpoint provenance explicit. The ROB-63 aggregator now emits a `checkpoint_path` column, every regenerated ROB-63 `OUTCOME.md` starts with a checkpoint key for `old_seed` and `rl_step_30000`, and the top-level encoder-decoder `OUTCOME.md` warns that older `enc_dec_dynamic_eval` rows use the separate `enc_dec_v2/step_105360.pt` checkpoint. At the time of this reporting update, the targeted high-augmentation follow-up was still running separately under `lcasr/results/enc_dec/rob63_targeted_high_aug_followup/`.
 
 - ROB-63: Added a targeted high-augmentation follow-up for the latest human request. The queued plan tests Rev16 `test` at `lr=1e-7` and Earnings22 `test` at `lr=3e-8`, both with `teacher_ce`, `freq9_width44_time0`, no teacher filtering, one epoch, and old seed versus RL `step_30000`. Results will live under `lcasr/results/enc_dec/rob63_targeted_high_aug_followup/`.
 

@@ -31,10 +31,12 @@ self-training result recorded in this repository so far: RL `step_30000` with
 `7.99%` WER on TEDLIUM and `21.37%` WER on Earnings22. Follow-up passes for
 the remaining runner datasets and later CHiME-6/Rev16 diagnostics live in
 `results/enc_dec/rob63_best_ce_remaining_datasets/`,
-`results/enc_dec/rob63_lower_lr_dev_followup/`, and
-`results/enc_dec/rob63_aug_followup/`. Use `COMBINED_OUTCOME.md` as the
-single reader-facing summary because it keeps split, unadapted WER, adapted
-WER, and checkpoint deltas together.
+`results/enc_dec/rob63_lower_lr_dev_followup/`,
+`results/enc_dec/rob63_aug_followup/`,
+`results/enc_dec/rob63_strong_aug_filter_followup/`, and
+`results/enc_dec/rob63_targeted_high_aug_followup/`. Use
+`COMBINED_OUTCOME.md` as the single reader-facing summary because it keeps
+split, unadapted WER, adapted WER, and checkpoint deltas together.
 
 ## Running
 
@@ -68,7 +70,7 @@ python3.10 results/enc_dec/rob63_rl_self_training_compare/aggregate.py \
   --outcome results/enc_dec/rob63_rl_self_training_compare/OUTCOME.md
 ```
 
-Combined TEDLIUM/Earnings22 grid plus the CHiME-6/Rev16 follow-ups:
+Combined TEDLIUM/Earnings22 grid plus the CHiME-6/Rev16 and targeted follow-ups:
 
 ```bash
 python3.10 results/enc_dec/rob63_rl_self_training_compare/aggregate.py \
@@ -76,6 +78,8 @@ python3.10 results/enc_dec/rob63_rl_self_training_compare/aggregate.py \
   --extra-directory results/enc_dec/rob63_best_ce_remaining_datasets/pkl \
   --extra-directory results/enc_dec/rob63_lower_lr_dev_followup/pkl \
   --extra-directory results/enc_dec/rob63_aug_followup/pkl \
+  --extra-directory results/enc_dec/rob63_strong_aug_filter_followup/pkl \
+  --extra-directory results/enc_dec/rob63_targeted_high_aug_followup/pkl \
   --csv results/enc_dec/rob63_rl_self_training_compare/combined_summary.csv \
   --outcome results/enc_dec/rob63_rl_self_training_compare/COMBINED_OUTCOME.md
 ```
