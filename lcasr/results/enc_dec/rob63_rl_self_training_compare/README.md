@@ -28,10 +28,13 @@ comparison rather than a broad hyperparameter search.
 The completed TEDLIUM/Earnings22 sweep gives the strongest encoder-decoder
 self-training result recorded in this repository so far: RL `step_30000` with
 `teacher_ce`, `lr=1e-7`, `freq3_width24_time0`, and beam5/lp0.5 reaches
-`7.99%` WER on TEDLIUM and `21.37%` WER on Earnings22. A follow-up pass for
-the remaining runner datasets lives in
-`results/enc_dec/rob63_best_ce_remaining_datasets/` and reuses that best CE
-configuration for both checkpoints.
+`7.99%` WER on TEDLIUM and `21.37%` WER on Earnings22. Follow-up passes for
+the remaining runner datasets and later CHiME-6/Rev16 diagnostics live in
+`results/enc_dec/rob63_best_ce_remaining_datasets/`,
+`results/enc_dec/rob63_lower_lr_dev_followup/`, and
+`results/enc_dec/rob63_aug_followup/`. Use `COMBINED_OUTCOME.md` as the
+single reader-facing summary because it keeps split, unadapted WER, adapted
+WER, and checkpoint deltas together.
 
 ## Running
 
@@ -65,12 +68,14 @@ python3.10 results/enc_dec/rob63_rl_self_training_compare/aggregate.py \
   --outcome results/enc_dec/rob63_rl_self_training_compare/OUTCOME.md
 ```
 
-Combined TEDLIUM/Earnings22 grid plus the CHiME-6/Rev16 best-CE follow-up:
+Combined TEDLIUM/Earnings22 grid plus the CHiME-6/Rev16 follow-ups:
 
 ```bash
 python3.10 results/enc_dec/rob63_rl_self_training_compare/aggregate.py \
   --directory results/enc_dec/rob63_rl_self_training_compare/pkl \
   --extra-directory results/enc_dec/rob63_best_ce_remaining_datasets/pkl \
+  --extra-directory results/enc_dec/rob63_lower_lr_dev_followup/pkl \
+  --extra-directory results/enc_dec/rob63_aug_followup/pkl \
   --csv results/enc_dec/rob63_rl_self_training_compare/combined_summary.csv \
   --outcome results/enc_dec/rob63_rl_self_training_compare/COMBINED_OUTCOME.md
 ```

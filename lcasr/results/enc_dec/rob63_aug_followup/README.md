@@ -49,6 +49,13 @@ screen -L -Logfile lcasr/results/enc_dec/rob63_aug_followup/screen.log \
 - Summary CSV: `results/enc_dec/rob63_aug_followup/summary.csv`
 - Markdown outcome: `results/enc_dec/rob63_aug_followup/OUTCOME.md`
 
+The completed run did not rescue CHiME-6 dev: all adapted CHiME-6 cells stay at
+`1.00000` WER for both checkpoints, worse than the matching unadapted baselines
+(`0.83439` old seed, `0.81157` RL). On Rev16 test, the only improved
+checkpoint-comparison cell is RL `step_30000` with `lr=3e-8` and
+`freq1_width12_time0`, at `0.19263` WER versus the matching old-seed adapted
+cell at `0.24183`; it still remains above the RL unadapted WER of `0.17206`.
+
 Aggregation:
 
 ```bash

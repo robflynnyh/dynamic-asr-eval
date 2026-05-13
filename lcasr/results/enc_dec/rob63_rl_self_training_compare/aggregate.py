@@ -163,6 +163,7 @@ def format_percent(value: float | None) -> str:
 def describe_grid(rows: list[dict[str, Any]]) -> str:
     dimensions = [
         ("datasets", "dataset"),
+        ("splits", "split"),
         ("checkpoints", "checkpoint"),
         ("training modes", "training_mode"),
         ("learning rates", "lr"),
@@ -185,10 +186,20 @@ def write_summary(lines: list[str], rows: list[dict[str, Any]]) -> None:
             "because old-seed rows are the matching-cell reference.",
         ]
     )
-    for dataset in sorted({str(row.get("dataset", "")) for row in rows}):
-        dataset_rows = [row for row in rows if row.get("dataset") == dataset]
+    dataset_splits = sorted(
+        {
+            (str(row.get("dataset", "")), str(row.get("split", "")))
+            for row in rows
+        }
+    )
+    for dataset, split in dataset_splits:
+        dataset_rows = [
+            row for row in rows if row.get("dataset") == dataset and row.get("split") == split
+        ]
         rl_rows = [row for row in dataset_rows if row.get("checkpoint") == "rl_step_30000"]
         old_rows = [row for row in dataset_rows if row.get("checkpoint") == "old_seed"]
+        if not rl_rows or not old_rows:
+            continue
         rl_deltas = [
             float(row["delta_vs_old_seed"])
             for row in rl_rows
@@ -208,7 +219,7 @@ def write_summary(lines: list[str], rows: list[dict[str, Any]]) -> None:
             if row.get("relative_delta_vs_normal_decode") is not None
         ]
         summary = (
-            f"- {dataset}: RL `step_30000` beats the matching old-seed cell in "
+            f"- {dataset}/{split}: RL `step_30000` beats the matching old-seed cell in "
             f"{better_count}/{len(rl_rows)} cells; RL-vs-old absolute WER deltas span "
             f"{format_range(rl_deltas)}. Best RL cell is {format_cell(best_rl)} at "
             f"{best_rl['wer']:.5f} WER; best old-seed cell is {format_cell(best_old)} "
@@ -248,14 +259,15 @@ def write_paired_comparison(lines: list[str], rows: list[dict[str, Any]]) -> Non
             "beam5/lp0.5 decoding baselines for each checkpoint. The adapted columns are the "
             "one-epoch self-training WERs for the listed setting.",
             "",
-            "| Dataset | Mode | LR | Augmentation | Old normal WER | Old adapted WER | Old adapted vs normal | RL normal WER | RL adapted WER | RL adapted vs normal | RL adapted vs old adapted |",
-            "|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|",
+            "| Dataset | Split | Mode | LR | Augmentation | Old normal WER | Old adapted WER | Old adapted vs normal | RL normal WER | RL adapted WER | RL adapted vs normal | RL adapted vs old adapted |",
+            "|---|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
     grouped: dict[tuple[Any, ...], dict[str, dict[str, Any]]] = defaultdict(dict)
     for row in rows:
         key = (
             row.get("dataset"),
+            row.get("split"),
             row.get("training_mode"),
             row.get("lr"),
             row.get("augmentation"),
@@ -265,7 +277,7 @@ def write_paired_comparison(lines: list[str], rows: list[dict[str, Any]]) -> Non
         grouped[key][str(row.get("checkpoint"))] = row
 
     for key in sorted(grouped):
-        dataset, mode, lr, augmentation, _decode, _epoch = key
+        dataset, split, mode, lr, augmentation, _decode, _epoch = key
         old = grouped[key].get("old_seed")
         rl = grouped[key].get("rl_step_30000")
         if old is None and rl is None:
@@ -278,9 +290,10 @@ def write_paired_comparison(lines: list[str], rows: list[dict[str, Any]]) -> Non
         rl_delta = None if rl is None else rl.get("delta_vs_normal_decode")
         rl_vs_old = None if rl is None else rl.get("delta_vs_old_seed")
         lines.append(
-            "| {dataset} | {mode} | {lr} | {augmentation} | {old_normal} | {old_adapted} | "
+            "| {dataset} | {split} | {mode} | {lr} | {augmentation} | {old_normal} | {old_adapted} | "
             "{old_delta} | {rl_normal} | {rl_adapted} | {rl_delta} | {rl_vs_old} |".format(
                 dataset=dataset,
+                split=split,
                 mode=mode,
                 lr=lr,
                 augmentation=augmentation,
@@ -313,14 +326,15 @@ def write_outcome(rows: list[dict[str, Any]], path: Path) -> None:
         [
             "## Full table",
             "",
-            "| Dataset | Mode | LR | Augmentation | Checkpoint | Adapted WER | Unadapted WER | Delta vs unadapted | Relative vs unadapted | Delta vs old seed | Relative vs old seed | Ins | Del | Sub |",
-            "|---|---|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+            "| Dataset | Split | Mode | LR | Augmentation | Checkpoint | Adapted WER | Unadapted WER | Delta vs unadapted | Relative vs unadapted | Delta vs old seed | Relative vs old seed | Ins | Del | Sub |",
+            "|---|---|---|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
     for row in sorted(
         rows,
         key=lambda item: (
             str(item.get("dataset", "")),
+            str(item.get("split", "")),
             str(item.get("training_mode", "")),
             str(item.get("lr", "")),
             str(item.get("augmentation", "")),
@@ -333,10 +347,11 @@ def write_outcome(rows: list[dict[str, Any]], path: Path) -> None:
         normal_delta = row.get("delta_vs_normal_decode")
         normal_rel_delta = row.get("relative_delta_vs_normal_decode")
         lines.append(
-            "| {dataset} | {mode} | {lr} | {aug} | {checkpoint} | {wer:.5f} | {normal} | "
+            "| {dataset} | {split} | {mode} | {lr} | {aug} | {checkpoint} | {wer:.5f} | {normal} | "
             "{normal_delta} | {normal_rel_delta} | {delta} | {rel_delta} | "
             "{ins:.5f} | {dele:.5f} | {sub:.5f} |".format(
                 dataset=row.get("dataset", ""),
+                split=row.get("split", ""),
                 mode=row.get("training_mode", ""),
                 lr=row.get("lr", ""),
                 aug=row.get("augmentation", ""),
@@ -363,6 +378,7 @@ def print_table(rows: list[dict[str, Any]]) -> None:
         "\t".join(
             (
                 "dataset",
+                "split",
                 "mode",
                 "lr",
                 "aug",
@@ -381,6 +397,7 @@ def print_table(rows: list[dict[str, Any]]) -> None:
         rows,
         key=lambda item: (
             str(item.get("dataset", "")),
+            str(item.get("split", "")),
             str(item.get("training_mode", "")),
             str(item.get("lr", "")),
             str(item.get("augmentation", "")),
@@ -396,6 +413,7 @@ def print_table(rows: list[dict[str, Any]]) -> None:
             "\t".join(
                 [
                     str(row.get("dataset", "")),
+                    str(row.get("split", "")),
                     str(row.get("training_mode", "")),
                     str(row.get("lr", "")),
                     str(row.get("augmentation", "")),

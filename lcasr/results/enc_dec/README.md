@@ -59,7 +59,7 @@ python results/enc_dec/rob63_rl_self_training_compare/aggregate.py
 python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_best_ce_remaining_datasets/pkl --csv results/enc_dec/rob63_best_ce_remaining_datasets/summary.csv --outcome results/enc_dec/rob63_best_ce_remaining_datasets/OUTCOME.md
 python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_lower_lr_dev_followup/pkl --csv results/enc_dec/rob63_lower_lr_dev_followup/summary.csv --outcome results/enc_dec/rob63_lower_lr_dev_followup/OUTCOME.md
 python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_aug_followup/pkl --csv results/enc_dec/rob63_aug_followup/summary.csv --outcome results/enc_dec/rob63_aug_followup/OUTCOME.md
-python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_rl_self_training_compare/pkl --extra-directory results/enc_dec/rob63_best_ce_remaining_datasets/pkl --csv results/enc_dec/rob63_rl_self_training_compare/combined_summary.csv --outcome results/enc_dec/rob63_rl_self_training_compare/COMBINED_OUTCOME.md
+python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_rl_self_training_compare/pkl --extra-directory results/enc_dec/rob63_best_ce_remaining_datasets/pkl --extra-directory results/enc_dec/rob63_lower_lr_dev_followup/pkl --extra-directory results/enc_dec/rob63_aug_followup/pkl --csv results/enc_dec/rob63_rl_self_training_compare/combined_summary.csv --outcome results/enc_dec/rob63_rl_self_training_compare/COMBINED_OUTCOME.md
 ```
 
 To refresh CSV summaries:
@@ -75,7 +75,7 @@ python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --csv results
 python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_best_ce_remaining_datasets/pkl --csv results/enc_dec/rob63_best_ce_remaining_datasets/summary.csv --outcome results/enc_dec/rob63_best_ce_remaining_datasets/OUTCOME.md
 python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_lower_lr_dev_followup/pkl --csv results/enc_dec/rob63_lower_lr_dev_followup/summary.csv --outcome results/enc_dec/rob63_lower_lr_dev_followup/OUTCOME.md
 python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_aug_followup/pkl --csv results/enc_dec/rob63_aug_followup/summary.csv --outcome results/enc_dec/rob63_aug_followup/OUTCOME.md
-python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_rl_self_training_compare/pkl --extra-directory results/enc_dec/rob63_best_ce_remaining_datasets/pkl --csv results/enc_dec/rob63_rl_self_training_compare/combined_summary.csv --outcome results/enc_dec/rob63_rl_self_training_compare/COMBINED_OUTCOME.md
+python results/enc_dec/rob63_rl_self_training_compare/aggregate.py --directory results/enc_dec/rob63_rl_self_training_compare/pkl --extra-directory results/enc_dec/rob63_best_ce_remaining_datasets/pkl --extra-directory results/enc_dec/rob63_lower_lr_dev_followup/pkl --extra-directory results/enc_dec/rob63_aug_followup/pkl --csv results/enc_dec/rob63_rl_self_training_compare/combined_summary.csv --outcome results/enc_dec/rob63_rl_self_training_compare/COMBINED_OUTCOME.md
 ```
 
 ## Launch Notes

@@ -1,5 +1,9 @@
 # Research Diary
 
+## 2026-05-13
+
+- ROB-63: The augmentation follow-up completed under `lcasr/results/enc_dec/rob63_aug_followup/` with 16 PKLs for CHiME-6 dev and Rev16 test across old seed/RL `step_30000`, `lr=1e-8`/`3e-8`, and `no_aug`/`freq1_width12_time0`. CHiME-6 remains deletion-collapsed at `1.00000` WER for both checkpoints, so lighter masking and no augmentation did not recover that split. Rev16 has one useful RL comparison cell: `teacher_ce`, `lr=3e-8`, `freq1_width12_time0` gives RL `0.19263` WER versus the matching old-seed adapted `0.24183`, although it is still worse than the RL unadapted baseline `0.17206`. Regenerated the ROB-63 combined summary with explicit split columns so CHiME-6 test and dev rows are not conflated.
+
 ## 2026-05-12
 
 - ROB-63: The lower-LR CHiME-6 dev / Rev16 test follow-up completed under `lcasr/results/enc_dec/rob63_lower_lr_dev_followup/`. CHiME-6 remained deletion-collapsed at `1.00000` WER for the old seed and `1.00000` to `1.45427` WER for RL `step_30000`, despite matching normal beam5/lp0.5 dev baselines of `0.83439` and `0.81157`. Rev16 had one useful RL cell (`teacher_ce`, `lr=1e-8`, `freq3_width24_time0`) at `0.17357` WER, essentially matching its normal baseline and beating the matching old-seed adapted cell. Added a bounded augmentation follow-up scaffold under `lcasr/results/enc_dec/rob63_aug_followup/` to test `no_aug` and `freq1_width12_time0` at `1e-8` and `3e-8`, with no filters and one epoch, before treating CHiME-6 as exhausted for this comparison.
