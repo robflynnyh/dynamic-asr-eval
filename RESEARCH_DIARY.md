@@ -2,6 +2,15 @@
 
 ## 2026-05-13
 
+- ROB-63: The Earnings22 unadapted sanity-check rerun completed for the
+  historical `enc_dec_v2/step_105360.pt` checkpoint and the ROB-63 `old_seed`
+  checkpoint under the same beam5/lp0.5 decode. The historical checkpoint is
+  `0.28724` WER and `old_seed` is `0.25172` WER, confirming that the earlier
+  28% versus 25% Earnings22 mismatch is a checkpoint-family difference rather
+  than a reporting bug. Committed the two small PKLs plus regenerated
+  `summary.csv` and `OUTCOME.md` under
+  `lcasr/results/enc_dec/rob63_earnings_unadapted_sanity/`.
+
 - ROB-63: Added an Earnings22 unadapted sanity-check scaffold for the latest human request to rerun `old_seed` versus the older checkpoint used by `enc_dec/OUTCOME`. The callback-backed wrapper compares `old_seed` (`enc_dec_no_anorm_V2_lr_2e3_ctcw_0_05/step_210720.pt`) and `enc_dec_outcome_seed` (`enc_dec_v2/step_105360.pt`) on Earnings22 `test` with beam5/lp0.5 and writes small artifacts under `lcasr/results/enc_dec/rob63_earnings_unadapted_sanity/`.
 
 - ROB-63: The targeted high-augmentation follow-up completed under `lcasr/results/enc_dec/rob63_targeted_high_aug_followup/` with 4 PKLs. Earnings22 `teacher_ce`, `lr=3e-8`, `freq9_width44_time0` slightly favors RL `step_30000` over old seed (`0.24741` versus `0.24929` WER), but both are worse than or near their unadapted normal baselines. Rev16 at `lr=1e-7` diverges for RL (`0.23628` WER versus old seed `0.17507`), dominated by deletions. Regenerated the combined ROB-63 summary to include the completed stronger-augmentation/filter and targeted follow-up directories.

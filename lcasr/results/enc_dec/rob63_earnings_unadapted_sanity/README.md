@@ -20,3 +20,11 @@ Expected committed outputs after completion:
 - `OUTCOME.md`
 
 Runtime logs are intentionally not committed.
+
+Completed result:
+
+- `enc_dec_outcome_seed`: `0.28724` WER
+- `old_seed`: `0.25172` WER
+
+This confirms the historical 28% versus ROB-63 25% Earnings22 gap is a
+checkpoint-family difference under the same beam5/lp0.5 unadapted decode.

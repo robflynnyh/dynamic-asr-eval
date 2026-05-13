@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-REPEAT_RE = re.compile(r"_(\d+)\.pkl$")
+REPEAT_RE = re.compile(r"_(\d+)_(\d+)\.pkl$")
 SETTING_RE = re.compile(
     r"^(?P<dataset>.+)-(?P<split>dev|test)-(?P<checkpoint>.+)-"
     r"(?P<decode>beam5_lp0p5)-seq(?P<seq>\d+)-overlap(?P<overlap>\d+)$"

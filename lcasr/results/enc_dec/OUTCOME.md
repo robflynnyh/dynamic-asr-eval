@@ -23,6 +23,14 @@ ROB-63-specific outcome files use these explicit checkpoint labels:
 Use the per-folder checkpoint key and `checkpoint_path` columns in ROB-63
 summary CSVs before comparing rows across outcome files.
 
+ROB-63 includes a direct Earnings22 unadapted sanity rerun under
+`rob63_earnings_unadapted_sanity/` using the same `beam=5`,
+`length_penalty=0.5` decode for the historical checkpoint and the ROB-63 old
+seed. That rerun reports `0.28724` WER for `enc_dec_v2/step_105360.pt` and
+`0.25172` WER for `old_seed`, confirming that the apparent 28% versus 25%
+Earnings22 mismatch is a checkpoint-family difference rather than a reporting
+bug.
+
 ## Decode Sweep
 
 Folder: `enc_dec_beam_tedlium_dev`
