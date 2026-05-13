@@ -2,6 +2,7 @@
 
 ## 2026-05-13
 
+- ROB-63: Added a stronger-augmentation/filter follow-up scaffold after the latest human clarification that the augmentation check should move stronger rather than weaker. The queued plan targets CHiME-6 dev and Rev16 test, old seed versus RL `step_30000`, `teacher_ce`, `lr=1e-8` and `3e-8`, stronger frequency masking (`spec_augment_n_freq_masks=9`, width `44`, no time masks), and a paired no-filter versus light repeat/length teacher-filter condition. Results will live under `lcasr/results/enc_dec/rob63_strong_aug_filter_followup/`.
 - ROB-63: The augmentation follow-up completed under `lcasr/results/enc_dec/rob63_aug_followup/` with 16 PKLs for CHiME-6 dev and Rev16 test across old seed/RL `step_30000`, `lr=1e-8`/`3e-8`, and `no_aug`/`freq1_width12_time0`. CHiME-6 remains deletion-collapsed at `1.00000` WER for both checkpoints, so lighter masking and no augmentation did not recover that split. Rev16 has one useful RL comparison cell: `teacher_ce`, `lr=3e-8`, `freq1_width12_time0` gives RL `0.19263` WER versus the matching old-seed adapted `0.24183`, although it is still worse than the RL unadapted baseline `0.17206`. Regenerated the ROB-63 combined summary with explicit split columns so CHiME-6 test and dev rows are not conflated.
 
 ## 2026-05-12

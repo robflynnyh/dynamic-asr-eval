@@ -26,6 +26,7 @@ DATASETS_STR=${DATASETS:-"tedlium earnings22"}
 TRAINING_MODES_STR=${TRAINING_MODES:-"teacher_ce teacher_kl"}
 LRS_STR=${LRS:-"1e-7 3e-7"}
 AUGS_STR=${AUGS:-"freq6_width34_time0 freq3_width24_time0"}
+FILTERS_STR=${FILTERS:-"no_filter"}
 
 RESULTS_ROOT=${RESULTS_ROOT:-"./results/enc_dec/rob63_rl_self_training_compare"}
 PKL_ROOT="${RESULTS_ROOT}/pkl"
@@ -36,6 +37,7 @@ read -r -a DATASETS <<< "$DATASETS_STR"
 read -r -a TRAINING_MODES <<< "$TRAINING_MODES_STR"
 read -r -a LRS <<< "$LRS_STR"
 read -r -a AUGS <<< "$AUGS_STR"
+read -r -a FILTERS <<< "$FILTERS_STR"
 
 CHECKPOINT_LABELS=("old_seed" "rl_step_30000")
 CHECKPOINT_PATHS=("$OLD_CHECKPOINT" "$RL_CHECKPOINT")
@@ -84,6 +86,9 @@ do
                 for aug in "${AUGS[@]}"
                 do
                     case "$aug" in
+                        freq9_width44_time0)
+                            aug_kwargs=(spec_augment_freq_mask_param=44 spec_augment_n_time_masks=0 spec_augment_n_freq_masks=9)
+                            ;;
                         freq6_width34_time0)
                             aug_kwargs=(spec_augment_freq_mask_param=34 spec_augment_n_time_masks=0 spec_augment_n_freq_masks=6)
                             ;;
@@ -102,49 +107,75 @@ do
                             ;;
                     esac
 
-                    lr_name=$(lr_tag "$lr")
-                    run_name="${dataset}-${SPLIT}-${checkpoint_label}-${training_mode}-${decode_suffix}-epoch-${EPOCHS}-lr-${lr_name}-${aug}"
-                    save_path="${PKL_ROOT}/${run_name}.pkl"
-                    log_path="${LOG_ROOT}/${run_name}.log"
+                    for filter in "${FILTERS[@]}"
+                    do
+                        case "$filter" in
+                            no_filter)
+                                filter_args=()
+                                run_aug="${aug}"
+                                ;;
+                            basic_repeat_filter)
+                                filter_args=(
+                                    --teacher_filter_max_length
+                                    --teacher_min_frames_per_token 8
+                                    --teacher_filter_max_consecutive_token_repeat
+                                    --teacher_max_consecutive_token_repeat 4
+                                    --teacher_filter_repeated_words
+                                    --teacher_max_consecutive_word_repeat 3
+                                )
+                                run_aug="${aug}_${filter}"
+                                ;;
+                            *)
+                                echo "Unknown teacher filter setting: $filter" >&2
+                                exit 1
+                                ;;
+                        esac
 
-                    {
-                        echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] starting ${run_name}"
-                        echo "gpu=${GPU}"
-                        echo "checkpoint_label=${checkpoint_label}"
-                        echo "checkpoint=${checkpoint}"
-                        echo "save_path=${save_path}"
-                        echo "training_mode=${training_mode}"
-                        echo "teacher_kl_temperature=${TEACHER_KL_TEMPERATURE}"
-                        echo "augmentation=${aug} kwargs=${aug_kwargs[*]}"
-                        echo "decode_args=${decode_args[*]}"
-                        echo "teacher_filters=none"
-                    } | tee "$log_path"
+                        lr_name=$(lr_tag "$lr")
+                        run_name="${dataset}-${SPLIT}-${checkpoint_label}-${training_mode}-${decode_suffix}-epoch-${EPOCHS}-lr-${lr_name}-${run_aug}"
+                        save_path="${PKL_ROOT}/${run_name}.pkl"
+                        log_path="${LOG_ROOT}/${run_name}.log"
 
-                    cmd=(
-                        "$PYTHON_BIN" enc_dec_dynamic_eval_test.py
-                        --training_mode "$training_mode"
-                        --teacher_kl_temperature "$TEACHER_KL_TEMPERATURE"
-                        -c "$checkpoint"
-                        -dfa
-                        -epochs "$EPOCHS"
-                        -r "$REPEATS"
-                        -seq "$SEQ"
-                        -o "$OVERLAP"
-                        --split "$SPLIT"
-                        --dataset "$dataset"
-                        -s "$save_path"
-                        -log "$log_path"
-                        "${decode_args[@]}"
-                        -kwargs optim_lr="$lr" "${aug_kwargs[@]}"
-                    )
+                        {
+                            echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] starting ${run_name}"
+                            echo "gpu=${GPU}"
+                            echo "checkpoint_label=${checkpoint_label}"
+                            echo "checkpoint=${checkpoint}"
+                            echo "save_path=${save_path}"
+                            echo "training_mode=${training_mode}"
+                            echo "teacher_kl_temperature=${TEACHER_KL_TEMPERATURE}"
+                            echo "augmentation=${aug} kwargs=${aug_kwargs[*]}"
+                            echo "decode_args=${decode_args[*]}"
+                            echo "teacher_filters=${filter} args=${filter_args[*]}"
+                        } | tee "$log_path"
 
-                    if [ "$DRY_RUN" = "1" ]; then
-                        printf 'CUDA_VISIBLE_DEVICES=%q' "$GPU" | tee -a "$log_path"
-                        printf ' %q' "${cmd[@]}" | tee -a "$log_path"
-                        printf '\n' | tee -a "$log_path"
-                    else
-                        CUDA_VISIBLE_DEVICES="$GPU" "${cmd[@]}" 2>&1 | tee -a "$log_path"
-                    fi
+                        cmd=(
+                            "$PYTHON_BIN" enc_dec_dynamic_eval_test.py
+                            --training_mode "$training_mode"
+                            --teacher_kl_temperature "$TEACHER_KL_TEMPERATURE"
+                            "${filter_args[@]}"
+                            -c "$checkpoint"
+                            -dfa
+                            -epochs "$EPOCHS"
+                            -r "$REPEATS"
+                            -seq "$SEQ"
+                            -o "$OVERLAP"
+                            --split "$SPLIT"
+                            --dataset "$dataset"
+                            -s "$save_path"
+                            -log "$log_path"
+                            "${decode_args[@]}"
+                            -kwargs optim_lr="$lr" "${aug_kwargs[@]}"
+                        )
+
+                        if [ "$DRY_RUN" = "1" ]; then
+                            printf 'CUDA_VISIBLE_DEVICES=%q' "$GPU" | tee -a "$log_path"
+                            printf ' %q' "${cmd[@]}" | tee -a "$log_path"
+                            printf '\n' | tee -a "$log_path"
+                        else
+                            CUDA_VISIBLE_DEVICES="$GPU" "${cmd[@]}" 2>&1 | tee -a "$log_path"
+                        fi
+                    done
                 done
             done
         done
