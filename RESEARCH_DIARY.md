@@ -1,5 +1,9 @@
 # Research Diary
 
+## 2026-05-14
+
+- ROB-68: A human review clarified that the requested comparison is the normal `seq_len=16384`, `overlap=14336`, `lr=9e-5` setup, not the earlier 2048-context run. Cancelled the queued 2048-context `9e-5` follow-up before it acquired a GPU and added a separate callback-backed 16384-context RMM eval scaffold under `lcasr/results/ctc_seq16384_rmm_eval/` using checkpoint `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_16384_rp_1/step_105360.pt`.
+
 ## 2026-05-11
 
 - ROB-68: Added an opt-in RMM random mixed-mask augmentation policy to the CTC dynamic-eval self-training path and scaffolded an all-dataset 2048-context RMM evaluation for epochs `1` and `5`. The run uses checkpoint `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_2048_rp_1/step_105360.pt`, `seq_len=2048`, `overlap=1792`, `lr=1e-5`, and writes under `lcasr/results/ctc_seq2048_rmm_eval/`.
