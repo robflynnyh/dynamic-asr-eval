@@ -18,6 +18,9 @@ from typing import Any
 
 
 LINEAR_API_URL = "https://api.linear.app/graphql"
+DEFAULT_MAX_LOG_CHARS = 20_000
+DEFAULT_MAX_COMMENT_CHARS = 60_000
+DEFAULT_MAX_BODY_CHARS = DEFAULT_MAX_COMMENT_CHARS
 
 
 class LinearError(RuntimeError):
@@ -116,18 +119,49 @@ def move_issue(api_key: str, issue_id: str, target_state_id: str) -> None:
         raise LinearError("Linear issueUpdate returned success=false")
 
 
-def tail(path: str | None, lines: int) -> str:
+def truncate_end(text: str, max_chars: int, label: str) -> str:
+    if max_chars <= 0 or len(text) <= max_chars:
+        return text
+    marker = (
+        f"[{label} truncated to the final {max_chars} characters; "
+        "inspect the referenced file for the full output.]\n"
+    )
+    budget = max_chars - len(marker)
+    if budget <= 0:
+        return marker[:max_chars]
+    return marker + text[-budget:]
+
+
+def enforce_comment_limit(text: str, max_chars: int) -> str:
+    if max_chars <= 0 or len(text) <= max_chars:
+        return text
+    marker = (
+        "\n\n[Callback comment truncated to stay under Linear's size limit. "
+        "Inspect the referenced log path for full output.]\n"
+    )
+    budget = max_chars - len(marker)
+    if budget <= 0:
+        return marker[-max_chars:]
+    return text[:budget] + marker
+
+
+def tail(path: str | None, lines: int, max_chars: int = DEFAULT_MAX_LOG_CHARS) -> str:
     if not path:
         return ""
     file_path = Path(path)
     if not file_path.exists():
         return f"Log file does not exist: `{path}`"
     try:
-        content = file_path.read_text(errors="replace").splitlines()
+        file_size = file_path.stat().st_size
+        read_bytes = max(65_536, max_chars * 4)
+        with file_path.open("rb") as f:
+            if file_size > read_bytes:
+                f.seek(-read_bytes, os.SEEK_END)
+            content = f.read().decode("utf-8", errors="replace").splitlines()
     except OSError as error:
         return f"Could not read log file `{path}`: {error}"
     selected = content[-lines:]
-    return "\n".join(selected)
+    return truncate_end("\n".join(selected), max_chars, "Log excerpt")
 
 
 def existing_path_status(path: str | None) -> str:
@@ -148,7 +182,7 @@ def build_comment(args: argparse.Namespace, issue: dict[str, Any]) -> str:
         runner_label = f"screen:{screen_name}"
     if not runner_label:
         runner_label = "not provided"
-    log_tail = tail(args.log, args.tail_lines)
+    log_tail = tail(args.log, args.tail_lines, args.max_log_chars)
 
     parts = [
         f"Queued experiment {outcome}.",
@@ -167,7 +201,12 @@ def build_comment(args: argparse.Namespace, issue: dict[str, Any]) -> str:
         parts.extend(["", args.note])
     if log_tail:
         parts.extend(["", f"Last {args.tail_lines} log lines:", "```text", log_tail, "```"])
-    return "\n".join(parts)
+    max_body_chars = getattr(
+        args,
+        "max_body_chars",
+        getattr(args, "max_comment_chars", DEFAULT_MAX_COMMENT_CHARS),
+    )
+    return enforce_comment_limit("\n".join(parts), max_body_chars)
 
 
 def parse_args() -> argparse.Namespace:
@@ -184,6 +223,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--target-state", default="Todo", help="Linear state to move the issue to")
     parser.add_argument("--note", help="Extra Markdown note to include in the Linear comment")
     parser.add_argument("--tail-lines", type=int, default=80, help="Number of log lines to include")
+    parser.add_argument(
+        "--max-log-chars",
+        type=int,
+        default=DEFAULT_MAX_LOG_CHARS,
+        help="Maximum characters of log excerpt to include after selecting tail lines",
+    )
+    parser.add_argument(
+        "--max-comment-chars",
+        "--max-body-chars",
+        dest="max_body_chars",
+        type=int,
+        default=DEFAULT_MAX_COMMENT_CHARS,
+        help="Maximum Linear comment body characters; keeps headroom below Linear's 100K limit",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Print the comment and skip Linear mutations")
     parser.add_argument(
         "--check-only",

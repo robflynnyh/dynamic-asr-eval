@@ -1,0 +1,9 @@
+dataset,split,seq_len,overlap,epochs,lr,n,wer_mean,wer_std,ins_rate_mean,del_rate_mean,sub_rate_mean,words,repeats,paths
+tedlium,test,2048,1792,1,1em5,1,0.0597908914,,0.0093212830,0.0169767854,0.0334928230,28215,1,tedlium-test-ctc-seq2048-overlap1792-epoch-1-lr-1em5_1.pkl
+tedlium,test,2048,1792,1,1em6,1,0.0603934078,,0.0086833245,0.0178273968,0.0338826865,28215,1,tedlium-test-ctc-seq2048-overlap1792-epoch-1-lr-1em6_1.pkl
+tedlium,test,2048,1792,1,3em5,1,0.0597908914,,0.0092149566,0.0172957647,0.0332801701,28215,1,tedlium-test-ctc-seq2048-overlap1792-epoch-1-lr-3em5_1.pkl
+tedlium,test,2048,1792,1,3em6,1,0.0600389864,,0.0087187666,0.0176147439,0.0337054758,28215,1,tedlium-test-ctc-seq2048-overlap1792-epoch-1-lr-3em6_1.pkl
+tedlium,test,2048,1792,5,1em5,1,0.0587985114,,0.0099592415,0.0161616162,0.0326776537,28215,1,tedlium-test-ctc-seq2048-overlap1792-epoch-5-lr-1em5_1.pkl
+tedlium,test,2048,1792,5,1em6,1,0.0584795322,,0.0090023037,0.0170122275,0.0324650009,28215,1,tedlium-test-ctc-seq2048-overlap1792-epoch-5-lr-1em6_1.pkl
+tedlium,test,2048,1792,5,3em5,1,0.0595073542,,0.0099592415,0.0166578061,0.0328903066,28215,1,tedlium-test-ctc-seq2048-overlap1792-epoch-5-lr-3em5_1.pkl
+tedlium,test,2048,1792,5,3em6,1,0.0588693957,,0.0092503987,0.0166932483,0.0329257487,28215,1,tedlium-test-ctc-seq2048-overlap1792-epoch-5-lr-3em6_1.pkl
