@@ -8,6 +8,7 @@ experiment group:
   - progressive_top_ablation_bars.pdf
   - progressive_bottom_ablation_bars.pdf
   - progressive_bottom_ctc_decoder_ablation_bars.pdf
+  - progressive_bottom_ctc_comparison_ablation_bars.pdf
   - layer_type_ablation_bars.pdf
   - layer_drop_lr_sweep_ablation_bars.pdf
 
@@ -42,6 +43,7 @@ GROUP_TITLES = {
     "progressive_top": "Progressive top-layer freezing",
     "progressive_bottom": "Progressive bottom-prefix training",
     "progressive_bottom_ctc_decoder": "Progressive bottom-prefix training with CTC decoder",
+    "progressive_bottom_ctc_comparison": "Progressive bottom-prefix CTC-head comparison",
     "layer_type": "Layer-type ablation",
     "layer_drop_lr_sweep": "Layer-drop ablation",
 }
@@ -62,6 +64,22 @@ COLORS = {
     "9em4": "#4C72B0",
     "9em5": "#DD8452",
     "9em6": "#55A868",
+}
+
+COMPARISON_COLORS = {
+    "without_ctc": "#4C72B0",
+    "with_ctc": "#C44E52",
+}
+
+PROGRESSIVE_BOTTOM_CTC_COMPARISON = {
+    "without_ctc": {
+        "group": "progressive_bottom",
+        "label": "without CTC head training",
+    },
+    "with_ctc": {
+        "group": "progressive_bottom_ctc_decoder",
+        "label": "with CTC head training",
+    },
 }
 
 SETTING_ORDER = {
@@ -326,12 +344,162 @@ def plot_group(
     print(f"Saved {out_path}")
 
 
+def plot_progressive_bottom_ctc_comparison(
+    rows: list[dict[str, str]],
+    out_path: Path,
+    selected_lrs: list[str],
+    baseline_wer: dict[str, float],
+) -> None:
+    if len(selected_lrs) != 1:
+        raise SystemExit("progressive_bottom_ctc_comparison expects exactly one learning rate")
+    selected_lr = selected_lrs[0]
+    settings = [
+        setting
+        for setting in SETTING_ORDER["progressive_bottom"]
+        if any(
+            row["group"] in {"progressive_bottom", "progressive_bottom_ctc_decoder"}
+            and row["setting"] == setting
+            and row["lr"] == selected_lr
+            for row in rows
+        )
+    ]
+    datasets = [
+        dataset
+        for dataset in ("earnings22", "tedlium")
+        if any(
+            row["group"] in {"progressive_bottom", "progressive_bottom_ctc_decoder"}
+            and row["dataset"] == dataset
+            and row["lr"] == selected_lr
+            for row in rows
+        )
+    ]
+    if not settings or not datasets:
+        raise SystemExit("No rows found for progressive_bottom_ctc_comparison")
+
+    fig_width = max(7.2, min(12.0, 1.2 + 1.05 * len(settings)))
+    fig, axes = plt.subplots(
+        1,
+        len(datasets),
+        figsize=(fig_width, 4.0),
+        squeeze=False,
+        constrained_layout=True,
+    )
+
+    for ax, dataset in zip(axes[0], datasets):
+        repeated_values: dict[tuple[str, str], list[float]] = defaultdict(list)
+        for row in rows:
+            for variant, spec in PROGRESSIVE_BOTTOM_CTC_COMPARISON.items():
+                if (
+                    row["group"] == spec["group"]
+                    and row["dataset"] == dataset
+                    and row["lr"] == selected_lr
+                    and row.get("wer")
+                ):
+                    repeated_values[(row["setting"], variant)].append(float(row["wer"]) * 100.0)
+
+        values = {
+            key: {
+                "mean": statistics.mean(vals),
+                "std": statistics.stdev(vals) if len(vals) > 1 else 0.0,
+                "n": len(vals),
+            }
+            for key, vals in repeated_values.items()
+        }
+        finite_values = [
+            stat["mean"]
+            for stat in values.values()
+            if np.isfinite(stat["mean"])
+        ]
+        if not finite_values:
+            continue
+
+        lower_values = [stat["mean"] - stat["std"] for stat in values.values()]
+        upper_values = [stat["mean"] + stat["std"] for stat in values.values()]
+        value_range = max(upper_values) - min(lower_values)
+        label_offset = max(0.015, value_range * 0.06)
+
+        x = np.arange(len(settings))
+        variants = list(PROGRESSIVE_BOTTOM_CTC_COMPARISON)
+        width = 0.32
+        offsets = (np.arange(len(variants)) - (len(variants) - 1) / 2.0) * width
+
+        for idx, variant in enumerate(variants):
+            stats = [values.get((setting, variant)) for setting in settings]
+            heights = [stat["mean"] if stat else np.nan for stat in stats]
+            errors = [stat["std"] if stat else 0.0 for stat in stats]
+            bars = ax.bar(
+                x + offsets[idx],
+                heights,
+                width,
+                yerr=errors if any(error > 0 for error in errors) else None,
+                capsize=2 if any(error > 0 for error in errors) else 0,
+                label=PROGRESSIVE_BOTTOM_CTC_COMPARISON[variant]["label"],
+                color=COMPARISON_COLORS[variant],
+                edgecolor="black",
+                linewidth=0.5,
+            )
+            for bar, height in zip(bars, heights):
+                if np.isnan(height):
+                    continue
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    height + label_offset,
+                    f"{height:.1f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=7,
+                    rotation=90,
+                )
+
+        lower_pad = max(0.04, value_range * 0.25)
+        upper_pad = max(0.10, value_range * 0.45)
+        ax.set_ylim(max(0.0, min(lower_values) - lower_pad), max(upper_values) + upper_pad)
+        ax.set_title(DATASET_TITLES.get(dataset, dataset), fontsize=10)
+        baseline = baseline_wer.get(dataset)
+        if baseline is not None:
+            ax.text(
+                0.98,
+                0.96,
+                f"unadapted WER={baseline * 100:.1f}%",
+                transform=ax.transAxes,
+                ha="right",
+                va="top",
+                fontsize=8,
+                color="#C44E52",
+                bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.85, "pad": 1.5},
+            )
+        labels = [
+            "train sub. only" if setting == "train-subsampling-only" else SETTING_LABELS.get(setting, setting)
+            for setting in settings
+        ]
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels, fontsize=8, rotation=35, ha="right")
+        ax.set_ylabel("WER (%)")
+        ax.yaxis.grid(True, alpha=0.3)
+        ax.set_axisbelow(True)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.legend(frameon=False, fontsize=8, loc="best")
+
+    fig.savefig(out_path, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved {out_path}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--groups",
         nargs="+",
-        default=["train_only", "progressive_top", "progressive_bottom", "progressive_bottom_ctc_decoder", "layer_type", "layer_drop_lr_sweep"],
+        default=[
+            "train_only",
+            "progressive_top",
+            "progressive_bottom",
+            "progressive_bottom_ctc_decoder",
+            "progressive_bottom_ctc_comparison",
+            "layer_type",
+            "layer_drop_lr_sweep",
+        ],
         choices=sorted(GROUP_TITLES),
     )
     parser.add_argument(
@@ -349,6 +517,14 @@ def main() -> None:
     selected_lrs = [LR_TAG[lr] for lr in args.lrs]
     baseline_wer = load_baseline_wer()
     for group in args.groups:
+        if group == "progressive_bottom_ctc_comparison":
+            plot_progressive_bottom_ctc_comparison(
+                rows,
+                ROOT / "progressive_bottom_ctc_comparison_ablation_bars.pdf",
+                selected_lrs,
+                baseline_wer,
+            )
+            continue
         if not any(row["group"] == group for row in rows):
             print(f"Skipping {group}: no rows found")
             continue
