@@ -479,7 +479,7 @@ def plot_progressive_bottom_ctc_comparison(
         ax.set_axisbelow(True)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
-        ax.legend(frameon=False, fontsize=8, loc="best")
+        ax.legend(frameon=False, fontsize=8, loc="upper left")
 
     fig.savefig(out_path, bbox_inches="tight")
     plt.close(fig)
