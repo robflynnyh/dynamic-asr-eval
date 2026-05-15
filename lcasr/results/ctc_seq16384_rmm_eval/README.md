@@ -13,7 +13,8 @@ ROB-68 evaluates the normal 16384-context CTC dynamic-evaluation setup with the 
 - LR: `9e-5`
 - Augmentation: `augmentation_policy='rmm'`
 - RMM policy: random time-only, frequency-only, or time+frequency masks; `time_masks=12`, `freq_masks=5..7`, `freq_mask_param=24..44`, `zero_masking=True`
-- Repeats: `1`
+- Repeats: `3` total. Repeat `1` completed in the initial run; repeats `2`
+  and `3` are filled by the follow-up repeat wrapper.
 
 The earlier `lcasr/results/ctc_seq2048_rmm_eval/` artifacts are a 2048-context comparison and should not be used as the normal 16384-context ROB-68 result.
 
@@ -22,7 +23,7 @@ The earlier `lcasr/results/ctc_seq2048_rmm_eval/` artifacts are a 2048-context c
 From `lcasr/`:
 
 ```bash
-DATASETS="earnings22 tedlium chime6 rev16" EPOCHS="1 5" REPEATS=1 \
+DATASETS="earnings22 tedlium chime6 rev16" EPOCHS="1 5" REPEATS=3 \
   bash launch_scripts/run_ctc_seq16384_rmm_eval.sh
 ```
 
@@ -31,7 +32,16 @@ ROB-68 uses the callback-backed detached wrapper from the repo root:
 ```bash
 screen -L -Logfile lcasr/results/ctc_seq16384_rmm_eval/logs/rob68_ctc_seq16384_rmm_eval.screen.log \
   -dmS rob68_ctc_seq16384_rmm_eval \
-  bash -lc 'cd /exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-68 && /store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob68_ctc_seq16384_rmm_queued.sh'
+  bash -lc 'cd /exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-68 && /store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- env REPEATS=3 bash scripts/run_rob68_ctc_seq16384_rmm_queued.sh'
+```
+
+To fill only the missing repeats without rerunning repeat `1`, use the
+follow-up wrapper:
+
+```bash
+screen -L -Logfile lcasr/results/ctc_seq16384_rmm_eval/logs/rob68_ctc_seq16384_rmm_repeats23.screen.log \
+  -dmS rob68_ctc_seq16384_rmm_repeats23 \
+  bash -lc 'cd /exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-68 && /store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- env SCREEN_NAME=rob68_ctc_seq16384_rmm_repeats23 bash scripts/run_rob68_ctc_seq16384_rmm_repeats_queued.sh'
 ```
 
 ## Outputs
@@ -48,10 +58,10 @@ Run aggregation after the callback completes:
 python lcasr/results/ctc_seq16384_rmm_eval/aggregate.py
 ```
 
-## Completed Results
+## Initial Repeat 1 Results
 
-The completed callback-backed run exited with status `0` and produced all 8
-expected PKLs. Aggregated WERs:
+The initial callback-backed run exited with status `0` and produced 8 repeat-1
+PKLs. Aggregated repeat-1 WERs:
 
 | Dataset | Epoch 1 WER | Epoch 5 WER |
 |---|---:|---:|
