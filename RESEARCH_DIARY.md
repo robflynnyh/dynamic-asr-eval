@@ -1,5 +1,9 @@
 # Research Diary
 
+## 2026-05-15
+
+- ROB-67: Synced the completed Stanage higher-LR follow-up for the 65536-context CTC self-training eval from array `10169175` / finalizer `10169176`. The run produced all 16 expected PKLs under `lcasr/results/ctc_seq65536_self_training_higher_lr/` for datasets `earnings22`, `tedlium`, `chime6`, and `rev16`, adaptation epochs `1` and `5`, and LRs `9e-5` and `3e-4`. Regenerated `summary.csv`, `summary_by_setting.csv`, and `summary.md` from the synced PKLs. Relative to the earlier `lr=1e-5` adapted run, the higher-LR epoch-5 rows improve TEDLIUM, Earnings22, and Rev16, while CHiME-6 remains best with `lr=1e-5`.
+
 ## 2026-05-12
 
 - ROB-67: Inspected the completed Stanage finalizer output for the 65536-context CTC eval. The final run used `lr=1e-5` for adapted `epochs=1` and `epochs=5`, produced 4 unadapted PKLs and 8 adapted PKLs, and regenerated summaries under `lcasr/results/ctc_seq65536_unadapted_baseline/` and `lcasr/results/ctc_seq65536_self_training_eval/`. Added a separate callback-backed Stanage follow-up sweep for higher LRs `9e-5` and `3e-4`, writing to `lcasr/results/ctc_seq65536_self_training_higher_lr/` so those rows do not overwrite the completed `lr=1e-5` result set.

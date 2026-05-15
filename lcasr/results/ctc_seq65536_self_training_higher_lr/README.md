@@ -24,3 +24,22 @@ Aggregate after completion:
 python lcasr/results/ctc_seq65536_self_training_eval/aggregate.py \
   --root lcasr/results/ctc_seq65536_self_training_higher_lr
 ```
+
+## Completed Stanage Run
+
+- Array job: `10169175`
+- Finalizer job: `10169176`
+- Finalizer log: `/mnt/parscratch/users/acp21rjf/symphony-job-artifacts/ROB-67/higher-lr-finalize-10169176.log`
+- Stanage result root: `/mnt/parscratch/users/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-67/lcasr/results/ctc_seq65536_self_training_higher_lr`
+- Completion status: all `16/16` expected PKLs present, with regenerated `summary.csv`, `summary_by_setting.csv`, and `summary.md`.
+
+Best higher-LR WER by dataset:
+
+| Dataset | Best setting | WER |
+|---|---:|---:|
+| TEDLIUM | epoch 5, `lr=9e-5` | 5.81% |
+| Earnings22 | epoch 5, `lr=3e-4` | 15.01% |
+| CHiME-6 | epoch 5, `lr=9e-5` | 75.17% |
+| Rev16 | epoch 5, `lr=3e-4` | 14.11% |
+
+Compared with the earlier `lr=1e-5` ROB-67 adapted run, these higher-LR rows improve the best epoch-5 TEDLIUM, Earnings22, and Rev16 WERs. CHiME-6 is the exception: the earlier `lr=1e-5`, epoch-5 row remains better at 74.57% WER.
