@@ -91,6 +91,7 @@ case "$MODE" in
       RESULTS_DIR="$ADAPTED_RESULTS_DIR" \
       EPOCHS="$EPOCH" \
       LR="$LR" \
+      LRS="$LR" \
       bash launch_scripts/run_ctc_seq65536_self_training_eval.sh
     ;;
   *)

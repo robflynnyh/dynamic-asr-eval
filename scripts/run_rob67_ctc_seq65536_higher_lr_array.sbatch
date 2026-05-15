@@ -38,7 +38,7 @@ dataset_idx=$((task_id % dataset_count))
 epoch_idx=$(((task_id / dataset_count) % epoch_count))
 lr_idx=$((task_id / (dataset_count * epoch_count)))
 
-ROB67_WRITE_STANAGE_PATHS=1 \
+ROB67_WRITE_STANAGE_PATHS="${ROB67_WRITE_STANAGE_PATHS:-1}" \
 REPO_ROOT="$REPO_ROOT" \
 MODE=adapted \
 DATASET="${DATASETS_ARR[$dataset_idx]}" \

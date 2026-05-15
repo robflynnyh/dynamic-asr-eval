@@ -11,11 +11,14 @@ set -uo pipefail
 REPO_ROOT=${REPO_ROOT:-"/mnt/parscratch/users/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-67"}
 LINEAR_ENV_FILE=${LINEAR_ENV_FILE:-"$HOME/.config/dynamic-asr-eval/linear.env"}
 ARRAY_JOB_ID=${ARRAY_JOB_ID:-unknown}
-LOG_PATH=${LOG_PATH:-"/mnt/parscratch/users/acp21rjf/symphony-job-artifacts/ROB-67/higher-lr-finalize-${SLURM_JOB_ID:-manual}.log"}
+LOG_PREFIX=${LOG_PREFIX:-higher-lr-finalize}
+LOG_PATH=${LOG_PATH:-"/mnt/parscratch/users/acp21rjf/symphony-job-artifacts/ROB-67/${LOG_PREFIX}-${SLURM_JOB_ID:-manual}.log"}
 ADAPTED_RESULTS=${ADAPTED_RESULTS:-"${REPO_ROOT}/lcasr/results/ctc_seq65536_self_training_higher_lr"}
 CALLBACK_TARGET_STATE=${CALLBACK_TARGET_STATE:-Todo}
 PYTHON_BIN=${PYTHON_BIN:-"/mnt/parscratch/users/acp21rjf/conda/main/bin/python"}
 EXPECTED_ADAPTED_COUNT=${EXPECTED_ADAPTED_COUNT:-16}
+QUEUED_COMMAND=${QUEUED_COMMAND:-"bash scripts/submit_rob67_ctc_seq65536_higher_lr_stanage.sh"}
+CALLBACK_NOTE=${CALLBACK_NOTE:-"ROB-67 higher-LR follow-up for the completed 65536-context CTC adapted eval. Expected outputs: 16 adapted PKLs for 4 datasets x 2 epoch counts x LRs {9e-5,3e-4}, plus refreshed summary tables."}
 
 on_exit() {
   status=$?
@@ -31,13 +34,13 @@ on_exit() {
     --log "$LOG_PATH"
     --results "$ADAPTED_RESULTS"
     --runner-label "slurm-array:${ARRAY_JOB_ID};higher-lr-finalizer:${SLURM_JOB_ID:-manual}"
-    --queued-command "bash scripts/submit_rob67_ctc_seq65536_higher_lr_stanage.sh"
+    --queued-command "$QUEUED_COMMAND"
     --branch "$(cd "$REPO_ROOT" && git rev-parse --abbrev-ref HEAD 2>/dev/null || printf unknown)"
     --commit "$(cd "$REPO_ROOT" && git rev-parse HEAD 2>/dev/null || printf unknown)"
     --target-state "$CALLBACK_TARGET_STATE"
     --max-log-chars "${CALLBACK_MAX_LOG_CHARS:-20000}"
     --max-comment-chars "${CALLBACK_MAX_COMMENT_CHARS:-60000}"
-    --note "ROB-67 higher-LR follow-up for the completed 65536-context CTC adapted eval. Expected outputs: 16 adapted PKLs for 4 datasets x 2 epoch counts x LRs {9e-5,3e-4}, plus refreshed summary tables."
+    --note "$CALLBACK_NOTE"
   )
   if [ "${CALLBACK_DRY_RUN:-0}" = "1" ]; then
     callback_args+=(--dry-run)
