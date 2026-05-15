@@ -151,6 +151,9 @@ class RandomMixedMaskingAugment(torch.nn.Module):
         zero_masking=True,
         time_masks_min=12,
         time_masks_max=12,
+        scale_time_masks_by_seq_len=False,
+        time_masks_reference_seq_len=2048,
+        time_masks_target_seq_len=None,
         freq_masks_min=5,
         freq_masks_max=7,
         freq_mask_param_min=24,
@@ -160,6 +163,9 @@ class RandomMixedMaskingAugment(torch.nn.Module):
         self.zero_masking = zero_masking
         self.time_masks_min = time_masks_min
         self.time_masks_max = time_masks_max
+        self.scale_time_masks_by_seq_len = scale_time_masks_by_seq_len
+        self.time_masks_reference_seq_len = time_masks_reference_seq_len
+        self.time_masks_target_seq_len = time_masks_target_seq_len
         self.freq_masks_min = freq_masks_min
         self.freq_masks_max = freq_masks_max
         self.freq_mask_param_min = freq_mask_param_min
@@ -170,8 +176,21 @@ class RandomMixedMaskingAugment(torch.nn.Module):
             raise ValueError(f'{name}_min must be <= {name}_max, got {low} > {high}')
         return random.randint(low, high)
 
+    def _scaled_time_mask_count(self, count):
+        if not self.scale_time_masks_by_seq_len:
+            return count
+        if self.time_masks_reference_seq_len <= 0:
+            raise ValueError('rmm_time_masks_reference_seq_len must be positive')
+
+        target_seq_len = self.time_masks_target_seq_len
+        if target_seq_len is None or target_seq_len <= 0:
+            return count
+        scale = target_seq_len / self.time_masks_reference_seq_len
+        return max(1, int(round(count * scale)))
+
     def forward(self, spec):
         n_time_masks = self._random_int(self.time_masks_min, self.time_masks_max, 'rmm_time_masks')
+        n_time_masks = self._scaled_time_mask_count(n_time_masks)
         min_p = random.random() / 2
         time_masker = SpecAugment(
             n_time_masks=n_time_masks,
@@ -214,6 +233,9 @@ def build_self_training_augmentation(args):
         zero_masking=args.__dict__.get('rmm_zero_masking', True),
         time_masks_min=args.__dict__.get('rmm_time_masks_min', 12),
         time_masks_max=args.__dict__.get('rmm_time_masks_max', 12),
+        scale_time_masks_by_seq_len=args.__dict__.get('rmm_scale_time_masks_by_seq_len', False),
+        time_masks_reference_seq_len=args.__dict__.get('rmm_time_masks_reference_seq_len', 2048),
+        time_masks_target_seq_len=args.__dict__.get('rmm_time_masks_target_seq_len', args.__dict__.get('seq_len', None)),
         freq_masks_min=args.__dict__.get('rmm_freq_masks_min', 5),
         freq_masks_max=args.__dict__.get('rmm_freq_masks_max', 7),
         freq_mask_param_min=args.__dict__.get('rmm_freq_mask_param_min', 24),

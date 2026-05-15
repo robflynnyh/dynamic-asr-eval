@@ -20,6 +20,9 @@ LRS_STR=${LRS:-"$LR"}
 CHECKPOINT=${CHECKPOINT:-"/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_16384_rp_1/step_105360.pt"}
 PYTHON_BIN=${PYTHON_BIN:-python3.10}
 RESULTS_DIR=${RESULTS_DIR:-"./results/ctc_seq16384_rmm_eval"}
+AUGMENTATION_LABEL=${AUGMENTATION_LABEL:-rmm}
+RMM_SCALE_TIME_MASKS_BY_SEQ_LEN=${RMM_SCALE_TIME_MASKS_BY_SEQ_LEN:-False}
+RMM_TIME_MASKS_REFERENCE_SEQ_LEN=${RMM_TIME_MASKS_REFERENCE_SEQ_LEN:-2048}
 LOG_DIR="${RESULTS_DIR}/logs"
 DRY_RUN=${DRY_RUN:-0}
 MAX_RECORDS=${MAX_RECORDS:-}
@@ -71,7 +74,7 @@ run_single_repeat() {
     local lr_slug
     lr_slug=$(lr_tag "$lr")
 
-    local base_name="${dataset}-${SPLIT}-ctc-seq${SEQ}-overlap${OVERLAP}-rmm-epoch-${epoch}-lr-${lr_slug}"
+    local base_name="${dataset}-${SPLIT}-ctc-seq${SEQ}-overlap${OVERLAP}-${AUGMENTATION_LABEL}-epoch-${epoch}-lr-${lr_slug}"
     local base_save_path="${RESULTS_DIR}/${base_name}.pkl"
     local target_path="${RESULTS_DIR}/${base_name}_${repeat}.pkl"
     local tmp_base="${RESULTS_DIR}/${base_name}.repeat-${repeat}.tmp.pkl"
@@ -89,7 +92,10 @@ run_single_repeat() {
     echo "cuda_visible_devices=${CUDA_VISIBLE_DEVICES:-unset}" | tee -a "$log_path"
     echo "manual_gpu=${GPU:-unset}" | tee -a "$log_path"
     echo "target_path=${target_path}" | tee -a "$log_path"
+    echo "augmentation_label=${AUGMENTATION_LABEL}" | tee -a "$log_path"
     echo "augmentation_policy=rmm" | tee -a "$log_path"
+    echo "rmm_scale_time_masks_by_seq_len=${RMM_SCALE_TIME_MASKS_BY_SEQ_LEN}" | tee -a "$log_path"
+    echo "rmm_time_masks_reference_seq_len=${RMM_TIME_MASKS_REFERENCE_SEQ_LEN}" | tee -a "$log_path"
 
     local cmd=(
         "$PYTHON_BIN" run_dynamic_eval_full.py
@@ -104,6 +110,8 @@ run_single_repeat() {
         -kwargs
         optim_lr="$lr"
         augmentation_policy="'rmm'"
+        rmm_scale_time_masks_by_seq_len="$RMM_SCALE_TIME_MASKS_BY_SEQ_LEN"
+        rmm_time_masks_reference_seq_len="$RMM_TIME_MASKS_REFERENCE_SEQ_LEN"
         -s "$tmp_base"
     )
 
@@ -141,7 +149,7 @@ run_eval() {
     local lr_slug
     lr_slug=$(lr_tag "$lr")
 
-    local base_name="${dataset}-${SPLIT}-ctc-seq${SEQ}-overlap${OVERLAP}-rmm-epoch-${epoch}-lr-${lr_slug}"
+    local base_name="${dataset}-${SPLIT}-ctc-seq${SEQ}-overlap${OVERLAP}-${AUGMENTATION_LABEL}-epoch-${epoch}-lr-${lr_slug}"
     local save_path="${RESULTS_DIR}/${base_name}.pkl"
     local log_path="${LOG_DIR}/${base_name}.log"
 
@@ -158,7 +166,10 @@ run_eval() {
     echo "manual_gpu=${GPU:-unset}" | tee -a "$log_path"
     echo "save_path=${save_path}" | tee -a "$log_path"
     echo "repeats=${REPEATS}" | tee -a "$log_path"
+    echo "augmentation_label=${AUGMENTATION_LABEL}" | tee -a "$log_path"
     echo "augmentation_policy=rmm" | tee -a "$log_path"
+    echo "rmm_scale_time_masks_by_seq_len=${RMM_SCALE_TIME_MASKS_BY_SEQ_LEN}" | tee -a "$log_path"
+    echo "rmm_time_masks_reference_seq_len=${RMM_TIME_MASKS_REFERENCE_SEQ_LEN}" | tee -a "$log_path"
 
     local cmd=(
         "$PYTHON_BIN" run_dynamic_eval_full.py
@@ -173,6 +184,8 @@ run_eval() {
         -kwargs
         optim_lr="$lr"
         augmentation_policy="'rmm'"
+        rmm_scale_time_masks_by_seq_len="$RMM_SCALE_TIME_MASKS_BY_SEQ_LEN"
+        rmm_time_masks_reference_seq_len="$RMM_TIME_MASKS_REFERENCE_SEQ_LEN"
         -s "$save_path"
     )
 

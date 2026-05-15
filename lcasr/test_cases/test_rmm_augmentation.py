@@ -18,6 +18,8 @@ class TestRMMAugmentation(unittest.TestCase):
             augmentation_policy="rmm",
             rmm_time_masks_min=1,
             rmm_time_masks_max=1,
+            rmm_scale_time_masks_by_seq_len=False,
+            rmm_time_masks_reference_seq_len=2048,
             rmm_freq_masks_min=1,
             rmm_freq_masks_max=1,
             rmm_freq_mask_param_min=2,
@@ -32,6 +34,24 @@ class TestRMMAugmentation(unittest.TestCase):
         self.assertEqual(augmented.shape, spec.shape)
         self.assertTrue(torch.all((augmented == 0) | (augmented == 1)))
         self.assertLessEqual(augmented.sum().item(), spec.sum().item())
+
+    def test_scaled_time_masks_keep_2048_width_at_16384(self):
+        args = argparse.Namespace(
+            augmentation_policy="rmm",
+            seq_len=16384,
+            rmm_time_masks_min=12,
+            rmm_time_masks_max=12,
+            rmm_scale_time_masks_by_seq_len=True,
+            rmm_time_masks_reference_seq_len=2048,
+            rmm_freq_masks_min=5,
+            rmm_freq_masks_max=7,
+            rmm_freq_mask_param_min=24,
+            rmm_freq_mask_param_max=44,
+            rmm_zero_masking=True,
+        )
+        augment = lib.build_self_training_augmentation(args)
+
+        self.assertEqual(augment._scaled_time_mask_count(12), 96)
 
 
 if __name__ == "__main__":
