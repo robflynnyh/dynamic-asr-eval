@@ -4,6 +4,7 @@
 
 - ROB-68: The corrected 16384-context RMM eval completed all 8 requested cells and regenerated `lcasr/results/ctc_seq16384_rmm_eval/summary.csv`, `summary_by_setting.csv`, and `summary.md` from the PKLs. Final WERs were TEDLIUM 5.93%/5.82%, Earnings22 15.76%/15.59%, CHiME-6 100.00%/100.00%, and Rev16 14.22%/14.09% for epochs 1/5 respectively. The CHiME-6 PKLs contain empty normalized model outputs for both long recordings, so the 100% WER is a real scored deletion result rather than an aggregation failure.
 - ROB-68: A follow-up human comment requested 3 repeats total. Added a repeat-fill mode for the 16384-context RMM launcher plus a callback-backed wrapper that queues only missing repeats `2` and `3` while preserving the completed repeat `1` artifacts.
+- ROB-68: The 16384-context RMM repeat-fill run completed repeats `2` and `3` for all datasets and both epoch settings. Regenerated `lcasr/results/ctc_seq16384_rmm_eval/summary.csv`, `summary_by_setting.csv`, and `summary.md` from 24 PKLs; each dataset/epoch group now has `N=3`. Mean WERs are TEDLIUM 5.97%/5.79%, Earnings22 15.84%/15.35%, CHiME-6 100.00%/100.00%, and Rev16 14.21%/14.04% for epochs 1/5 respectively.
 
 ## 2026-05-14
 
