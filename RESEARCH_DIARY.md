@@ -1,5 +1,9 @@
 # Research Diary
 
+## 2026-05-15
+
+- ROB-68: The corrected 16384-context RMM eval completed all 8 requested cells and regenerated `lcasr/results/ctc_seq16384_rmm_eval/summary.csv`, `summary_by_setting.csv`, and `summary.md` from the PKLs. Final WERs were TEDLIUM 5.93%/5.82%, Earnings22 15.76%/15.59%, CHiME-6 100.00%/100.00%, and Rev16 14.22%/14.09% for epochs 1/5 respectively. The CHiME-6 PKLs contain empty normalized model outputs for both long recordings, so the 100% WER is a real scored deletion result rather than an aggregation failure.
+
 ## 2026-05-14
 
 - ROB-68: A human review clarified that the requested comparison is the normal `seq_len=16384`, `overlap=14336`, `lr=9e-5` setup, not the earlier 2048-context run. Cancelled the queued 2048-context `9e-5` follow-up before it acquired a GPU and added a separate callback-backed 16384-context RMM eval scaffold under `lcasr/results/ctc_seq16384_rmm_eval/` using checkpoint `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_16384_rp_1/step_105360.pt`.

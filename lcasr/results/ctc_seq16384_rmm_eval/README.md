@@ -47,3 +47,19 @@ Run aggregation after the callback completes:
 ```bash
 python lcasr/results/ctc_seq16384_rmm_eval/aggregate.py
 ```
+
+## Completed Results
+
+The completed callback-backed run exited with status `0` and produced all 8
+expected PKLs. Aggregated WERs:
+
+| Dataset | Epoch 1 WER | Epoch 5 WER |
+|---|---:|---:|
+| TEDLIUM | 5.93% | 5.82% |
+| Earnings22 | 15.76% | 15.59% |
+| CHiME-6 | 100.00% | 100.00% |
+| Rev16 | 14.22% | 14.09% |
+
+CHiME-6 scored as 100% deletion because both long-recording PKLs contain empty
+normalized `model_output` strings against non-empty references. This is a real
+scored run result, not an aggregation failure.
