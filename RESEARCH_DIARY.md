@@ -1,5 +1,9 @@
 # Research Diary
 
+## 2026-05-16
+
+- ROB-68: The scaled-time-mask 16384-context RMM follow-up completed all 24 requested cells under `lcasr/results/ctc_seq16384_rmm_scaled_time_masks_eval/` and regenerated `summary.csv`, `summary_by_setting.csv`, and `summary.md`. Each dataset/epoch group has `N=3`; mean WERs are TEDLIUM 5.84%/5.80%, Earnings22 15.62%/14.73%, CHiME-6 77.92%/77.58%, and Rev16 14.09%/13.90% for epochs 1/5 respectively.
+
 ## 2026-05-15
 
 - ROB-68: The corrected 16384-context RMM eval completed all 8 requested cells and regenerated `lcasr/results/ctc_seq16384_rmm_eval/summary.csv`, `summary_by_setting.csv`, and `summary.md` from the PKLs. Final WERs were TEDLIUM 5.93%/5.82%, Earnings22 15.76%/15.59%, CHiME-6 100.00%/100.00%, and Rev16 14.22%/14.09% for epochs 1/5 respectively. The CHiME-6 PKLs contain empty normalized model outputs for both long recordings, so the 100% WER is a real scored deletion result rather than an aggregation failure.
