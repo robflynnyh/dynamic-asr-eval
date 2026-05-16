@@ -14,6 +14,15 @@
 ## 2026-05-14
 
 - ROB-68: A human review clarified that the requested comparison is the normal `seq_len=16384`, `overlap=14336`, `lr=9e-5` setup, not the earlier 2048-context run. Cancelled the queued 2048-context `9e-5` follow-up before it acquired a GPU and added a separate callback-backed 16384-context RMM eval scaffold under `lcasr/results/ctc_seq16384_rmm_eval/` using checkpoint `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_16384_rp_1/step_105360.pt`.
+- ROB-51: Added a combined progressive-bottom CTC-head comparison figure target. It plots the completed `progressive_bottom` and `progressive_bottom_ctc_decoder` 9e-5 result families side by side for each bottom-prefix setting, so the effect of always training the CTC decoder can be read directly from a single chart.
+- ROB-51: Adjusted the combined progressive-bottom CTC-head comparison figure layout so the legend no longer overlaps the unadapted WER annotation.
+
+## 2026-05-13
+
+- ROB-84: Updated the repo-local Symphony guidance so future Mimas work must
+  avoid `/tmp` for scratch, caches, logs, intermediate files, and experiment
+  artifacts, using repo-local ignored directories or result-scoped paths
+  instead.
 
 ## 2026-05-11
 
