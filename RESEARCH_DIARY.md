@@ -1,5 +1,9 @@
 # Research Diary
 
+## 2026-05-16
+
+- ROB-67: Synced and aggregated the completed longer-epoch 65536-context CTC self-training follow-up from Stanage array `10220452` / finalizer `10220453`. The run produced all 16 expected adapted PKLs under `lcasr/results/ctc_seq65536_self_training_longer_epochs/` for datasets `earnings22`, `tedlium`, `chime6`, and `rev16`, adaptation epochs `10` and `20`, and LRs `9e-5` and `3e-4`. Longer adaptation gives small best-row gains on TEDLIUM, Earnings22, and Rev16; CHiME-6 remains best with the earlier 5-epoch `lr=1e-5` row, and the CHiME-6 20-epoch `lr=3e-4` cell collapsed to 99.99% WER from near-total deletions.
+
 ## 2026-05-15
 
 - ROB-67: Added a callback-backed Stanage follow-up launcher for the requested 10- and 20-epoch, `lr in {9e-5,3e-4}` 65536-context CTC adapted evaluation. The run writes to `lcasr/results/ctc_seq65536_self_training_longer_epochs/` as a separate result family from the completed 1/5-epoch higher-LR sweep and reuses the validated ROB-67 cell runner plus finalizer callback path.
