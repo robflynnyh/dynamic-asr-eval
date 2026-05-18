@@ -17,8 +17,17 @@ ADAPTED_RESULTS=${ADAPTED_RESULTS:-"${REPO_ROOT}/lcasr/results/ctc_seq65536_self
 CALLBACK_TARGET_STATE=${CALLBACK_TARGET_STATE:-Todo}
 PYTHON_BIN=${PYTHON_BIN:-"/mnt/parscratch/users/acp21rjf/conda/main/bin/python"}
 EXPECTED_ADAPTED_COUNT=${EXPECTED_ADAPTED_COUNT:-16}
-QUEUED_COMMAND=${QUEUED_COMMAND:-"bash scripts/submit_rob67_ctc_seq65536_higher_lr_stanage.sh"}
-CALLBACK_NOTE=${CALLBACK_NOTE:-"ROB-67 higher-LR follow-up for the completed 65536-context CTC adapted eval. Expected outputs: 16 adapted PKLs for 4 datasets x 2 epoch counts x LRs {9e-5,3e-4}, plus refreshed summary tables."}
+FINALIZER_KIND=${FINALIZER_KIND:-higher-lr}
+
+if [ "$FINALIZER_KIND" = "stride2048" ]; then
+  QUEUED_COMMAND=${QUEUED_COMMAND:-"bash scripts/submit_rob67_ctc_seq65536_stride2048_stanage.sh"}
+  CALLBACK_NOTE=${CALLBACK_NOTE:-"ROB-67 final follow-up requested after PR #18 review. This 65536-context CTC adapted eval uses the 16384-style stride with seq_len=65536 overlap=63488 stride=2048 epochs=5 lr=9e-5 and expects 4 adapted PKLs plus refreshed summary tables."}
+  FINALIZER_LABEL="stride2048-finalizer"
+else
+  QUEUED_COMMAND=${QUEUED_COMMAND:-"bash scripts/submit_rob67_ctc_seq65536_higher_lr_stanage.sh"}
+  CALLBACK_NOTE=${CALLBACK_NOTE:-"ROB-67 higher-LR follow-up for the completed 65536-context CTC adapted eval. Expected outputs: 16 adapted PKLs for 4 datasets x 2 epoch counts x LRs {9e-5,3e-4}, plus refreshed summary tables."}
+  FINALIZER_LABEL="higher-lr-finalizer"
+fi
 
 on_exit() {
   status=$?
@@ -33,7 +42,7 @@ on_exit() {
     --status-code "$status"
     --log "$LOG_PATH"
     --results "$ADAPTED_RESULTS"
-    --runner-label "slurm-array:${ARRAY_JOB_ID};higher-lr-finalizer:${SLURM_JOB_ID:-manual}"
+    --runner-label "slurm-array:${ARRAY_JOB_ID};${FINALIZER_LABEL}:${SLURM_JOB_ID:-manual}"
     --queued-command "$QUEUED_COMMAND"
     --branch "$(cd "$REPO_ROOT" && git rev-parse --abbrev-ref HEAD 2>/dev/null || printf unknown)"
     --commit "$(cd "$REPO_ROOT" && git rev-parse HEAD 2>/dev/null || printf unknown)"
@@ -65,6 +74,12 @@ echo "array_job_id=${ARRAY_JOB_ID}"
 echo "branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || printf unknown)"
 echo "commit=$(git rev-parse HEAD 2>/dev/null || printf unknown)"
 echo "adapted_results=${ADAPTED_RESULTS}"
+echo "finalizer_kind=${FINALIZER_KIND}"
+
+if [ "${CALLBACK_SMOKE_ONLY:-0}" = "1" ]; then
+  echo "CALLBACK_SMOKE_ONLY=1; exiting before aggregation to exercise the EXIT trap callback path."
+  exit 0
+fi
 
 "$PYTHON_BIN" lcasr/results/ctc_seq65536_self_training_eval/aggregate.py --root "$ADAPTED_RESULTS"
 

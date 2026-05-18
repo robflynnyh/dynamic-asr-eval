@@ -1,5 +1,9 @@
 # Research Diary
 
+## 2026-05-18
+
+- ROB-67: Inspected the completed stride-2048 CPU smoke `10227206`, which succeeded with WER `0.05072220356063151` but failed its Linear callback because the target state was malformed as `Todo scripts/run_rob67_ctc_seq65536_cpu_smoke.sbatch`. Patched the stride-2048 Stanage finalizer path to avoid exporting long callback strings through `sbatch --export`, added a finalizer callback-only smoke mode, and validated the stride-specific callback text locally before queueing the GPU array.
+
 ## 2026-05-16
 
 - ROB-67: Added a callback-backed Stanage follow-up launcher for the requested final 65536-context CTC adapted eval using the 16384-style stride. The run writes to `lcasr/results/ctc_seq65536_self_training_stride2048/` with `seq_len=65536`, `overlap=63488` (stride `2048`), adaptation epochs `5`, `lr=9e-5`, four test datasets, and a dependent Linear callback finalizer.

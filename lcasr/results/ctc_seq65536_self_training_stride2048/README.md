@@ -22,6 +22,11 @@ Submit from the Stanage checkout after the CPU smoke passes:
 bash scripts/submit_rob67_ctc_seq65536_stride2048_stanage.sh
 ```
 
+The dependent finalizer reuses `scripts/run_rob67_ctc_seq65536_higher_lr_finalize.sbatch`
+with `FINALIZER_KIND=stride2048`, so the callback note and queued command are
+constructed inside the finalizer rather than passed as long `sbatch --export`
+values.
+
 Aggregate after completion:
 
 ```bash

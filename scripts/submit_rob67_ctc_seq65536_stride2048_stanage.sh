@@ -9,8 +9,6 @@ LRS=${LRS:-"9e-5"}
 SEQ=${SEQ:-65536}
 OVERLAP=${OVERLAP:-63488}
 ADAPTED_RESULTS=${ADAPTED_RESULTS:-"${REPO_ROOT}/lcasr/results/ctc_seq65536_self_training_stride2048"}
-QUEUED_COMMAND=${QUEUED_COMMAND:-"bash scripts/submit_rob67_ctc_seq65536_stride2048_stanage.sh"}
-CALLBACK_NOTE=${CALLBACK_NOTE:-"ROB-67 final follow-up requested after PR #18 review: 65536-context CTC adapted eval with the 16384-style stride. This uses seq_len=65536, overlap=63488 (stride 2048), epochs=5, lr=9e-5, and expects 4 adapted PKLs for the four test datasets plus refreshed summary tables."}
 
 mkdir -p "$ARTIFACT_DIR"
 cd "$REPO_ROOT"
@@ -43,7 +41,7 @@ finalizer_job_id="$(
   sbatch --parsable \
     --dependency="afterany:${array_job_id}" \
     --output="${ARTIFACT_DIR}/stride2048-finalize-%j.out" \
-    --export=ALL,ARRAY_JOB_ID="${array_job_id}",ADAPTED_RESULTS="${ADAPTED_RESULTS}",EXPECTED_ADAPTED_COUNT="${expected_count}",LOG_PREFIX="stride2048-finalize",QUEUED_COMMAND="${QUEUED_COMMAND}",CALLBACK_NOTE="${CALLBACK_NOTE}" \
+    --export=ALL,ARRAY_JOB_ID="${array_job_id}",ADAPTED_RESULTS="${ADAPTED_RESULTS}",EXPECTED_ADAPTED_COUNT="${expected_count}",LOG_PREFIX="stride2048-finalize",FINALIZER_KIND="stride2048" \
     scripts/run_rob67_ctc_seq65536_higher_lr_finalize.sbatch
 )"
 
