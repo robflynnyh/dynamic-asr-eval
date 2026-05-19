@@ -8,6 +8,10 @@
   and queued a dev split pass for `earnings22`, `tedlium`, and `chime6`.
   `rev16` is excluded because the CTC dynamic-eval runner asserts that Rev16
   only supports `test`.
+- ROB-68: Fixed the scaled-time-mask queued wrapper after the first dev
+  follow-up launch exited before evaluation with `env: 'tedlium': No such file
+  or directory`. The wrapper now quotes its environment array entries and passes
+  `SPLIT` / multi-word `DATASETS` explicitly to the launcher.
 - ROB-63: Final encoder-decoder result layout has exactly three direct
   checkpoint-family folders under `lcasr/results/enc_dec/`: `enc_dec_v2/`,
   `old_seed/`, and `rl_step_30000/`. The top-level `README.md` and

@@ -13,10 +13,12 @@ SCREEN_NAME=${SCREEN_NAME:-rob68_ctc_seq16384_rmm_scaled_time_masks}
 RESULTS_PATH=${RESULTS_PATH:-"${REPO_ROOT}/lcasr/results/ctc_seq16384_rmm_scaled_time_masks_eval"}
 LOG_PATH=${LOG_PATH:-"${RESULTS_PATH}/logs/${SCREEN_NAME}.log"}
 RUNNER_LABEL=${RUNNER_LABEL:-"screen:${SCREEN_NAME}"}
-QUEUED_COMMAND=${QUEUED_COMMAND:-"/store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob68_ctc_seq16384_rmm_scaled_time_queued.sh"}
 GIT_BRANCH=${GIT_BRANCH:-$(cd "$REPO_ROOT" && git rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'unknown')}
 GIT_COMMIT=${GIT_COMMIT:-$(cd "$REPO_ROOT" && git rev-parse HEAD 2>/dev/null || printf 'unknown')}
 CALLBACK_TARGET_STATE=${CALLBACK_TARGET_STATE:-Todo}
+RUN_SPLIT=${SPLIT:-test}
+RUN_DATASETS=${DATASETS:-"earnings22 tedlium chime6 rev16"}
+QUEUED_COMMAND=${QUEUED_COMMAND:-"SCREEN_NAME=${SCREEN_NAME} SPLIT=${RUN_SPLIT} DATASETS='${RUN_DATASETS}' CALLBACK_TARGET_STATE=${CALLBACK_TARGET_STATE} /store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob68_ctc_seq16384_rmm_scaled_time_queued.sh"}
 
 on_exit() {
   status=$?
@@ -37,7 +39,7 @@ on_exit() {
     --target-state "${CALLBACK_TARGET_STATE}"
     --max-log-chars "${CALLBACK_MAX_LOG_CHARS:-20000}"
     --max-comment-chars "${CALLBACK_MAX_COMMENT_CHARS:-60000}"
-    --note "ROB-68 scaled-time-mask RMM follow-up (${SPLIT:-test} split; datasets: ${DATASETS:-earnings22 tedlium chime6 rev16}): 16384-context RMM with 2048-like mask widths and scaled time-mask count. Inspect lcasr/results/ctc_seq16384_rmm_scaled_time_masks_eval summary files and logs before finalizing."
+    --note "ROB-68 scaled-time-mask RMM follow-up (${RUN_SPLIT} split; datasets: ${RUN_DATASETS}): 16384-context RMM with 2048-like mask widths and scaled time-mask count. Inspect lcasr/results/ctc_seq16384_rmm_scaled_time_masks_eval summary files and logs before finalizing."
   )
 
   if [ "${CALLBACK_DRY_RUN:-0}" = "1" ]; then
@@ -72,8 +74,8 @@ cd "$REPO_ROOT"
   echo "results_path=${RESULTS_PATH}"
   echo "log_path=${LOG_PATH}"
   echo "callback_target_state=${CALLBACK_TARGET_STATE}"
-  echo "split=${SPLIT:-test}"
-  echo "datasets=${DATASETS:-earnings22 tedlium chime6 rev16}"
+  echo "split=${RUN_SPLIT}"
+  echo "datasets=${RUN_DATASETS}"
   echo "lr=${LR:-9e-5}"
   echo "repeats=${REPEATS:-3}"
   echo "rmm_scale_time_masks_by_seq_len=True"
@@ -88,19 +90,20 @@ fi
 cd "$REPO_ROOT/lcasr"
 
 COMMON_ENV=(
-  PYTHON_BIN=${PYTHON_BIN:-python3.10}
-  RESULTS_DIR="./results/ctc_seq16384_rmm_scaled_time_masks_eval"
-  CHECKPOINT=${CHECKPOINT:-"/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_16384_rp_1/step_105360.pt"}
-  DATASETS=${DATASETS:-"earnings22 tedlium chime6 rev16"}
-  REPEATS=${REPEATS:-3}
-  SEQ=${SEQ:-16384}
-  OVERLAP=${OVERLAP:-14336}
-  AUGMENTATION_LABEL=${AUGMENTATION_LABEL:-rmm-width2048-scaled}
-  RMM_SCALE_TIME_MASKS_BY_SEQ_LEN=True
-  RMM_TIME_MASKS_REFERENCE_SEQ_LEN=${RMM_TIME_MASKS_REFERENCE_SEQ_LEN:-2048}
+  "PYTHON_BIN=${PYTHON_BIN:-python3.10}"
+  "RESULTS_DIR=./results/ctc_seq16384_rmm_scaled_time_masks_eval"
+  "CHECKPOINT=${CHECKPOINT:-/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_16384_rp_1/step_105360.pt}"
+  "SPLIT=${RUN_SPLIT}"
+  "DATASETS=${RUN_DATASETS}"
+  "REPEATS=${REPEATS:-3}"
+  "SEQ=${SEQ:-16384}"
+  "OVERLAP=${OVERLAP:-14336}"
+  "AUGMENTATION_LABEL=${AUGMENTATION_LABEL:-rmm-width2048-scaled}"
+  "RMM_SCALE_TIME_MASKS_BY_SEQ_LEN=True"
+  "RMM_TIME_MASKS_REFERENCE_SEQ_LEN=${RMM_TIME_MASKS_REFERENCE_SEQ_LEN:-2048}"
 )
 
-env "${COMMON_ENV[@]}" EPOCHS="${EPOCHS:-1 5}" LR=${LR:-9e-5} \
+env "${COMMON_ENV[@]}" "EPOCHS=${EPOCHS:-1 5}" "LR=${LR:-9e-5}" \
   bash launch_scripts/run_ctc_seq16384_rmm_eval.sh 2>&1 | tee -a "$LOG_PATH"
 
 cd "$REPO_ROOT"

@@ -39,7 +39,7 @@ The dev follow-up uses the same wrapper with `SPLIT=dev` and no `rev16`:
 ```bash
 screen -L -Logfile lcasr/results/ctc_seq16384_rmm_scaled_time_masks_eval/logs/rob68_ctc_seq16384_rmm_scaled_time_masks_dev.screen.log \
   -dmS rob68_ctc_seq16384_rmm_scaled_time_masks_dev \
-  bash -lc 'cd /exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-68 && /store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- env SCREEN_NAME=rob68_ctc_seq16384_rmm_scaled_time_masks_dev SPLIT=dev DATASETS="earnings22 tedlium chime6" bash scripts/run_rob68_ctc_seq16384_rmm_scaled_time_queued.sh'
+  bash -lc 'cd /exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-68 && SCREEN_NAME=rob68_ctc_seq16384_rmm_scaled_time_masks_dev SPLIT=dev DATASETS="earnings22 tedlium chime6" CALLBACK_TARGET_STATE=Todo /store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob68_ctc_seq16384_rmm_scaled_time_queued.sh'
 ```
 
 Run aggregation after the callback completes:
