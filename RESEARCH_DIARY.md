@@ -7,6 +7,12 @@
   `old_seed/`, and `rl_step_30000/`. The top-level `README.md` and
   `OUTCOME.md` name the exact checkpoint paths; ROB-63 paired seed/RL views
   are regenerated from `rl_step_30000/rob63_rl_self_training_compare/`.
+- ROB-63: Added the thesis-facing matched `teacher_ce`, `lr=1e-7`,
+  `freq3_width24_time0` comparison to `enc_dec_v2/OUTCOME.md` and the shared
+  89.3M-parameter `EncDecSconformerV2` architecture summary to
+  `lcasr/results/enc_dec/README.md`. `enc_dec_v2` has matching TED-LIUM and
+  Earnings22 rows only; CHIME-6 and Rev16 remain available for `old_seed` and
+  `rl_step_30000`, not the historical checkpoint.
 
 ## 2026-05-14
 
