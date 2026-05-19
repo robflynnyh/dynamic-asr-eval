@@ -37,7 +37,7 @@ on_exit() {
     --target-state "${CALLBACK_TARGET_STATE}"
     --max-log-chars "${CALLBACK_MAX_LOG_CHARS:-20000}"
     --max-comment-chars "${CALLBACK_MAX_COMMENT_CHARS:-60000}"
-    --note "ROB-68 scaled-time-mask RMM follow-up: 16384-context RMM with 2048-like mask widths and scaled time-mask count. Inspect lcasr/results/ctc_seq16384_rmm_scaled_time_masks_eval summary files and logs before finalizing."
+    --note "ROB-68 scaled-time-mask RMM follow-up (${SPLIT:-test} split; datasets: ${DATASETS:-earnings22 tedlium chime6 rev16}): 16384-context RMM with 2048-like mask widths and scaled time-mask count. Inspect lcasr/results/ctc_seq16384_rmm_scaled_time_masks_eval summary files and logs before finalizing."
   )
 
   if [ "${CALLBACK_DRY_RUN:-0}" = "1" ]; then
@@ -72,6 +72,8 @@ cd "$REPO_ROOT"
   echo "results_path=${RESULTS_PATH}"
   echo "log_path=${LOG_PATH}"
   echo "callback_target_state=${CALLBACK_TARGET_STATE}"
+  echo "split=${SPLIT:-test}"
+  echo "datasets=${DATASETS:-earnings22 tedlium chime6 rev16}"
   echo "lr=${LR:-9e-5}"
   echo "repeats=${REPEATS:-3}"
   echo "rmm_scale_time_masks_by_seq_len=True"

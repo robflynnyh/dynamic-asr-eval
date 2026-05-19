@@ -8,8 +8,10 @@ time-mask widths at the normal 16384-context setup.
 - Checkpoint: `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_16384_rp_1/step_105360.pt`
 - Sequence length: `16384`
 - Overlap: `14336`
-- Datasets: `earnings22`, `tedlium`, `chime6`, `rev16`
-- Split: `test`
+- Test datasets: `earnings22`, `tedlium`, `chime6`, `rev16`
+- Dev datasets: `earnings22`, `tedlium`, `chime6`; `rev16` is test-only in
+  `run_dynamic_eval_full.py`
+- Splits: `test`; dev follow-up queued on 2026-05-19
 - Adaptation epochs: `1`, `5`
 - LR: `9e-5`
 - Augmentation: `augmentation_policy='rmm'`
@@ -32,6 +34,14 @@ screen -L -Logfile lcasr/results/ctc_seq16384_rmm_scaled_time_masks_eval/logs/ro
   bash -lc 'cd /exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-68 && /store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- env SCREEN_NAME=rob68_ctc_seq16384_rmm_scaled_time_masks bash scripts/run_rob68_ctc_seq16384_rmm_scaled_time_queued.sh'
 ```
 
+The dev follow-up uses the same wrapper with `SPLIT=dev` and no `rev16`:
+
+```bash
+screen -L -Logfile lcasr/results/ctc_seq16384_rmm_scaled_time_masks_eval/logs/rob68_ctc_seq16384_rmm_scaled_time_masks_dev.screen.log \
+  -dmS rob68_ctc_seq16384_rmm_scaled_time_masks_dev \
+  bash -lc 'cd /exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-68 && /store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- env SCREEN_NAME=rob68_ctc_seq16384_rmm_scaled_time_masks_dev SPLIT=dev DATASETS="earnings22 tedlium chime6" bash scripts/run_rob68_ctc_seq16384_rmm_scaled_time_queued.sh'
+```
+
 Run aggregation after the callback completes:
 
 ```bash
@@ -43,5 +53,5 @@ python lcasr/results/ctc_seq16384_rmm_scaled_time_masks_eval/aggregate.py
 Each run writes:
 
 ```text
-<dataset>-test-ctc-seq16384-overlap14336-rmm-width2048-scaled-epoch-<epoch>-lr-9em5_<repeat>.pkl
+<dataset>-<split>-ctc-seq16384-overlap14336-rmm-width2048-scaled-epoch-<epoch>-lr-9em5_<repeat>.pkl
 ```

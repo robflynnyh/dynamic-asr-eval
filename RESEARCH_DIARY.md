@@ -2,6 +2,12 @@
 
 ## 2026-05-19
 
+- ROB-68: After a human follow-up requested dev results for the latest
+  scaled-time-mask setup, prepared the existing
+  `ctc_seq16384_rmm_scaled_time_masks_eval` package for mixed split summaries
+  and queued a dev split pass for `earnings22`, `tedlium`, and `chime6`.
+  `rev16` is excluded because the CTC dynamic-eval runner asserts that Rev16
+  only supports `test`.
 - ROB-63: Final encoder-decoder result layout has exactly three direct
   checkpoint-family folders under `lcasr/results/enc_dec/`: `enc_dec_v2/`,
   `old_seed/`, and `rl_step_30000/`. The top-level `README.md` and

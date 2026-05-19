@@ -114,7 +114,12 @@ def summarize(rows: list[dict[str, object]]) -> list[dict[str, object]]:
             "repeats": " ".join(str(item.get("repeat", "")) for item in items),
             "paths": " ".join(str(item.get("path", "")) for item in items),
         })
-    return sorted(out, key=lambda row: (str(row["dataset"]), int(row["epochs"]), str(row["lr"])))
+    return sorted(out, key=lambda row: (
+        str(row["dataset"]),
+        str(row["split"]),
+        int(row["epochs"]),
+        str(row["lr"]),
+    ))
 
 
 def write_csv(path: Path, rows: list[dict[str, object]], fields: list[str]) -> None:
@@ -135,8 +140,8 @@ def write_markdown(path: Path, rows: list[dict[str, object]], source: Path) -> N
         f"Per-repeat rows: `{len(rows)}`.",
         f"Grouped rows: `{len(grouped_rows)}`.",
         "",
-        "| Dataset | Epochs | LR | N | WER Mean | WER Std | Ins | Del | Sub | Words |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| Dataset | Split | Epochs | LR | N | WER Mean | WER Std | Ins | Del | Sub | Words |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in grouped_rows:
         def pct(field: str) -> str:
@@ -144,7 +149,8 @@ def write_markdown(path: Path, rows: list[dict[str, object]], source: Path) -> N
             return f"{100 * float(value):.2f}%" if value != "" else ""
 
         lines.append(
-            f"| {row.get('dataset', '')} | {row.get('epochs', '')} | {row.get('lr', '')} | "
+            f"| {row.get('dataset', '')} | {row.get('split', '')} | "
+            f"{row.get('epochs', '')} | {row.get('lr', '')} | "
             f"{row.get('n', '')} | {pct('wer_mean')} | {pct('wer_std')} | "
             f"{pct('ins_rate_mean')} | {pct('del_rate_mean')} | "
             f"{pct('sub_rate_mean')} | {row.get('words', '')} |"
