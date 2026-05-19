@@ -25,6 +25,41 @@ The `old_seed/` and `rl_step_30000/` top-level files are generated ROB-63
 checkpoint views. Nested folders keep raw result PKLs, logs, aggregators, and
 per-run outcomes.
 
+## Model Architecture
+
+All three checkpoint families above use the same checkpoint architecture. The
+details below were read from the checkpoint configs and verified by
+instantiating the model from the `enc_dec_v2` checkpoint.
+
+| Field | Value |
+|---|---:|
+| Model class | `EncDecSconformerV2` |
+| Trainable parameters | 89,287,114 |
+| Input acoustic features | 80 |
+| Encoder layers | 3 |
+| Decoder layers | 3 |
+| Model width | 768 |
+| Attention heads | 6 |
+| Head dimension | 128 |
+| Feed-forward expansion | 4 |
+| Conformer convolution kernel | 9 |
+| Subsampling | depthwise striding, factor 8 |
+| CTC auxiliary loss weight | 0.05 |
+| Acoustic norm | disabled |
+| Self-conditioning | enabled |
+| Audio chunk size in checkpoint config | 2048 |
+| Audio chunk overlap in checkpoint config | 0 |
+
+Parameter split for the instantiated architecture:
+
+| Component | Parameters |
+|---|---:|
+| Acoustic subsampling | 2,105,344 |
+| Conformer encoder stack | 40,755,456 |
+| Cross-attention decoder | 40,027,401 |
+| CTC decoder | 6,299,393 |
+| Positional encoding | 99,520 |
+
 Important nested folders:
 
 | Folder | Location | Purpose |
