@@ -1,5 +1,13 @@
 # Research Diary
 
+## 2026-05-19
+
+- ROB-63: Final encoder-decoder result layout has exactly three direct
+  checkpoint-family folders under `lcasr/results/enc_dec/`: `enc_dec_v2/`,
+  `old_seed/`, and `rl_step_30000/`. The top-level `README.md` and
+  `OUTCOME.md` name the exact checkpoint paths; ROB-63 paired seed/RL views
+  are regenerated from `rl_step_30000/rob63_rl_self_training_compare/`.
+
 ## 2026-05-14
 
 - ROB-51: Added a combined progressive-bottom CTC-head comparison figure target. It plots the completed `progressive_bottom` and `progressive_bottom_ctc_decoder` 9e-5 result families side by side for each bottom-prefix setting, so the effect of always training the CTC decoder can be read directly from a single chart.
@@ -12,8 +20,27 @@
   artifacts, using repo-local ignored directories or result-scoped paths
   instead.
 
+- ROB-63: Earnings22 beam5/lp0.5 sanity check confirmed the top-level 28%
+  versus ROB-63 25% mismatch is a checkpoint-family difference:
+  `enc_dec_v2/step_105360.pt` gives `0.28724` WER, while `old_seed`
+  `step_210720.pt` gives `0.25172`. Artifacts live under
+  `lcasr/results/enc_dec/enc_dec_v2/rob63_earnings_unadapted_sanity/`.
+
+- ROB-63: Follow-up sweeps are summarized in
+  `lcasr/results/enc_dec/rl_step_30000/rob63_rl_self_training_compare/COMBINED_OUTCOME.md`.
+  Durable read: CHiME-6 stays deletion-collapsed under these enc-dec
+  self-training settings; Rev16 has some lower-LR RL wins but high
+  augmentation can make RL deletion-heavy; Earnings22 targeted high-aug
+  slightly favors RL over seed but not over RL's own unadapted baseline.
+
 ## 2026-05-11
 
+- ROB-63: Main one-epoch encoder-decoder self-training comparison completed
+  for old seed versus RL `step_30000`, with normal baselines and combined
+  reporting under `lcasr/results/enc_dec/rl_step_30000/`. Initial TED-LIUM
+  and Earnings22 results favored RL in most matched cells, while later CHiME-6
+  and Rev16 follow-ups require reading alongside each checkpoint's unadapted
+  baseline rather than as standalone adapted WER.
 - ROB-66: Added the no-adapt 2048-context CTC baseline scaffold for the ROB-56 checkpoint. The queued wrapper uses `epochs=0`, `seq_len=2048`, `overlap=1792`, test splits for `earnings22`, `tedlium`, `chime6`, and `rev16`, and regenerates thesis-friendly `summary.csv` / `summary.md` under `lcasr/results/ctc_seq2048_unadapted_baseline/`.
 
 ## 2026-05-10
