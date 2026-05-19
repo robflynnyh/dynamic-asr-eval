@@ -11,7 +11,7 @@ fi
 
 LINEAR_ISSUE="${LINEAR_ISSUE:-ROB-63}"
 SCREEN_NAME="${SCREEN_NAME:-rob63_strong_aug_filter_resume}"
-RESULTS_PATH="${RESULTS_PATH:-lcasr/results/enc_dec/checkpoint2/rob63_strong_aug_filter_followup}"
+RESULTS_PATH="${RESULTS_PATH:-lcasr/results/enc_dec/rl_step_30000/rob63_strong_aug_filter_followup}"
 LOG_PATH="${LOG_PATH:-${RESULTS_PATH}/resume_screen.log}"
 RUNNER_LABEL="${RUNNER_LABEL:-screen:${SCREEN_NAME}}"
 QUEUED_COMMAND="${QUEUED_COMMAND:-/store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob63_strong_aug_filter_resume_queued.sh}"
@@ -40,7 +40,7 @@ on_exit() {
     --branch "${GIT_BRANCH}" \
     --commit "${GIT_COMMIT}" \
     --target-state Todo \
-    --note "ROB-63 stronger-augmentation/filter resume completed. Inspect \`lcasr/results/enc_dec/checkpoint2/rob63_strong_aug_filter_followup/OUTCOME.md\`, \`summary.csv\`, pickles, and logs before finalizing; this resume targets only the missing Rev16 RL \`3e-8\` no-filter/basic-filter cells." \
+    --note "ROB-63 stronger-augmentation/filter resume completed. Inspect \`lcasr/results/enc_dec/rl_step_30000/rob63_strong_aug_filter_followup/OUTCOME.md\`, \`summary.csv\`, pickles, and logs before finalizing; this resume targets only the missing Rev16 RL \`3e-8\` no-filter/basic-filter cells." \
     "${callback_args[@]}"
   callback_status=$?
   if [ "${callback_status}" -ne 0 ]; then
@@ -85,5 +85,5 @@ LRS="${LRS:-3e-8}" \
 AUGS="${AUGS:-freq9_width44_time0}" \
 FILTERS="${FILTERS:-no_filter basic_repeat_filter}" \
 SKIP_EXISTING="${SKIP_EXISTING:-1}" \
-RESULTS_ROOT=./results/enc_dec/checkpoint2/rob63_strong_aug_filter_followup \
+RESULTS_ROOT=./results/enc_dec/rl_step_30000/rob63_strong_aug_filter_followup \
 bash lcasr/launch_scripts/run_rob63_strong_aug_filter_resume.sh 2>&1 | tee -a "$LOG_PATH"

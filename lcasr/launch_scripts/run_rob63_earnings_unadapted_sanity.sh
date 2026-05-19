@@ -12,7 +12,7 @@ export MPLCONFIGDIR=${MPLCONFIGDIR:-/tmp/matplotlib}
 
 OLD_CHECKPOINT=${OLD_CHECKPOINT:-"/store/store5/data/acp21rjf_checkpoints/lcasr/enc_dec_no_anorm_V2_lr_2e3_ctcw_0_05/step_210720.pt"}
 OUTCOME_CHECKPOINT=${OUTCOME_CHECKPOINT:-"/store/store5/data/acp21rjf_checkpoints/lcasr/enc_dec_v2/step_105360.pt"}
-RESULTS_ROOT=${RESULTS_ROOT:-"./results/enc_dec/checkpoint1/rob63_earnings_unadapted_sanity"}
+RESULTS_ROOT=${RESULTS_ROOT:-"./results/enc_dec/enc_dec_v2/rob63_earnings_unadapted_sanity"}
 PKL_ROOT="${RESULTS_ROOT}/pkl"
 LOG_ROOT="${RESULTS_ROOT}/logs"
 mkdir -p "$PKL_ROOT" "$LOG_ROOT" "$MPLCONFIGDIR"
@@ -66,8 +66,8 @@ do
 done
 
 if [ "$DRY_RUN" != "1" ]; then
-  "$PYTHON_BIN" results/enc_dec/checkpoint1/rob63_earnings_unadapted_sanity/aggregate.py \
-    --directory results/enc_dec/checkpoint1/rob63_earnings_unadapted_sanity/pkl \
-    --csv results/enc_dec/checkpoint1/rob63_earnings_unadapted_sanity/summary.csv \
-    --outcome results/enc_dec/checkpoint1/rob63_earnings_unadapted_sanity/OUTCOME.md
+  "$PYTHON_BIN" results/enc_dec/enc_dec_v2/rob63_earnings_unadapted_sanity/aggregate.py \
+    --directory results/enc_dec/enc_dec_v2/rob63_earnings_unadapted_sanity/pkl \
+    --csv results/enc_dec/enc_dec_v2/rob63_earnings_unadapted_sanity/summary.csv \
+    --outcome results/enc_dec/enc_dec_v2/rob63_earnings_unadapted_sanity/OUTCOME.md
 fi

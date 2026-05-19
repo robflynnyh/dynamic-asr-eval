@@ -30,7 +30,7 @@ LRS_STR=${LRS:-"1e-7 3e-7"}
 AUGS_STR=${AUGS:-"freq6_width34_time0 freq3_width24_time0"}
 FILTERS_STR=${FILTERS:-"no_filter"}
 
-RESULTS_ROOT=${RESULTS_ROOT:-"./results/enc_dec/checkpoint2/rob63_rl_self_training_compare"}
+RESULTS_ROOT=${RESULTS_ROOT:-"./results/enc_dec/rl_step_30000/rob63_rl_self_training_compare"}
 PKL_ROOT="${RESULTS_ROOT}/pkl"
 LOG_ROOT="${RESULTS_ROOT}/logs"
 mkdir -p "$PKL_ROOT" "$LOG_ROOT" "$MPLCONFIGDIR"
@@ -219,7 +219,7 @@ do
 done
 
 if [ "$DRY_RUN" != "1" ]; then
-    "$PYTHON_BIN" results/enc_dec/checkpoint2/rob63_rl_self_training_compare/aggregate.py \
+    "$PYTHON_BIN" results/enc_dec/rl_step_30000/rob63_rl_self_training_compare/aggregate.py \
         --directory "${PKL_ROOT}" \
         --csv "${RESULTS_ROOT}/summary.csv" \
         --outcome "${RESULTS_ROOT}/OUTCOME.md"

@@ -34,7 +34,7 @@ read -r -a DATASETS <<< "$DATASETS_STR"
 read -r -a LRS <<< "$LRS_STR"
 read -r -a AUGS <<< "$AUGS_STR"
 
-RESULTS_DIR=${RESULTS_DIR:-"./results/enc_dec/checkpoint1/enc_dec_dynamic_eval"}
+RESULTS_DIR=${RESULTS_DIR:-"./results/enc_dec/enc_dec_v2/enc_dec_dynamic_eval"}
 LOG_DIR="${RESULTS_DIR}/logs"
 mkdir -p "$RESULTS_DIR" "$LOG_DIR" "$MPLCONFIGDIR"
 

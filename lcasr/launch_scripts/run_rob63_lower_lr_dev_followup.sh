@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 export TRAINING_MODES="${TRAINING_MODES:-teacher_ce}"
 export LRS="${LRS:-3e-8 1e-8 3e-9}"
 export AUGS="${AUGS:-freq3_width24_time0}"
-export RESULTS_ROOT="${RESULTS_ROOT:-./results/enc_dec/checkpoint2/rob63_lower_lr_dev_followup}"
+export RESULTS_ROOT="${RESULTS_ROOT:-./results/enc_dec/rl_step_30000/rob63_lower_lr_dev_followup}"
 
 if [ "${RUN_CHIME6_DEV:-1}" = "1" ]; then
   DATASETS=chime6 \

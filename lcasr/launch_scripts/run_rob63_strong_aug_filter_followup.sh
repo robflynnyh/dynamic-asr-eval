@@ -7,7 +7,7 @@ export TRAINING_MODES="${TRAINING_MODES:-teacher_ce}"
 export LRS="${LRS:-1e-8 3e-8}"
 export AUGS="${AUGS:-freq9_width44_time0}"
 export FILTERS="${FILTERS:-no_filter basic_repeat_filter}"
-export RESULTS_ROOT="${RESULTS_ROOT:-./results/enc_dec/checkpoint2/rob63_strong_aug_filter_followup}"
+export RESULTS_ROOT="${RESULTS_ROOT:-./results/enc_dec/rl_step_30000/rob63_strong_aug_filter_followup}"
 
 if [ "${RUN_CHIME6_DEV:-1}" = "1" ]; then
   DATASETS=chime6 \
