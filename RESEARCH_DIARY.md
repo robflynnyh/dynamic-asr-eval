@@ -1,5 +1,19 @@
 # Research Diary
 
+## 2026-05-19
+
+- ROB-63: Final encoder-decoder result layout has exactly three direct
+  checkpoint-family folders under `lcasr/results/enc_dec/`: `enc_dec_v2/`,
+  `old_seed/`, and `rl_step_30000/`. The top-level `README.md` and
+  `OUTCOME.md` name the exact checkpoint paths; ROB-63 paired seed/RL views
+  are regenerated from `rl_step_30000/rob63_rl_self_training_compare/`.
+- ROB-63: Added the thesis-facing matched `teacher_ce`, `lr=1e-7`,
+  `freq3_width24_time0` comparison to `enc_dec_v2/OUTCOME.md` and the shared
+  89.3M-parameter `EncDecSconformerV2` architecture summary to
+  `lcasr/results/enc_dec/README.md`. `enc_dec_v2` has matching TED-LIUM and
+  Earnings22 rows only; CHIME-6 and Rev16 remain available for `old_seed` and
+  `rl_step_30000`, not the historical checkpoint.
+
 ## 2026-05-16
 
 - ROB-68: The scaled-time-mask 16384-context RMM follow-up completed all 24 requested cells under `lcasr/results/ctc_seq16384_rmm_scaled_time_masks_eval/` and regenerated `summary.csv`, `summary_by_setting.csv`, and `summary.md`. Each dataset/epoch group has `N=3`; mean WERs are TEDLIUM 5.84%/5.80%, Earnings22 15.62%/14.73%, CHiME-6 77.92%/77.58%, and Rev16 14.09%/13.90% for epochs 1/5 respectively.
@@ -24,10 +38,29 @@
   artifacts, using repo-local ignored directories or result-scoped paths
   instead.
 
+- ROB-63: Earnings22 beam5/lp0.5 sanity check confirmed the top-level 28%
+  versus ROB-63 25% mismatch is a checkpoint-family difference:
+  `enc_dec_v2/step_105360.pt` gives `0.28724` WER, while `old_seed`
+  `step_210720.pt` gives `0.25172`. Artifacts live under
+  `lcasr/results/enc_dec/enc_dec_v2/rob63_earnings_unadapted_sanity/`.
+
+- ROB-63: Follow-up sweeps are summarized in
+  `lcasr/results/enc_dec/rl_step_30000/rob63_rl_self_training_compare/COMBINED_OUTCOME.md`.
+  Durable read: CHiME-6 stays deletion-collapsed under these enc-dec
+  self-training settings; Rev16 has some lower-LR RL wins but high
+  augmentation can make RL deletion-heavy; Earnings22 targeted high-aug
+  slightly favors RL over seed but not over RL's own unadapted baseline.
+
 ## 2026-05-11
 
 - ROB-68: Added an opt-in RMM random mixed-mask augmentation policy to the CTC dynamic-eval self-training path and scaffolded an all-dataset 2048-context RMM evaluation for epochs `1` and `5`. The run uses checkpoint `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_2048_rp_1/step_105360.pt`, `seq_len=2048`, `overlap=1792`, `lr=1e-5`, and writes under `lcasr/results/ctc_seq2048_rmm_eval/`.
 - ROB-68: The callback-backed full RMM eval completed all 8 requested cells. Regenerated `lcasr/results/ctc_seq2048_rmm_eval/summary.csv`, `summary_by_setting.csv`, and `summary.md`; final WERs were TEDLIUM 5.96%/5.83%, Earnings22 15.72%/14.72%, CHiME-6 78.06%/78.71%, and Rev16 14.11%/20.52% for epochs 1/5 respectively.
+- ROB-63: Main one-epoch encoder-decoder self-training comparison completed
+  for old seed versus RL `step_30000`, with normal baselines and combined
+  reporting under `lcasr/results/enc_dec/rl_step_30000/`. Initial TED-LIUM
+  and Earnings22 results favored RL in most matched cells, while later CHiME-6
+  and Rev16 follow-ups require reading alongside each checkpoint's unadapted
+  baseline rather than as standalone adapted WER.
 - ROB-66: Added the no-adapt 2048-context CTC baseline scaffold for the ROB-56 checkpoint. The queued wrapper uses `epochs=0`, `seq_len=2048`, `overlap=1792`, test splits for `earnings22`, `tedlium`, `chime6`, and `rev16`, and regenerates thesis-friendly `summary.csv` / `summary.md` under `lcasr/results/ctc_seq2048_unadapted_baseline/`.
 
 ## 2026-05-10

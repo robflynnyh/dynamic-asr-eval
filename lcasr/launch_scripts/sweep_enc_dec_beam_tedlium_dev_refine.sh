@@ -12,7 +12,7 @@ DRY_RUN=${DRY_RUN:-0}
 RUN_CODEX_ANALYSIS=${RUN_CODEX_ANALYSIS:-0}
 export MPLCONFIGDIR=${MPLCONFIGDIR:-/tmp/matplotlib}
 
-RESULTS_DIR="./results/enc_dec_beam_tedlium_dev_refine"
+RESULTS_DIR="./results/enc_dec/enc_dec_v2/enc_dec_beam_tedlium_dev_refine"
 LOG_DIR="${RESULTS_DIR}/logs"
 mkdir -p "$RESULTS_DIR" "$LOG_DIR" "$MPLCONFIGDIR"
 
@@ -78,9 +78,9 @@ ${RESULTS_DIR}/OUTCOME.md
 Instructions:
 - Do not rerun evaluations.
 - Use the saved pickle files and logs to summarize each setting.
-- If needed, copy or adapt results/enc_dec_beam_tedlium_dev/aggregate.py to aggregate the refinement pickles.
+- If needed, copy or adapt results/enc_dec/enc_dec_v2/enc_dec_beam_tedlium_dev/aggregate.py to aggregate the refinement pickles.
 - Extract WER and any available insertion/deletion/substitution rates.
-- Compare against results/enc_dec_beam_tedlium_dev/summary.csv when available.
+- Compare against results/enc_dec/enc_dec_v2/enc_dec_beam_tedlium_dev/summary.csv when available.
 - Focus on whether no-repeat ngram size 8 acts as a safe repetition guard and whether beam 3 or beam 10 improves over beam 5.
 - Include a compact table with run name, arguments, WER, and notes.
 - End with a short recommendation.
