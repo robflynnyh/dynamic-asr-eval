@@ -2,6 +2,12 @@
 
 ## 2026-05-19
 
+- ROB-94: Added a separate fixed-setting encoder-decoder thesis row path under
+  `lcasr/results/enc_dec/rob94_fixed_setting_thesis/`. The wrapper queues the
+  runnable missing `teacher_ce`, `lr=1e-7`, `freq3_width24_time0`,
+  `beam5_lp0p5`, epoch-1 rows and the aggregator keeps the 24-row table
+  explicit, marking Rev16 dev unavailable because the current runner exposes
+  Rev16 test only.
 - ROB-63: Final encoder-decoder result layout has exactly three direct
   checkpoint-family folders under `lcasr/results/enc_dec/`: `enc_dec_v2/`,
   `old_seed/`, and `rl_step_30000/`. The top-level `README.md` and
