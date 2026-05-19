@@ -14,7 +14,7 @@ epoch. All rows are single-repeat snapshots.
 
 Checkpoint-specific summaries live in `checkpoint1/OUTCOME.md` and
 `checkpoint2/OUTCOME.md`. The full paired ROB-63 table remains in
-`rob63_rl_self_training_compare/COMBINED_OUTCOME.md`.
+`checkpoint2/rob63_rl_self_training_compare/COMBINED_OUTCOME.md`.
 
 ## Best Newest-Checkpoint Rows
 
@@ -39,6 +39,6 @@ decodes for each checkpoint.
   but nearby higher-LR cells collapse.
 - CHiME-6 remains deletion-dominated or near 1.0 WER after adaptation, so it
   should be treated as a failed adaptation setting rather than a checkpoint win.
-- The older `enc_dec_dynamic_eval/` folder uses a different historical
+- The older `checkpoint1/enc_dec_dynamic_eval/` folder uses a different historical
   checkpoint, `enc_dec_v2/step_105360.pt`; use the ROB-63 checkpoint folders
   for seed-vs-RL comparisons.

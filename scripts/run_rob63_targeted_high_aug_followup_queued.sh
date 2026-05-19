@@ -11,7 +11,7 @@ fi
 
 LINEAR_ISSUE="${LINEAR_ISSUE:-ROB-63}"
 SCREEN_NAME="${SCREEN_NAME:-rob63_targeted_high_aug_followup}"
-RESULTS_PATH="${RESULTS_PATH:-lcasr/results/enc_dec/rob63_targeted_high_aug_followup}"
+RESULTS_PATH="${RESULTS_PATH:-lcasr/results/enc_dec/checkpoint2/rob63_targeted_high_aug_followup}"
 LOG_PATH="${LOG_PATH:-${RESULTS_PATH}/screen.log}"
 RUNNER_LABEL="${RUNNER_LABEL:-screen:${SCREEN_NAME}}"
 QUEUED_COMMAND="${QUEUED_COMMAND:-/store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob63_targeted_high_aug_followup_queued.sh}"
@@ -40,7 +40,7 @@ on_exit() {
     --branch "${GIT_BRANCH}" \
     --commit "${GIT_COMMIT}" \
     --target-state Todo \
-    --note "ROB-63 targeted high-augmentation follow-up exited. Inspect \`lcasr/results/enc_dec/rob63_targeted_high_aug_followup/OUTCOME.md\`, \`summary.csv\`, pickles, and logs before finalizing; this run targets Rev16 \`1e-7\` plus Earnings22 \`3e-8\` under \`freq9_width44_time0\` with no teacher filtering." \
+    --note "ROB-63 targeted high-augmentation follow-up exited. Inspect \`lcasr/results/enc_dec/checkpoint2/rob63_targeted_high_aug_followup/OUTCOME.md\`, \`summary.csv\`, pickles, and logs before finalizing; this run targets Rev16 \`1e-7\` plus Earnings22 \`3e-8\` under \`freq9_width44_time0\` with no teacher filtering." \
     "${callback_args[@]}"
   callback_status=$?
   if [ "${callback_status}" -ne 0 ]; then
@@ -86,11 +86,11 @@ EARNINGS22_LRS="${EARNINGS22_LRS:-3e-8}" \
 AUGS="${AUGS:-freq9_width44_time0}" \
 FILTERS="${FILTERS:-no_filter}" \
 CHECKPOINTS="${CHECKPOINTS:-old_seed rl_step_30000}" \
-RESULTS_ROOT=./results/enc_dec/rob63_targeted_high_aug_followup \
+RESULTS_ROOT=./results/enc_dec/checkpoint2/rob63_targeted_high_aug_followup \
 bash lcasr/launch_scripts/run_rob63_targeted_high_aug_followup.sh 2>&1 | tee -a "$LOG_PATH"
 
-python3.10 lcasr/results/enc_dec/rob63_rl_self_training_compare/aggregate.py \
-  --directory lcasr/results/enc_dec/rob63_targeted_high_aug_followup/pkl \
-  --csv lcasr/results/enc_dec/rob63_targeted_high_aug_followup/summary.csv \
-  --outcome lcasr/results/enc_dec/rob63_targeted_high_aug_followup/OUTCOME.md \
+python3.10 lcasr/results/enc_dec/checkpoint2/rob63_rl_self_training_compare/aggregate.py \
+  --directory lcasr/results/enc_dec/checkpoint2/rob63_targeted_high_aug_followup/pkl \
+  --csv lcasr/results/enc_dec/checkpoint2/rob63_targeted_high_aug_followup/summary.csv \
+  --outcome lcasr/results/enc_dec/checkpoint2/rob63_targeted_high_aug_followup/OUTCOME.md \
   2>&1 | tee -a "$LOG_PATH"

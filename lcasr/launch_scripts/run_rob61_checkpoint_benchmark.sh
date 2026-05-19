@@ -17,7 +17,7 @@ NEW_STEPS_STR=${NEW_STEPS:-"2000 10000 20000 30000"}
 DATASETS_STR=${DATASETS:-"tedlium earnings22"}
 DECODE_CONFIGS_STR=${DECODE_CONFIGS:-"greedy beam5_lp0p5"}
 
-RESULTS_ROOT=${RESULTS_ROOT:-"./results/enc_dec/rob61_checkpoint_benchmark"}
+RESULTS_ROOT=${RESULTS_ROOT:-"./results/enc_dec/checkpoint2/rob61_checkpoint_benchmark"}
 PKL_ROOT="${RESULTS_ROOT}/pkl"
 LOG_ROOT="${RESULTS_ROOT}/logs"
 mkdir -p "$PKL_ROOT" "$LOG_ROOT" "$MPLCONFIGDIR"
@@ -102,7 +102,7 @@ do
 done
 
 if [ "$DRY_RUN" != "1" ]; then
-  "$PYTHON_BIN" results/enc_dec/rob61_checkpoint_benchmark/aggregate.py \
-    --csv results/enc_dec/rob61_checkpoint_benchmark/summary.csv \
-    --outcome results/enc_dec/rob61_checkpoint_benchmark/OUTCOME.md
+  "$PYTHON_BIN" results/enc_dec/checkpoint2/rob61_checkpoint_benchmark/aggregate.py \
+    --csv results/enc_dec/checkpoint2/rob61_checkpoint_benchmark/summary.csv \
+    --outcome results/enc_dec/checkpoint2/rob61_checkpoint_benchmark/OUTCOME.md
 fi

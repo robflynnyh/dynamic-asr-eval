@@ -11,7 +11,7 @@ fi
 
 LINEAR_ISSUE="${LINEAR_ISSUE:-ROB-63}"
 SCREEN_NAME="${SCREEN_NAME:-rob63_strong_aug_filter_followup}"
-RESULTS_PATH="${RESULTS_PATH:-lcasr/results/enc_dec/rob63_strong_aug_filter_followup}"
+RESULTS_PATH="${RESULTS_PATH:-lcasr/results/enc_dec/checkpoint2/rob63_strong_aug_filter_followup}"
 LOG_PATH="${LOG_PATH:-${RESULTS_PATH}/screen.log}"
 RUNNER_LABEL="${RUNNER_LABEL:-screen:${SCREEN_NAME}}"
 QUEUED_COMMAND="${QUEUED_COMMAND:-/store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob63_strong_aug_filter_followup_queued.sh}"
@@ -40,7 +40,7 @@ on_exit() {
     --branch "${GIT_BRANCH}" \
     --commit "${GIT_COMMIT}" \
     --target-state Todo \
-    --note "ROB-63 stronger-augmentation/filter follow-up completed. Inspect \`lcasr/results/enc_dec/rob63_strong_aug_filter_followup/OUTCOME.md\`, \`summary.csv\`, pickles, and logs before finalizing; compare against the lower-LR and lighter-augmentation follow-ups." \
+    --note "ROB-63 stronger-augmentation/filter follow-up completed. Inspect \`lcasr/results/enc_dec/checkpoint2/rob63_strong_aug_filter_followup/OUTCOME.md\`, \`summary.csv\`, pickles, and logs before finalizing; compare against the lower-LR and lighter-augmentation follow-ups." \
     "${callback_args[@]}"
   callback_status=$?
   if [ "${callback_status}" -ne 0 ]; then
@@ -82,5 +82,5 @@ TRAINING_MODES="${TRAINING_MODES:-teacher_ce}" \
 LRS="${LRS:-1e-8 3e-8}" \
 AUGS="${AUGS:-freq9_width44_time0}" \
 FILTERS="${FILTERS:-no_filter basic_repeat_filter}" \
-RESULTS_ROOT=./results/enc_dec/rob63_strong_aug_filter_followup \
+RESULTS_ROOT=./results/enc_dec/checkpoint2/rob63_strong_aug_filter_followup \
 bash lcasr/launch_scripts/run_rob63_strong_aug_filter_followup.sh 2>&1 | tee -a "$LOG_PATH"

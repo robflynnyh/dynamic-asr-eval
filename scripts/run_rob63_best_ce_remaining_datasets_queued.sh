@@ -11,7 +11,7 @@ fi
 
 LINEAR_ISSUE="${LINEAR_ISSUE:-ROB-63}"
 SCREEN_NAME="${SCREEN_NAME:-rob63_best_ce_remaining_datasets}"
-RESULTS_PATH="${RESULTS_PATH:-lcasr/results/enc_dec/rob63_best_ce_remaining_datasets}"
+RESULTS_PATH="${RESULTS_PATH:-lcasr/results/enc_dec/checkpoint2/rob63_best_ce_remaining_datasets}"
 LOG_PATH="${LOG_PATH:-${RESULTS_PATH}/screen.log}"
 RUNNER_LABEL="${RUNNER_LABEL:-screen:${SCREEN_NAME}}"
 QUEUED_COMMAND="${QUEUED_COMMAND:-/store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob63_best_ce_remaining_datasets_queued.sh}"
@@ -40,7 +40,7 @@ on_exit() {
     --branch "${GIT_BRANCH}" \
     --commit "${GIT_COMMIT}" \
     --target-state Todo \
-    --note "ROB-63 best-CE remaining-dataset wrapper completed. Inspect \`lcasr/results/enc_dec/rob63_best_ce_remaining_datasets/OUTCOME.md\`, \`summary.csv\`, pickles, and logs before finalizing." \
+    --note "ROB-63 best-CE remaining-dataset wrapper completed. Inspect \`lcasr/results/enc_dec/checkpoint2/rob63_best_ce_remaining_datasets/OUTCOME.md\`, \`summary.csv\`, pickles, and logs before finalizing." \
     "${callback_args[@]}"
   callback_status=$?
   if [ "${callback_status}" -ne 0 ]; then
@@ -81,5 +81,5 @@ DATASETS="${DATASETS:-chime6 rev16}" \
 TRAINING_MODES=teacher_ce \
 LRS=1e-7 \
 AUGS=freq3_width24_time0 \
-RESULTS_ROOT=./results/enc_dec/rob63_best_ce_remaining_datasets \
+RESULTS_ROOT=./results/enc_dec/checkpoint2/rob63_best_ce_remaining_datasets \
 bash lcasr/launch_scripts/run_rob63_best_ce_remaining_datasets.sh 2>&1 | tee -a "$LOG_PATH"

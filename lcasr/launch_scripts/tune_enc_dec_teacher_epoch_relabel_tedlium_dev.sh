@@ -4,7 +4,7 @@ set -euo pipefail
 GPU=${GPU:-0}
 PYTHON_BIN=${PYTHON_BIN:-python3.10}
 CHECKPOINT=${CHECKPOINT:-"/store/store5/data/acp21rjf_checkpoints/lcasr/enc_dec_v2/step_105360.pt"}
-RESULTS_DIR=${RESULTS_DIR:-"./results/enc_dec/enc_dec_teacher_epoch_relabel"}
+RESULTS_DIR=${RESULTS_DIR:-"./results/enc_dec/checkpoint1/enc_dec_teacher_epoch_relabel"}
 LOG_DIR="${RESULTS_DIR}/logs"
 DATASET=${DATASET:-tedlium}
 SPLIT=${SPLIT:-dev}

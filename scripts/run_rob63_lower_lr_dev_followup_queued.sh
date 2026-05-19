@@ -11,7 +11,7 @@ fi
 
 LINEAR_ISSUE="${LINEAR_ISSUE:-ROB-63}"
 SCREEN_NAME="${SCREEN_NAME:-rob63_lower_lr_dev_followup}"
-RESULTS_PATH="${RESULTS_PATH:-lcasr/results/enc_dec/rob63_lower_lr_dev_followup}"
+RESULTS_PATH="${RESULTS_PATH:-lcasr/results/enc_dec/checkpoint2/rob63_lower_lr_dev_followup}"
 LOG_PATH="${LOG_PATH:-${RESULTS_PATH}/screen.log}"
 RUNNER_LABEL="${RUNNER_LABEL:-screen:${SCREEN_NAME}}"
 QUEUED_COMMAND="${QUEUED_COMMAND:-/store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob63_lower_lr_dev_followup_queued.sh}"
@@ -40,7 +40,7 @@ on_exit() {
     --branch "${GIT_BRANCH}" \
     --commit "${GIT_COMMIT}" \
     --target-state Todo \
-    --note "ROB-63 lower-LR follow-up completed. Inspect \`lcasr/results/enc_dec/rob63_lower_lr_dev_followup/OUTCOME.md\`, \`summary.csv\`, pickles, and logs; also inspect CHiME-6 dev normal baselines under \`lcasr/results/enc_dec/rob61_checkpoint_benchmark/\` before finalizing." \
+    --note "ROB-63 lower-LR follow-up completed. Inspect \`lcasr/results/enc_dec/checkpoint2/rob63_lower_lr_dev_followup/OUTCOME.md\`, \`summary.csv\`, pickles, and logs; also inspect CHiME-6 dev normal baselines under \`lcasr/results/enc_dec/checkpoint2/rob61_checkpoint_benchmark/\` before finalizing." \
     "${callback_args[@]}"
   callback_status=$?
   if [ "${callback_status}" -ne 0 ]; then
@@ -84,13 +84,13 @@ export GPU
   SPLIT=dev \
   NEW_STEPS=30000 \
   DECODE_CONFIGS=beam5_lp0p5 \
-  RESULTS_ROOT=./results/enc_dec/rob61_checkpoint_benchmark \
+  RESULTS_ROOT=./results/enc_dec/checkpoint2/rob61_checkpoint_benchmark \
   bash lcasr/launch_scripts/run_rob63_remaining_normal_baselines.sh
 
   echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] Running lower-LR self-training follow-up"
   TRAINING_MODES="${TRAINING_MODES:-teacher_ce}" \
   LRS="${LRS:-3e-8 1e-8 3e-9}" \
   AUGS="${AUGS:-freq3_width24_time0}" \
-  RESULTS_ROOT=./results/enc_dec/rob63_lower_lr_dev_followup \
+  RESULTS_ROOT=./results/enc_dec/checkpoint2/rob63_lower_lr_dev_followup \
   bash lcasr/launch_scripts/run_rob63_lower_lr_dev_followup.sh
 } 2>&1 | tee -a "$LOG_PATH"

@@ -11,7 +11,7 @@ fi
 
 LINEAR_ISSUE="${LINEAR_ISSUE:-ROB-63}"
 SCREEN_NAME="${SCREEN_NAME:-rob63_remaining_normal_baselines}"
-RESULTS_PATH="${RESULTS_PATH:-lcasr/results/enc_dec/rob61_checkpoint_benchmark}"
+RESULTS_PATH="${RESULTS_PATH:-lcasr/results/enc_dec/checkpoint2/rob61_checkpoint_benchmark}"
 LOG_PATH="${LOG_PATH:-${RESULTS_PATH}/rob63_remaining_normal_baselines_screen.log}"
 RUNNER_LABEL="${RUNNER_LABEL:-screen:${SCREEN_NAME}}"
 QUEUED_COMMAND="${QUEUED_COMMAND:-/store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob63_remaining_normal_baselines_queued.sh}"
@@ -40,7 +40,7 @@ on_exit() {
     --branch "${GIT_BRANCH}" \
     --commit "${GIT_COMMIT}" \
     --target-state Todo \
-    --note "ROB-63 remaining normal-baseline wrapper completed. Inspect \`lcasr/results/enc_dec/rob61_checkpoint_benchmark/OUTCOME.md\`, \`summary.csv\`, new CHiME-6/Rev16 normal pickles, and logs before regenerating ROB-63 summaries." \
+    --note "ROB-63 remaining normal-baseline wrapper completed. Inspect \`lcasr/results/enc_dec/checkpoint2/rob61_checkpoint_benchmark/OUTCOME.md\`, \`summary.csv\`, new CHiME-6/Rev16 normal pickles, and logs before regenerating ROB-63 summaries." \
     "${callback_args[@]}"
   callback_status=$?
   if [ "${callback_status}" -ne 0 ]; then
@@ -79,5 +79,5 @@ export GPU
 DATASETS="${DATASETS:-chime6 rev16}" \
 NEW_STEPS="${NEW_STEPS:-30000}" \
 DECODE_CONFIGS="${DECODE_CONFIGS:-beam5_lp0p5}" \
-RESULTS_ROOT=./results/enc_dec/rob61_checkpoint_benchmark \
+RESULTS_ROOT=./results/enc_dec/checkpoint2/rob61_checkpoint_benchmark \
 bash lcasr/launch_scripts/run_rob63_remaining_normal_baselines.sh 2>&1 | tee -a "$LOG_PATH"
