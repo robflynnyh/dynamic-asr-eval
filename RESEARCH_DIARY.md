@@ -1,5 +1,16 @@
 # Research Diary
 
+## 2026-05-19
+
+- ROB-63: Reworked the encoder-decoder result readout after the latest human
+  request to make the seed-vs-RL checkpoint comparison more human-readable.
+  Added generated checkpoint-specific views under
+  `lcasr/results/enc_dec/checkpoint1/` for `old_seed` and
+  `lcasr/results/enc_dec/checkpoint2/` for `rl_step_30000`, and changed the
+  top-level `lcasr/results/enc_dec/OUTCOME.md` into a compact table of the
+  best newest-checkpoint rows with matched old-seed adapted WER plus both
+  unadapted baselines.
+
 ## 2026-05-13
 
 - ROB-84: Updated the repo-local Symphony guidance so future Mimas work must

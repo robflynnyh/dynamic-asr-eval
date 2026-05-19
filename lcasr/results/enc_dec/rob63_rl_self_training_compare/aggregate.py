@@ -27,6 +27,14 @@ CHECKPOINT_DESCRIPTIONS = {
     "old_seed": "normal encoder-decoder seed checkpoint",
     "rl_step_30000": "30K RL-trained checkpoint from the ROB-61/PR #11 lineage",
 }
+CHECKPOINT_VIEW_NAMES = {
+    "old_seed": "checkpoint1",
+    "rl_step_30000": "checkpoint2",
+}
+CHECKPOINT_VIEW_TITLES = {
+    "old_seed": "Checkpoint 1: old_seed",
+    "rl_step_30000": "Checkpoint 2: rl_step_30000",
+}
 
 
 def mean(values: list[float]) -> float:
@@ -167,6 +175,229 @@ def format_signed(value: float | None) -> str:
 
 def format_percent(value: float | None) -> str:
     return "" if value is None else f"{value:+.2%}"
+
+
+def comparable_key(row: dict[str, Any]) -> tuple[Any, ...]:
+    return (
+        row.get("dataset"),
+        row.get("split"),
+        row.get("training_mode"),
+        row.get("lr"),
+        row.get("augmentation"),
+        row.get("decode"),
+        row.get("epoch"),
+    )
+
+
+def row_sort_key(row: dict[str, Any]) -> tuple[Any, ...]:
+    return (
+        str(row.get("dataset", "")),
+        str(row.get("split", "")),
+        str(row.get("training_mode", "")),
+        str(row.get("lr", "")),
+        str(row.get("augmentation", "")),
+        str(row.get("checkpoint", "")),
+    )
+
+
+def best_rows_by_dataset(rows: list[dict[str, Any]], checkpoint: str) -> list[dict[str, Any]]:
+    best: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        if row.get("checkpoint") != checkpoint:
+            continue
+        key = (str(row.get("dataset", "")), str(row.get("split", "")))
+        current = best.get(key)
+        if current is None or float(row["wer"]) < float(current["wer"]):
+            best[key] = row
+    return [best[key] for key in sorted(best)]
+
+
+def write_checkpoint_readme(checkpoint: str, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    view_name = CHECKPOINT_VIEW_NAMES[checkpoint]
+    lines = [
+        f"# ROB-63 {CHECKPOINT_VIEW_TITLES[checkpoint]}",
+        "",
+        "This folder is a checkpoint-specific view of the ROB-63 encoder-decoder",
+        "self-training results. It is generated from the combined ROB-63 result",
+        "pickles and normal-decoding baselines; it does not duplicate raw logs or",
+        "pickle artifacts.",
+        "",
+        "## Checkpoint",
+        "",
+        f"- Folder: `results/enc_dec/{view_name}/`",
+        f"- Key: `{checkpoint}`",
+        f"- Description: {CHECKPOINT_DESCRIPTIONS[checkpoint]}",
+        f"- Path: `{CHECKPOINT_PATHS[checkpoint]}`",
+        "",
+        "## Files",
+        "",
+        "| File | Meaning |",
+        "|---|---|",
+        "| `summary.csv` | All ROB-63 adapted rows for this checkpoint, with matching normal/unadapted WER where available. |",
+        "| `OUTCOME.md` | Human-readable best-row summary plus the full checkpoint-specific table. |",
+        "",
+        "Regenerate from the repository root with:",
+        "",
+        "```bash",
+        "python results/enc_dec/rob63_rl_self_training_compare/aggregate.py \\",
+        "  --directory results/enc_dec/rob63_rl_self_training_compare/pkl \\",
+        "  --extra-directory results/enc_dec/rob63_best_ce_remaining_datasets/pkl \\",
+        "  --extra-directory results/enc_dec/rob63_lower_lr_dev_followup/pkl \\",
+        "  --extra-directory results/enc_dec/rob63_aug_followup/pkl \\",
+        "  --extra-directory results/enc_dec/rob63_strong_aug_filter_followup/pkl \\",
+        "  --extra-directory results/enc_dec/rob63_targeted_high_aug_followup/pkl \\",
+        "  --csv results/enc_dec/rob63_rl_self_training_compare/combined_summary.csv \\",
+        "  --outcome results/enc_dec/rob63_rl_self_training_compare/COMBINED_OUTCOME.md \\",
+        "  --checkpoint-view-root results/enc_dec \\",
+        "  --top-level-outcome results/enc_dec/OUTCOME.md",
+        "```",
+    ]
+    path.write_text("\n".join(lines) + "\n")
+
+
+def write_checkpoint_outcome(checkpoint: str, rows: list[dict[str, Any]], path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    checkpoint_rows = [row for row in rows if row.get("checkpoint") == checkpoint]
+    lines = [
+        f"# {CHECKPOINT_VIEW_TITLES[checkpoint]}",
+        "",
+        f"`{checkpoint}` is the {CHECKPOINT_DESCRIPTIONS[checkpoint]}.",
+        "",
+        f"Checkpoint path: `{CHECKPOINT_PATHS[checkpoint]}`",
+        "",
+        "Rows are one-epoch self-training snapshots. `Normal WER` is the matching",
+        "unadapted beam5/lp0.5 decode for the same checkpoint when available.",
+        "",
+        "## Best Rows",
+        "",
+        "| Dataset | Split | Mode | LR | Augmentation | Normal WER | Adapted WER | Adapted vs normal |",
+        "|---|---|---|---:|---|---:|---:|---:|",
+    ]
+    for row in best_rows_by_dataset(rows, checkpoint):
+        lines.append(
+            "| {dataset} | {split} | {mode} | {lr} | {aug} | {normal} | {wer} | {delta} |".format(
+                dataset=row.get("dataset", ""),
+                split=row.get("split", ""),
+                mode=row.get("training_mode", ""),
+                lr=row.get("lr", ""),
+                aug=row.get("augmentation", ""),
+                normal=format_wer(row.get("normal_decode_wer")),
+                wer=format_wer(float(row["wer"])),
+                delta=format_signed(row.get("delta_vs_normal_decode")),
+            )
+        )
+    lines.extend(
+        [
+            "",
+            "## Full Checkpoint Table",
+            "",
+            "| Dataset | Split | Mode | LR | Augmentation | Adapted WER | Normal WER | Delta vs normal | Relative vs normal | Ins | Del | Sub |",
+            "|---|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for row in sorted(checkpoint_rows, key=row_sort_key):
+        lines.append(
+            "| {dataset} | {split} | {mode} | {lr} | {aug} | {wer} | {normal} | {delta} | {rel_delta} | "
+            "{ins:.5f} | {dele:.5f} | {sub:.5f} |".format(
+                dataset=row.get("dataset", ""),
+                split=row.get("split", ""),
+                mode=row.get("training_mode", ""),
+                lr=row.get("lr", ""),
+                aug=row.get("augmentation", ""),
+                wer=format_wer(float(row["wer"])),
+                normal=format_wer(row.get("normal_decode_wer")),
+                delta=format_signed(row.get("delta_vs_normal_decode")),
+                rel_delta=format_percent(row.get("relative_delta_vs_normal_decode")),
+                ins=row["ins_rate"],
+                dele=row["del_rate"],
+                sub=row["sub_rate"],
+            )
+        )
+    path.write_text("\n".join(lines) + "\n")
+
+
+def write_checkpoint_views(rows: list[dict[str, Any]], root: Path) -> None:
+    for checkpoint, view_name in CHECKPOINT_VIEW_NAMES.items():
+        checkpoint_rows = [row for row in rows if row.get("checkpoint") == checkpoint]
+        directory = root / view_name
+        write_csv(checkpoint_rows, directory / "summary.csv")
+        write_checkpoint_readme(checkpoint, directory / "README.md")
+        write_checkpoint_outcome(checkpoint, rows, directory / "OUTCOME.md")
+
+
+def write_top_level_checkpoint_outcome(rows: list[dict[str, Any]], path: Path) -> None:
+    by_key = {(row.get("checkpoint"), comparable_key(row)): row for row in rows}
+    lines = [
+        "# Encoder-decoder ROB-63 checkpoint outcome",
+        "",
+        "This top-level readout is intentionally checkpoint-focused. It shows the best",
+        "completed adapted row for the newest checkpoint and the matched old-seed row",
+        "for the same dataset, split, mode, learning rate, augmentation, decode, and",
+        "epoch. All rows are single-repeat snapshots.",
+        "",
+        "## Checkpoint Folders",
+        "",
+        "| Folder | Checkpoint | Meaning |",
+        "|---|---|---|",
+    ]
+    for checkpoint, view_name in CHECKPOINT_VIEW_NAMES.items():
+        lines.append(
+            f"| `{view_name}/` | `{checkpoint}` | {CHECKPOINT_DESCRIPTIONS[checkpoint]} at `{CHECKPOINT_PATHS[checkpoint]}` |"
+        )
+    lines.extend(
+        [
+            "",
+            "Checkpoint-specific summaries live in `checkpoint1/OUTCOME.md` and",
+            "`checkpoint2/OUTCOME.md`. The full paired ROB-63 table remains in",
+            "`rob63_rl_self_training_compare/COMBINED_OUTCOME.md`.",
+            "",
+            "## Best Newest-Checkpoint Rows",
+            "",
+            "`checkpoint2` is the newest RL-trained checkpoint. `checkpoint1` is the",
+            "normal encoder-decoder seed checkpoint. Baselines are unadapted beam5/lp0.5",
+            "decodes for each checkpoint.",
+            "",
+            "| Dataset | Split | Best checkpoint2 setting | Checkpoint1 normal WER | Checkpoint1 matched adapted WER | Checkpoint2 normal WER | Checkpoint2 best adapted WER | Checkpoint2 adapted vs normal | Checkpoint2 adapted vs checkpoint1 adapted |",
+            "|---|---|---|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for rl in best_rows_by_dataset(rows, "rl_step_30000"):
+        old = by_key.get(("old_seed", comparable_key(rl)))
+        setting = f"{rl.get('training_mode')} lr={rl.get('lr')} {rl.get('augmentation')}"
+        lines.append(
+            "| {dataset} | {split} | `{setting}` | {old_normal} | {old_adapted} | {rl_normal} | "
+            "{rl_adapted} | {rl_delta} | {rl_vs_old} |".format(
+                dataset=rl.get("dataset", ""),
+                split=rl.get("split", ""),
+                setting=setting,
+                old_normal="" if old is None else format_wer(old.get("normal_decode_wer")),
+                old_adapted="" if old is None else format_wer(float(old["wer"])),
+                rl_normal=format_wer(rl.get("normal_decode_wer")),
+                rl_adapted=format_wer(float(rl["wer"])),
+                rl_delta=format_signed(rl.get("delta_vs_normal_decode")),
+                rl_vs_old=format_signed(rl.get("delta_vs_old_seed")),
+            )
+        )
+    lines.extend(
+        [
+            "",
+            "## Interpretation",
+            "",
+            "- TED-LIUM and Earnings22 are the cleanest wins for the RL checkpoint under",
+            "  the completed one-epoch self-training grid.",
+            "- Rev16 is sensitive to learning rate and masking: the best RL row is a small",
+            "  gain over both its own normal decode and the matched old-seed adapted row,",
+            "  but nearby higher-LR cells collapse.",
+            "- CHiME-6 remains deletion-dominated or near 1.0 WER after adaptation, so it",
+            "  should be treated as a failed adaptation setting rather than a checkpoint win.",
+            "- The older `enc_dec_dynamic_eval/` folder uses a different historical",
+            "  checkpoint, `enc_dec_v2/step_105360.pt`; use the ROB-63 checkpoint folders",
+            "  for seed-vs-RL comparisons.",
+        ]
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n")
 
 
 def describe_grid(rows: list[dict[str, Any]]) -> str:
@@ -478,6 +709,18 @@ def main() -> int:
     )
     parser.add_argument("--csv", type=Path, default=Path(__file__).parent / "summary.csv")
     parser.add_argument("--outcome", type=Path, default=None)
+    parser.add_argument(
+        "--checkpoint-view-root",
+        type=Path,
+        default=None,
+        help="Optional results/enc_dec root where checkpoint1/ and checkpoint2/ views are written.",
+    )
+    parser.add_argument(
+        "--top-level-outcome",
+        type=Path,
+        default=None,
+        help="Optional top-level results/enc_dec/OUTCOME.md checkpoint-focused summary.",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
@@ -486,6 +729,10 @@ def main() -> int:
         write_csv(rows, args.csv)
     if args.outcome is not None:
         write_outcome(rows, args.outcome)
+    if args.checkpoint_view_root is not None:
+        write_checkpoint_views(rows, args.checkpoint_view_root)
+    if args.top_level_outcome is not None:
+        write_top_level_checkpoint_outcome(rows, args.top_level_outcome)
     if args.json:
         print(json.dumps(rows, indent=2, default=float))
     else:
