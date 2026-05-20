@@ -1,5 +1,19 @@
 # Research Diary
 
+## 2026-05-20
+
+- ROB-97: Added a callback-backed queue scaffold for the missing `enc_dec_v2`
+  no-adapt beam5/lp0.5 CHiME-6 and Rev16 test-set rows required by ROB-96.
+  The result path is `lcasr/results/enc_dec/enc_dec_v2/rob97_unadapted_beam/`
+  and the queued wrapper notifies ROB-97 on every exit path, then ROB-96 on
+  success.
+- ROB-97: The queued `enc_dec_v2` no-adapt beam5/lp0.5 evals completed for
+  `chime6/test` and `rev16/test` using
+  `/store/store5/data/acp21rjf_checkpoints/lcasr/enc_dec_v2/step_105360.pt`.
+  Regenerated `summary.csv` and `OUTCOME.md`; final WERs are `0.86331` for
+  CHiME-6 test and `0.19109` for Rev16 test. The callback posted completion
+  evidence to ROB-97, notified ROB-96, and set ROB-96 back to Todo.
+
 ## 2026-05-19
 
 - ROB-68: After a human follow-up requested dev results for the latest
