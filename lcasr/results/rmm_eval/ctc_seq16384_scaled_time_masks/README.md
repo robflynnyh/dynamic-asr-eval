@@ -22,7 +22,7 @@ time-mask widths at the normal 16384-context setup.
 - Repeats: `3`
 
 This directory is intentionally separate from
-`lcasr/results/ctc_seq16384_rmm_eval/`, which contains the completed fixed
+`lcasr/results/rmm_eval/ctc_seq16384/`, which contains the completed fixed
 `time_masks=12` 16384-context run.
 
 ## Launch
@@ -30,7 +30,7 @@ This directory is intentionally separate from
 The callback-backed detached wrapper is launched from the repo root:
 
 ```bash
-screen -L -Logfile lcasr/results/ctc_seq16384_rmm_scaled_time_masks_eval/logs/rob68_ctc_seq16384_rmm_scaled_time_masks.screen.log \
+screen -L -Logfile lcasr/results/rmm_eval/ctc_seq16384_scaled_time_masks/logs/rob68_ctc_seq16384_rmm_scaled_time_masks.screen.log \
   -dmS rob68_ctc_seq16384_rmm_scaled_time_masks \
   bash -lc 'cd /exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-68 && /store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- env SCREEN_NAME=rob68_ctc_seq16384_rmm_scaled_time_masks bash scripts/run_rob68_ctc_seq16384_rmm_scaled_time_queued.sh'
 ```
@@ -38,7 +38,7 @@ screen -L -Logfile lcasr/results/ctc_seq16384_rmm_scaled_time_masks_eval/logs/ro
 The dev follow-up uses the same wrapper with `SPLIT=dev` and no `rev16`:
 
 ```bash
-screen -L -Logfile lcasr/results/ctc_seq16384_rmm_scaled_time_masks_eval/logs/rob68_ctc_seq16384_rmm_scaled_time_masks_dev.screen.log \
+screen -L -Logfile lcasr/results/rmm_eval/ctc_seq16384_scaled_time_masks/logs/rob68_ctc_seq16384_rmm_scaled_time_masks_dev.screen.log \
   -dmS rob68_ctc_seq16384_rmm_scaled_time_masks_dev \
   bash -lc 'cd /exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-68 && SCREEN_NAME=rob68_ctc_seq16384_rmm_scaled_time_masks_dev SPLIT=dev DATASETS="earnings22 tedlium chime6" CALLBACK_TARGET_STATE=Todo /store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob68_ctc_seq16384_rmm_scaled_time_queued.sh'
 ```
@@ -46,7 +46,7 @@ screen -L -Logfile lcasr/results/ctc_seq16384_rmm_scaled_time_masks_eval/logs/ro
 Run aggregation after the callback completes:
 
 ```bash
-python lcasr/results/ctc_seq16384_rmm_scaled_time_masks_eval/aggregate.py
+python lcasr/results/rmm_eval/ctc_seq16384_scaled_time_masks/aggregate.py
 ```
 
 ## Outputs

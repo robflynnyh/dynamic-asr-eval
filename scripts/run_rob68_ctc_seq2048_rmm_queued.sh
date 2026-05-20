@@ -10,7 +10,7 @@ fi
 
 LINEAR_ISSUE=${LINEAR_ISSUE:-ROB-68}
 SCREEN_NAME=${SCREEN_NAME:-rob68_ctc_seq2048_rmm_eval}
-RESULTS_PATH=${RESULTS_PATH:-"${REPO_ROOT}/lcasr/results/ctc_seq2048_rmm_eval"}
+RESULTS_PATH=${RESULTS_PATH:-"${REPO_ROOT}/lcasr/results/rmm_eval/ctc_seq2048"}
 LOG_PATH=${LOG_PATH:-"${RESULTS_PATH}/logs/${SCREEN_NAME}.log"}
 RUNNER_LABEL=${RUNNER_LABEL:-"screen:${SCREEN_NAME}"}
 QUEUED_COMMAND=${QUEUED_COMMAND:-"/store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob68_ctc_seq2048_rmm_queued.sh"}
@@ -37,7 +37,7 @@ on_exit() {
     --target-state "${CALLBACK_TARGET_STATE}"
     --max-log-chars "${CALLBACK_MAX_LOG_CHARS:-20000}"
     --max-comment-chars "${CALLBACK_MAX_COMMENT_CHARS:-60000}"
-    --note "ROB-68 all-dataset CTC 2048-context RMM eval. Inspect lcasr/results/ctc_seq2048_rmm_eval summary files and logs before finalizing."
+    --note "ROB-68 all-dataset CTC 2048-context RMM eval. Inspect lcasr/results/rmm_eval/ctc_seq2048 summary files and logs before finalizing."
   )
 
   if [ "${CALLBACK_DRY_RUN:-0}" = "1" ]; then
@@ -84,7 +84,7 @@ cd "$REPO_ROOT/lcasr"
 
 COMMON_ENV=(
   PYTHON_BIN=${PYTHON_BIN:-python3.10}
-  RESULTS_DIR="./results/ctc_seq2048_rmm_eval"
+  RESULTS_DIR="./results/rmm_eval/ctc_seq2048"
   CHECKPOINT=${CHECKPOINT:-"/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_2048_rp_1/step_105360.pt"}
   DATASETS=${DATASETS:-"earnings22 tedlium chime6 rev16"}
   REPEATS=${REPEATS:-1}
@@ -96,4 +96,4 @@ env "${COMMON_ENV[@]}" EPOCHS="${EPOCHS:-1 5}" LR=${LR:-1e-5} \
   bash launch_scripts/run_ctc_seq2048_rmm_eval.sh 2>&1 | tee -a "$LOG_PATH"
 
 cd "$REPO_ROOT"
-python lcasr/results/ctc_seq2048_rmm_eval/aggregate.py 2>&1 | tee -a "$LOG_PATH"
+python lcasr/results/rmm_eval/ctc_seq2048/aggregate.py 2>&1 | tee -a "$LOG_PATH"

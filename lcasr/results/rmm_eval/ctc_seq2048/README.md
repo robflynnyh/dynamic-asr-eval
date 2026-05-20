@@ -27,7 +27,7 @@ DATASETS="earnings22 tedlium chime6 rev16" EPOCHS="1 5" REPEATS=1 \
 ROB-68 uses the callback-backed detached wrapper from the repo root:
 
 ```bash
-screen -L -Logfile lcasr/results/ctc_seq2048_rmm_eval/logs/rob68_ctc_seq2048_rmm_eval.screen.log \
+screen -L -Logfile lcasr/results/rmm_eval/ctc_seq2048/logs/rob68_ctc_seq2048_rmm_eval.screen.log \
   -dmS rob68_ctc_seq2048_rmm_eval \
   bash -lc 'cd /exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-68 && /store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob68_ctc_seq2048_rmm_queued.sh'
 ```
@@ -43,5 +43,5 @@ Each run writes:
 Run aggregation after the callback completes:
 
 ```bash
-python lcasr/results/ctc_seq2048_rmm_eval/aggregate.py
+python lcasr/results/rmm_eval/ctc_seq2048/aggregate.py
 ```

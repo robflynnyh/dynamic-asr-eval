@@ -16,7 +16,7 @@ ROB-68 evaluates the normal 16384-context CTC dynamic-evaluation setup with the 
 - Repeats: `3` total. Repeat `1` completed in the initial run; repeats `2`
   and `3` are filled by the follow-up repeat wrapper.
 
-The earlier `lcasr/results/ctc_seq2048_rmm_eval/` artifacts are a 2048-context comparison and should not be used as the normal 16384-context ROB-68 result.
+The earlier `lcasr/results/rmm_eval/ctc_seq2048/` artifacts are a 2048-context comparison and should not be used as the normal 16384-context ROB-68 result.
 
 ## Launch
 
@@ -30,7 +30,7 @@ DATASETS="earnings22 tedlium chime6 rev16" EPOCHS="1 5" REPEATS=3 \
 ROB-68 uses the callback-backed detached wrapper from the repo root:
 
 ```bash
-screen -L -Logfile lcasr/results/ctc_seq16384_rmm_eval/logs/rob68_ctc_seq16384_rmm_eval.screen.log \
+screen -L -Logfile lcasr/results/rmm_eval/ctc_seq16384/logs/rob68_ctc_seq16384_rmm_eval.screen.log \
   -dmS rob68_ctc_seq16384_rmm_eval \
   bash -lc 'cd /exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-68 && /store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- env REPEATS=3 bash scripts/run_rob68_ctc_seq16384_rmm_queued.sh'
 ```
@@ -39,7 +39,7 @@ To fill only the missing repeats without rerunning repeat `1`, use the
 follow-up wrapper:
 
 ```bash
-screen -L -Logfile lcasr/results/ctc_seq16384_rmm_eval/logs/rob68_ctc_seq16384_rmm_repeats23.screen.log \
+screen -L -Logfile lcasr/results/rmm_eval/ctc_seq16384/logs/rob68_ctc_seq16384_rmm_repeats23.screen.log \
   -dmS rob68_ctc_seq16384_rmm_repeats23 \
   bash -lc 'cd /exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-68 && /store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- env SCREEN_NAME=rob68_ctc_seq16384_rmm_repeats23 bash scripts/run_rob68_ctc_seq16384_rmm_repeats_queued.sh'
 ```
@@ -55,7 +55,7 @@ Each run writes:
 Run aggregation after the callback completes:
 
 ```bash
-python lcasr/results/ctc_seq16384_rmm_eval/aggregate.py
+python lcasr/results/rmm_eval/ctc_seq16384/aggregate.py
 ```
 
 ## Initial Repeat 1 Results

@@ -1,6 +1,6 @@
 # CTC 16384-Context RMM Scaled-Time-Mask Summary
 
-Generated from `/exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-68/lcasr/results/ctc_seq16384_rmm_scaled_time_masks_eval`.
+Generated from `/exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-68/lcasr/results/rmm_eval/ctc_seq16384_scaled_time_masks`.
 
 Per-repeat rows: `42`.
 Grouped rows: `14`.

@@ -10,7 +10,7 @@ fi
 
 LINEAR_ISSUE=${LINEAR_ISSUE:-ROB-68}
 SCREEN_NAME=${SCREEN_NAME:-rob68_ctc_seq16384_rmm_scaled_time_masks}
-RESULTS_PATH=${RESULTS_PATH:-"${REPO_ROOT}/lcasr/results/ctc_seq16384_rmm_scaled_time_masks_eval"}
+RESULTS_PATH=${RESULTS_PATH:-"${REPO_ROOT}/lcasr/results/rmm_eval/ctc_seq16384_scaled_time_masks"}
 LOG_PATH=${LOG_PATH:-"${RESULTS_PATH}/logs/${SCREEN_NAME}.log"}
 RUNNER_LABEL=${RUNNER_LABEL:-"screen:${SCREEN_NAME}"}
 GIT_BRANCH=${GIT_BRANCH:-$(cd "$REPO_ROOT" && git rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'unknown')}
@@ -39,7 +39,7 @@ on_exit() {
     --target-state "${CALLBACK_TARGET_STATE}"
     --max-log-chars "${CALLBACK_MAX_LOG_CHARS:-20000}"
     --max-comment-chars "${CALLBACK_MAX_COMMENT_CHARS:-60000}"
-    --note "ROB-68 scaled-time-mask RMM follow-up (${RUN_SPLIT} split; datasets: ${RUN_DATASETS}): 16384-context RMM with 2048-like mask widths and scaled time-mask count. Inspect lcasr/results/ctc_seq16384_rmm_scaled_time_masks_eval summary files and logs before finalizing."
+    --note "ROB-68 scaled-time-mask RMM follow-up (${RUN_SPLIT} split; datasets: ${RUN_DATASETS}): 16384-context RMM with 2048-like mask widths and scaled time-mask count. Inspect lcasr/results/rmm_eval/ctc_seq16384_scaled_time_masks summary files and logs before finalizing."
   )
 
   if [ "${CALLBACK_DRY_RUN:-0}" = "1" ]; then
@@ -91,7 +91,7 @@ cd "$REPO_ROOT/lcasr"
 
 COMMON_ENV=(
   "PYTHON_BIN=${PYTHON_BIN:-python3.10}"
-  "RESULTS_DIR=./results/ctc_seq16384_rmm_scaled_time_masks_eval"
+  "RESULTS_DIR=./results/rmm_eval/ctc_seq16384_scaled_time_masks"
   "CHECKPOINT=${CHECKPOINT:-/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_16384_rp_1/step_105360.pt}"
   "SPLIT=${RUN_SPLIT}"
   "DATASETS=${RUN_DATASETS}"
@@ -107,4 +107,4 @@ env "${COMMON_ENV[@]}" "EPOCHS=${EPOCHS:-1 5}" "LR=${LR:-9e-5}" \
   bash launch_scripts/run_ctc_seq16384_rmm_eval.sh 2>&1 | tee -a "$LOG_PATH"
 
 cd "$REPO_ROOT"
-python lcasr/results/ctc_seq16384_rmm_scaled_time_masks_eval/aggregate.py 2>&1 | tee -a "$LOG_PATH"
+python lcasr/results/rmm_eval/ctc_seq16384_scaled_time_masks/aggregate.py 2>&1 | tee -a "$LOG_PATH"
