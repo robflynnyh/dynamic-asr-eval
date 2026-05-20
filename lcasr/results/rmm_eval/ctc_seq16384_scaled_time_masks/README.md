@@ -25,6 +25,11 @@ This directory is intentionally separate from
 `lcasr/results/rmm_eval/ctc_seq16384/`, which contains the completed fixed
 `time_masks=12` 16384-context run.
 
+Based on the ROB-68 results, this scaled-time-mask variant should be treated as
+the default RMM setting for 16384-context CTC adaptation. It preserves the
+2048-context per-mask width and avoids the deletion-heavy fixed-12-mask
+behavior observed for CHiME-6.
+
 ## Launch
 
 The callback-backed detached wrapper is launched from the repo root:
