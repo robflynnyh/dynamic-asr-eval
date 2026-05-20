@@ -1,5 +1,13 @@
 # Research Diary
 
+## 2026-05-20
+
+- ROB-97: Added a callback-backed queue scaffold for the missing `enc_dec_v2`
+  no-adapt beam5/lp0.5 CHiME-6 and Rev16 test-set rows required by ROB-96.
+  The result path is `lcasr/results/enc_dec/enc_dec_v2/rob97_unadapted_beam/`
+  and the queued wrapper notifies ROB-97 on every exit path, then ROB-96 on
+  success.
+
 ## 2026-05-19
 
 - ROB-94: Added a separate fixed-setting encoder-decoder thesis row path under
