@@ -23,6 +23,7 @@ RESULTS_DIR=${RESULTS_DIR:-"./results/rmm_eval/ctc_seq16384"}
 AUGMENTATION_LABEL=${AUGMENTATION_LABEL:-rmm}
 RMM_SCALE_TIME_MASKS_BY_SEQ_LEN=${RMM_SCALE_TIME_MASKS_BY_SEQ_LEN:-False}
 RMM_TIME_MASKS_REFERENCE_SEQ_LEN=${RMM_TIME_MASKS_REFERENCE_SEQ_LEN:-2048}
+RMM_BRANCH=${RMM_BRANCH:-random}
 LOG_DIR="${RESULTS_DIR}/logs"
 DRY_RUN=${DRY_RUN:-0}
 MAX_RECORDS=${MAX_RECORDS:-}
@@ -94,6 +95,7 @@ run_single_repeat() {
     echo "target_path=${target_path}" | tee -a "$log_path"
     echo "augmentation_label=${AUGMENTATION_LABEL}" | tee -a "$log_path"
     echo "augmentation_policy=rmm" | tee -a "$log_path"
+    echo "rmm_branch=${RMM_BRANCH}" | tee -a "$log_path"
     echo "rmm_scale_time_masks_by_seq_len=${RMM_SCALE_TIME_MASKS_BY_SEQ_LEN}" | tee -a "$log_path"
     echo "rmm_time_masks_reference_seq_len=${RMM_TIME_MASKS_REFERENCE_SEQ_LEN}" | tee -a "$log_path"
 
@@ -110,6 +112,7 @@ run_single_repeat() {
         -kwargs
         optim_lr="$lr"
         augmentation_policy="'rmm'"
+        rmm_branch="'$RMM_BRANCH'"
         rmm_scale_time_masks_by_seq_len="$RMM_SCALE_TIME_MASKS_BY_SEQ_LEN"
         rmm_time_masks_reference_seq_len="$RMM_TIME_MASKS_REFERENCE_SEQ_LEN"
         -s "$tmp_base"
@@ -168,6 +171,7 @@ run_eval() {
     echo "repeats=${REPEATS}" | tee -a "$log_path"
     echo "augmentation_label=${AUGMENTATION_LABEL}" | tee -a "$log_path"
     echo "augmentation_policy=rmm" | tee -a "$log_path"
+    echo "rmm_branch=${RMM_BRANCH}" | tee -a "$log_path"
     echo "rmm_scale_time_masks_by_seq_len=${RMM_SCALE_TIME_MASKS_BY_SEQ_LEN}" | tee -a "$log_path"
     echo "rmm_time_masks_reference_seq_len=${RMM_TIME_MASKS_REFERENCE_SEQ_LEN}" | tee -a "$log_path"
 
@@ -184,6 +188,7 @@ run_eval() {
         -kwargs
         optim_lr="$lr"
         augmentation_policy="'rmm'"
+        rmm_branch="'$RMM_BRANCH'"
         rmm_scale_time_masks_by_seq_len="$RMM_SCALE_TIME_MASKS_BY_SEQ_LEN"
         rmm_time_masks_reference_seq_len="$RMM_TIME_MASKS_REFERENCE_SEQ_LEN"
         -s "$save_path"

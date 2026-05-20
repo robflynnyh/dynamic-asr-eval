@@ -20,8 +20,12 @@ class RandomMixedMaskingAugment(torch.nn.Module):
         freq_masks_max=7,
         freq_mask_param_min=24,
         freq_mask_param_max=44,
+        branch='random',
     ):
         super().__init__()
+        valid_branches = {'random', 'time', 'freq', 'time_freq'}
+        if branch not in valid_branches:
+            raise ValueError(f'rmm_branch must be one of {sorted(valid_branches)}, got {branch!r}')
         self.zero_masking = zero_masking
         self.time_masks_min = time_masks_min
         self.time_masks_max = time_masks_max
@@ -32,6 +36,7 @@ class RandomMixedMaskingAugment(torch.nn.Module):
         self.freq_masks_max = freq_masks_max
         self.freq_mask_param_min = freq_mask_param_min
         self.freq_mask_param_max = freq_mask_param_max
+        self.branch = branch
 
     def _random_int(self, low, high, name):
         if low > high:
@@ -71,10 +76,12 @@ class RandomMixedMaskingAugment(torch.nn.Module):
         )
 
         mask = torch.ones_like(spec)
-        method = random.randint(0, 2)
-        if method == 0:
+        method = self.branch
+        if method == 'random':
+            method = random.choice(('time', 'freq', 'time_freq'))
+        if method == 'time':
             mask = time_masker(mask)
-        elif method == 1:
+        elif method == 'freq':
             mask = freq_masker(mask)
         else:
             mask = freq_masker(time_masker(mask))

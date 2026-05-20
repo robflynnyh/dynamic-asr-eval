@@ -13,6 +13,11 @@
   Regenerated `summary.csv` and `OUTCOME.md`; final WERs are `0.86331` for
   CHiME-6 test and `0.19109` for Rev16 test. The callback posted completion
   evidence to ROB-97, notified ROB-96, and set ROB-96 back to Todo.
+- ROB-103: Added a time-mask-only scaled RMM eval scaffold under
+  `lcasr/results/rmm_eval/ctc_seq16384_time_only_scaled_time_masks/`. The run
+  uses the ROB-68 scaled time-mask count (`96` masks at `seq_len=16384`) but
+  forces `rmm_branch='time'`, avoiding the frequency-only and time+frequency
+  RMM branches.
 
 ## 2026-05-19
 

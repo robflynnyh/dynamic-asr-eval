@@ -48,10 +48,33 @@ class TestRMMAugmentation(unittest.TestCase):
             rmm_freq_mask_param_min=24,
             rmm_freq_mask_param_max=44,
             rmm_zero_masking=True,
+            rmm_branch="random",
         )
         augment = lib.build_self_training_augmentation(args)
 
         self.assertEqual(augment._scaled_time_mask_count(12), 96)
+
+    def test_time_only_branch_uses_time_mask_shape(self):
+        args = argparse.Namespace(
+            augmentation_policy="rmm",
+            seq_len=2048,
+            rmm_time_masks_min=1,
+            rmm_time_masks_max=1,
+            rmm_scale_time_masks_by_seq_len=False,
+            rmm_time_masks_reference_seq_len=2048,
+            rmm_freq_masks_min=5,
+            rmm_freq_masks_max=7,
+            rmm_freq_mask_param_min=24,
+            rmm_freq_mask_param_max=44,
+            rmm_zero_masking=True,
+            rmm_branch="time",
+        )
+        augment = lib.build_self_training_augmentation(args)
+        spec = torch.ones(1, 80, 64)
+        augmented = augment(spec)
+
+        self.assertEqual(augment.branch, "time")
+        self.assertTrue(torch.all(augmented == augmented[:, :1, :]))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,192 @@
+#!/usr/bin/env python3
+"""Aggregate ROB-103 time-mask-only scaled RMM self-training eval results."""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import pickle
+import re
+import statistics
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent
+RESULT_RE = re.compile(
+    r"(?P<dataset>.+)-(?P<split>dev|test)-ctc-seq(?P<seq>\d+)"
+    r"-overlap(?P<overlap>\d+)-(?P<augmentation>rmm-time-only-width2048-scaled)-epoch-(?P<epoch>\d+)"
+    r"-lr-(?P<lr>[^_]+)_(?P<repeat>\d+)\.pkl$"
+)
+
+
+def mean(values: list[float]) -> str:
+    return f"{statistics.mean(values):.10f}" if values else ""
+
+
+def stdev(values: list[float]) -> str:
+    return f"{statistics.stdev(values):.10f}" if len(values) > 1 else ""
+
+
+def load_rows(root: Path) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for path in sorted(root.glob("*.pkl")):
+        match = RESULT_RE.match(path.name)
+        if not match:
+            continue
+        try:
+            with path.open("rb") as f:
+                data = pickle.load(f)
+        except Exception as exc:
+            rows.append({
+                **match.groupdict(),
+                "wer": "",
+                "ins_rate": "",
+                "del_rate": "",
+                "sub_rate": "",
+                "words": "",
+                "path": path.name,
+                "error": repr(exc),
+            })
+            continue
+
+        rows.append({
+            "dataset": match.group("dataset"),
+            "split": match.group("split"),
+            "seq_len": match.group("seq"),
+            "overlap": match.group("overlap"),
+            "augmentation": match.group("augmentation"),
+            "epochs": match.group("epoch"),
+            "lr": match.group("lr"),
+            "repeat": match.group("repeat"),
+            "wer": data.get("wer", "") if isinstance(data, dict) else "",
+            "ins_rate": data.get("ins_rate", "") if isinstance(data, dict) else "",
+            "del_rate": data.get("del_rate", "") if isinstance(data, dict) else "",
+            "sub_rate": data.get("sub_rate", "") if isinstance(data, dict) else "",
+            "words": data.get("words", "") if isinstance(data, dict) else "",
+            "path": path.name,
+            "error": "",
+        })
+    return rows
+
+
+def summarize(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    grouped: dict[tuple[str, str, str, str, str, str, str], list[dict[str, object]]] = {}
+    for row in rows:
+        if row.get("error"):
+            continue
+        key = (
+            str(row["dataset"]),
+            str(row["split"]),
+            str(row["seq_len"]),
+            str(row["overlap"]),
+            str(row["augmentation"]),
+            str(row["epochs"]),
+            str(row["lr"]),
+        )
+        grouped.setdefault(key, []).append(row)
+
+    out: list[dict[str, object]] = []
+    for (dataset, split, seq_len, overlap, augmentation, epochs, lr), items in grouped.items():
+        def floats(field: str) -> list[float]:
+            vals: list[float] = []
+            for item in items:
+                try:
+                    vals.append(float(item.get(field, "")))
+                except Exception:
+                    pass
+            return vals
+
+        out.append({
+            "dataset": dataset,
+            "split": split,
+            "seq_len": seq_len,
+            "overlap": overlap,
+            "augmentation": augmentation,
+            "epochs": epochs,
+            "lr": lr,
+            "n": len(floats("wer")),
+            "wer_mean": mean(floats("wer")),
+            "wer_std": stdev(floats("wer")),
+            "ins_rate_mean": mean(floats("ins_rate")),
+            "del_rate_mean": mean(floats("del_rate")),
+            "sub_rate_mean": mean(floats("sub_rate")),
+            "words": items[0].get("words", ""),
+            "repeats": " ".join(str(item.get("repeat", "")) for item in items),
+            "paths": " ".join(str(item.get("path", "")) for item in items),
+        })
+    return sorted(out, key=lambda row: (
+        str(row["dataset"]),
+        str(row["split"]),
+        int(row["epochs"]),
+        str(row["lr"]),
+    ))
+
+
+def write_csv(path: Path, rows: list[dict[str, object]], fields: list[str]) -> None:
+    with path.open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fields, lineterminator="\n")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({field: row.get(field, "") for field in fields})
+
+
+def write_markdown(path: Path, rows: list[dict[str, object]], source: Path) -> None:
+    grouped_rows = summarize(rows)
+    lines = [
+        "# CTC 16384-Context Time-Mask-Only Scaled RMM Summary",
+        "",
+        f"Generated from `{source}`.",
+        "",
+        f"Per-repeat rows: `{len(rows)}`.",
+        f"Grouped rows: `{len(grouped_rows)}`.",
+        "",
+        "| Dataset | Split | Epochs | LR | N | WER Mean | WER Std | Ins | Del | Sub | Words |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for row in grouped_rows:
+        def pct(field: str) -> str:
+            value = row.get(field, "")
+            return f"{100 * float(value):.2f}%" if value != "" else ""
+
+        lines.append(
+            f"| {row.get('dataset', '')} | {row.get('split', '')} | "
+            f"{row.get('epochs', '')} | {row.get('lr', '')} | "
+            f"{row.get('n', '')} | {pct('wer_mean')} | {pct('wer_std')} | "
+            f"{pct('ins_rate_mean')} | {pct('del_rate_mean')} | "
+            f"{pct('sub_rate_mean')} | {row.get('words', '')} |"
+        )
+    path.write_text("\n".join(lines) + "\n")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=ROOT,
+        help="Result directory containing ROB-103 time-mask-only scaled RMM result PKL files",
+    )
+    args = parser.parse_args()
+    root = args.root.resolve()
+    rows = load_rows(root)
+    grouped_rows = summarize(rows)
+    row_fields = [
+        "dataset", "split", "seq_len", "overlap", "augmentation", "epochs", "lr",
+        "repeat", "wer", "ins_rate", "del_rate", "sub_rate", "words", "path", "error",
+    ]
+    grouped_fields = [
+        "dataset", "split", "seq_len", "overlap", "augmentation", "epochs", "lr",
+        "n", "wer_mean", "wer_std", "ins_rate_mean", "del_rate_mean", "sub_rate_mean",
+        "words", "repeats", "paths",
+    ]
+    write_csv(root / "summary.csv", rows, row_fields)
+    write_csv(root / "summary_by_setting.csv", grouped_rows, grouped_fields)
+    write_markdown(root / "summary.md", rows, root)
+    print(f"Wrote {len(rows)} per-repeat rows and {len(grouped_rows)} grouped rows")
+    print(root / "summary.csv")
+    print(root / "summary_by_setting.csv")
+    print(root / "summary.md")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,6 +1,6 @@
 # RMM Evaluation Results
 
-ROB-68 RMM result artifacts are grouped here to keep the top-level
+RMM result artifacts are grouped here to keep the top-level
 `lcasr/results/` directory compact.
 
 ## Subdirectories
@@ -10,6 +10,8 @@ ROB-68 RMM result artifacts are grouped here to keep the top-level
   `time_masks=12`.
 - `ctc_seq16384_scaled_time_masks/`: 16384-context follow-up that preserves
   2048-like time-mask widths by scaling the time-mask count.
+- `ctc_seq16384_time_only_scaled_time_masks/`: ROB-103 follow-up using the
+  same scaled time-mask settings but forcing the time-mask branch every time.
 
 Each subdirectory owns its raw PKL artifacts, `aggregate.py`, generated summary
 tables, and run README.
