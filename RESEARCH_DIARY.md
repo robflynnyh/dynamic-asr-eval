@@ -18,6 +18,11 @@
   uses the ROB-68 scaled time-mask count (`96` masks at `seq_len=16384`) but
   forces `rmm_branch='time'`, avoiding the frequency-only and time+frequency
   RMM branches.
+- ROB-103: The first queued launch failed before evaluation because this fresh
+  workspace's ignored `paths.yaml` lacked `datasets.rev16.test`. Made
+  `lcasr/rev16/run.py` tolerate missing Rev16 config at import time, added the
+  Rev16 key to `paths_template.yaml`, and populated the local ignored
+  `paths.yaml` with the Mimas dataset paths for the rerun.
 
 ## 2026-05-19
 
