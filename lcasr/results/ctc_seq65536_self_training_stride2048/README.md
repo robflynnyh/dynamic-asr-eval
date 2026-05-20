@@ -22,6 +22,14 @@ Submit from the Stanage checkout after the CPU smoke passes:
 bash scripts/submit_rob67_ctc_seq65536_stride2048_stanage.sh
 ```
 
+If only the CHiME-6 cell needs to be recovered after the main array has already
+written the other three PKLs, rerun just that cell with a higher Slurm memory
+request:
+
+```bash
+bash scripts/submit_rob67_ctc_seq65536_stride2048_chime6_recovery_stanage.sh
+```
+
 The dependent finalizer reuses `scripts/run_rob67_ctc_seq65536_higher_lr_finalize.sbatch`
 with `FINALIZER_KIND=stride2048`, so the callback note and queued command are
 constructed inside the finalizer rather than passed as long `sbatch --export`

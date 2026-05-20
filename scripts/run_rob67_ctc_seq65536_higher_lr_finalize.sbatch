@@ -23,6 +23,10 @@ if [ "$FINALIZER_KIND" = "stride2048" ]; then
   QUEUED_COMMAND=${QUEUED_COMMAND:-"bash scripts/submit_rob67_ctc_seq65536_stride2048_stanage.sh"}
   CALLBACK_NOTE=${CALLBACK_NOTE:-"ROB-67 final follow-up requested after PR #18 review. This 65536-context CTC adapted eval uses the 16384-style stride with seq_len=65536 overlap=63488 stride=2048 epochs=5 lr=9e-5 and expects 4 adapted PKLs plus refreshed summary tables."}
   FINALIZER_LABEL="stride2048-finalizer"
+elif [ "$FINALIZER_KIND" = "stride2048-chime6-recovery" ]; then
+  QUEUED_COMMAND=${QUEUED_COMMAND:-"bash scripts/submit_rob67_ctc_seq65536_stride2048_chime6_recovery_stanage.sh"}
+  CALLBACK_NOTE=${CALLBACK_NOTE:-"ROB-67 stride-2048 recovery reruns only the missing CHiME-6 cell after the original 60G array task hit Slurm OUT_OF_MEMORY. The finalizer expects all 4 stride-2048 adapted PKLs plus refreshed summary tables."}
+  FINALIZER_LABEL="stride2048-chime6-recovery-finalizer"
 else
   QUEUED_COMMAND=${QUEUED_COMMAND:-"bash scripts/submit_rob67_ctc_seq65536_higher_lr_stanage.sh"}
   CALLBACK_NOTE=${CALLBACK_NOTE:-"ROB-67 higher-LR follow-up for the completed 65536-context CTC adapted eval. Expected outputs: 16 adapted PKLs for 4 datasets x 2 epoch counts x LRs {9e-5,3e-4}, plus refreshed summary tables."}

@@ -1,5 +1,9 @@
 # Research Diary
 
+## 2026-05-20
+
+- ROB-67: Diagnosed stride-2048 Stanage array `10235542` after its callback returned the issue to `Todo`. Earnings22, TEDLIUM, and Rev16 completed, but CHiME-6 task `10235542_2` hit Slurm `OUT_OF_MEMORY` at the 60G request with `MaxRSS=62914604K`; added a CHiME-6-only recovery launcher that preserves the existing three PKLs, requests higher CPU memory, and runs the finalizer expecting all four stride-2048 adapted outputs.
+
 ## 2026-05-18
 
 - ROB-67: Inspected the completed stride-2048 CPU smoke `10227206`, which succeeded with WER `0.05072220356063151` but failed its Linear callback because the target state was malformed as `Todo scripts/run_rob67_ctc_seq65536_cpu_smoke.sbatch`. Patched the stride-2048 Stanage finalizer path to avoid exporting long callback strings through `sbatch --export`, added a finalizer callback-only smoke mode, and validated the stride-specific callback text locally before queueing the GPU array.
