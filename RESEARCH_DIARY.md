@@ -2,6 +2,16 @@
 
 ## 2026-05-19
 
+- ROB-68: After a human follow-up requested dev results for the latest
+  scaled-time-mask setup, prepared the existing
+  `lcasr/results/rmm_eval/ctc_seq16384_scaled_time_masks/` package for mixed split summaries
+  and queued a dev split pass for `earnings22`, `tedlium`, and `chime6`.
+  `rev16` is excluded because the CTC dynamic-eval runner asserts that Rev16
+  only supports `test`.
+- ROB-68: Fixed the scaled-time-mask queued wrapper after the first dev
+  follow-up launch exited before evaluation with `env: 'tedlium': No such file
+  or directory`. The wrapper now quotes its environment array entries and passes
+  `SPLIT` / multi-word `DATASETS` explicitly to the launcher.
 - ROB-94: Added a separate fixed-setting encoder-decoder thesis row path under
   `lcasr/results/enc_dec/rob94_fixed_setting_thesis/`. The wrapper queues the
   runnable missing `teacher_ce`, `lr=1e-7`, `freq3_width24_time0`,
@@ -20,8 +30,23 @@
   Earnings22 rows only; CHIME-6 and Rev16 remain available for `old_seed` and
   `rl_step_30000`, not the historical checkpoint.
 
+## 2026-05-20
+
+- ROB-68: The scaled-time-mask 16384-context RMM dev follow-up completed for TEDLIUM, Earnings22, and CHiME-6 with 3 repeats per dataset/epoch setting. Regenerated `lcasr/results/rmm_eval/ctc_seq16384_scaled_time_masks/summary.csv`, `summary_by_setting.csv`, and `summary.md` from 42 PKLs total; dev mean WERs are TEDLIUM 6.63%/6.47%, Earnings22 19.98%/18.85%, and CHiME-6 59.07%/57.90% for epochs 1/5 respectively.
+- ROB-68: Folded RMM artifacts under `lcasr/results/rmm_eval/` with subdirectories for `ctc_seq2048/`, `ctc_seq16384/`, and `ctc_seq16384_scaled_time_masks/`.
+
+## 2026-05-16
+
+- ROB-68: The scaled-time-mask 16384-context RMM follow-up completed all 24 requested cells under `lcasr/results/rmm_eval/ctc_seq16384_scaled_time_masks/` and regenerated `summary.csv`, `summary_by_setting.csv`, and `summary.md`. Each dataset/epoch group has `N=3`; mean WERs are TEDLIUM 5.84%/5.80%, Earnings22 15.62%/14.73%, CHiME-6 77.92%/77.58%, and Rev16 14.09%/13.90% for epochs 1/5 respectively.
+
+## 2026-05-15
+
+- ROB-68: The fixed-12-mask 16384-context RMM run completed with 3 repeats under `lcasr/results/rmm_eval/ctc_seq16384/`. CHiME-6 remained a real scored deletion result at 100% WER, not an aggregation failure.
+- ROB-68: Added the scaled-time-mask RMM variant so 16384-context runs preserve 2048-like per-mask widths by using `96` time masks at `seq_len=16384`.
+
 ## 2026-05-14
 
+- ROB-68: A human review clarified that the requested comparison is the normal `seq_len=16384`, `overlap=14336`, `lr=9e-5` setup, not the earlier 2048-context run. Cancelled the queued 2048-context `9e-5` follow-up before it acquired a GPU and added a separate callback-backed 16384-context RMM eval scaffold under `lcasr/results/rmm_eval/ctc_seq16384/` using checkpoint `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_16384_rp_1/step_105360.pt`.
 - ROB-51: Added a combined progressive-bottom CTC-head comparison figure target. It plots the completed `progressive_bottom` and `progressive_bottom_ctc_decoder` 9e-5 result families side by side for each bottom-prefix setting, so the effect of always training the CTC decoder can be read directly from a single chart.
 - ROB-51: Adjusted the combined progressive-bottom CTC-head comparison figure layout so the legend no longer overlaps the unadapted WER annotation.
 
@@ -47,6 +72,8 @@
 
 ## 2026-05-11
 
+- ROB-68: Added an opt-in RMM random mixed-mask augmentation policy to the CTC dynamic-eval self-training path and scaffolded an all-dataset 2048-context RMM evaluation for epochs `1` and `5`. The run uses checkpoint `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_2048_rp_1/step_105360.pt`, `seq_len=2048`, `overlap=1792`, `lr=1e-5`, and writes under `lcasr/results/rmm_eval/ctc_seq2048/`.
+- ROB-68: The callback-backed full RMM eval completed all 8 requested cells. Regenerated `lcasr/results/rmm_eval/ctc_seq2048/summary.csv`, `summary_by_setting.csv`, and `summary.md`; final WERs were TEDLIUM 5.96%/5.83%, Earnings22 15.72%/14.72%, CHiME-6 78.06%/78.71%, and Rev16 14.11%/20.52% for epochs 1/5 respectively.
 - ROB-63: Main one-epoch encoder-decoder self-training comparison completed
   for old seed versus RL `step_30000`, with normal baselines and combined
   reporting under `lcasr/results/enc_dec/rl_step_30000/`. Initial TED-LIUM

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from omegaconf import OmegaConf
 import json
 import os
@@ -32,8 +34,11 @@ try:
 except ImportError:
     FusedLayerNorm = None
 from lcasr.components.batchrenorm import BatchRenorm1d
+from policies.rmm import RandomMixedMaskingAugment
 import time
 from enc_dec_teacher_filters import should_skip_faulty_teacher_prediction, _text_cer_similarity
+
+ADAFACTOR_OPTIMIZER = getattr(optim, 'Adafactor', madgrad.MADGRAD)
 
 def load_beamsearch(
         path:str,
@@ -137,6 +142,28 @@ def get_specaugment_config_from_args(args):
         'zero_masking': spec_augment_args.get('zero_masking', False),
     }
     return spec_augment_config
+
+
+def build_self_training_augmentation(args):
+    policy = args.__dict__.get('augmentation_policy', 'specaugment')
+    if policy in ('specaugment', 'spec_augment', ''):
+        return SpecAugment(**get_specaugment_config_from_args(args))
+    if policy != 'rmm':
+        raise ValueError(f'Unknown augmentation_policy={policy!r}; expected specaugment or rmm')
+
+    return RandomMixedMaskingAugment(
+        zero_masking=args.__dict__.get('rmm_zero_masking', True),
+        time_masks_min=args.__dict__.get('rmm_time_masks_min', 12),
+        time_masks_max=args.__dict__.get('rmm_time_masks_max', 12),
+        scale_time_masks_by_seq_len=args.__dict__.get('rmm_scale_time_masks_by_seq_len', False),
+        time_masks_reference_seq_len=args.__dict__.get('rmm_time_masks_reference_seq_len', 2048),
+        time_masks_target_seq_len=args.__dict__.get('rmm_time_masks_target_seq_len', args.__dict__.get('seq_len', None)),
+        freq_masks_min=args.__dict__.get('rmm_freq_masks_min', 5),
+        freq_masks_max=args.__dict__.get('rmm_freq_masks_max', 7),
+        freq_mask_param_min=args.__dict__.get('rmm_freq_mask_param_min', 24),
+        freq_mask_param_max=args.__dict__.get('rmm_freq_mask_param_max', 44),
+    )
+
 
 def get_frame_shuffle_config_from_args(args):
     frame_shuffle_args = {k.replace('frame_shuffle_', ''):v for k,v in args.__dict__.items() if k.startswith('frame_shuffle')}
@@ -488,7 +515,7 @@ def AWMC(
         optimizer.load_state_dict(optimizer_state)
         
     decoder = GreedyCTCDecoder(tokenizer = tokenizer, blank_id = model.decoder.num_classes-1)
-    augmentation = SpecAugment(**spec_augment_config)
+    augmentation = build_self_training_augmentation(args)
 
     if seq_len > spec_n:
         seq_len, overlap = spec_n, 0
@@ -725,7 +752,7 @@ def dynamic_eval_ctc_loss(
         optimizer.load_state_dict(optimizer_state)
         
     decoder = GreedyCTCDecoder(tokenizer = tokenizer, blank_id = model.decoder.num_classes-1)
-    augmentation = SpecAugment(**spec_augment_config)
+    augmentation = build_self_training_augmentation(args)
 
     if seq_len > spec_n:
         seq_len, overlap = spec_n, 0
@@ -905,7 +932,7 @@ def dynamic_eval_consistency_ctc_loss(
         overlap:int, 
         tokenizer, 
         use_tqdm=True,
-        optim:optim.Optimizer=optim.Adafactor,
+        optim:optim.Optimizer=ADAFACTOR_OPTIMIZER,
         optimizer_state:dict=None,
         beam_search_fn:Callable=None,
         return_params:bool=False,
@@ -940,7 +967,7 @@ def dynamic_eval_consistency_ctc_loss(
         
     decoder = GreedyCTCDecoder(tokenizer = tokenizer, blank_id = model.decoder.num_classes-1)
     # sampling_decoder = SamplingCTCDecoder(tokenizer = tokenizer, blank_id = model.decoder.num_classes-1)
-    augmentation = SpecAugment(**spec_augment_config)
+    augmentation = build_self_training_augmentation(args)
 
     if seq_len > spec_n:
         seq_len, overlap = spec_n, 0
