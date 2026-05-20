@@ -11,7 +11,8 @@ time-mask widths at the normal 16384-context setup.
 - Test datasets: `earnings22`, `tedlium`, `chime6`, `rev16`
 - Dev datasets: `earnings22`, `tedlium`, `chime6`; `rev16` is test-only in
   `run_dynamic_eval_full.py`
-- Splits: `test`; dev follow-up queued on 2026-05-19
+- Splits: `test` plus a dev follow-up for `earnings22`, `tedlium`, and
+  `chime6`; `rev16` has no dev split in this runner
 - Adaptation epochs: `1`, `5`
 - LR: `9e-5`
 - Augmentation: `augmentation_policy='rmm'`
@@ -55,3 +56,19 @@ Each run writes:
 ```text
 <dataset>-<split>-ctc-seq16384-overlap14336-rmm-width2048-scaled-epoch-<epoch>-lr-9em5_<repeat>.pkl
 ```
+
+## Results
+
+The test run completed on 2026-05-16. The dev follow-up completed on
+2026-05-20. `summary.csv`, `summary_by_setting.csv`, and `summary.md` are
+regenerated from all available PKLs in this directory.
+
+| Dataset | Split | Epoch 1 | Epoch 5 |
+|---|---|---:|---:|
+| TEDLIUM | dev | 6.63% | 6.47% |
+| TEDLIUM | test | 5.84% | 5.80% |
+| Earnings22 | dev | 19.98% | 18.85% |
+| Earnings22 | test | 15.62% | 14.73% |
+| CHiME-6 | dev | 59.07% | 57.90% |
+| CHiME-6 | test | 77.92% | 77.58% |
+| Rev16 | test | 14.09% | 13.90% |
