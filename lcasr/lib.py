@@ -162,6 +162,7 @@ def build_self_training_augmentation(args):
         freq_masks_max=args.__dict__.get('rmm_freq_masks_max', 7),
         freq_mask_param_min=args.__dict__.get('rmm_freq_mask_param_min', 24),
         freq_mask_param_max=args.__dict__.get('rmm_freq_mask_param_max', 44),
+        branch=args.__dict__.get('rmm_branch', 'random'),
     )
 
 

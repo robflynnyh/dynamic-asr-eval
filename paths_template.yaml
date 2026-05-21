@@ -6,6 +6,8 @@ datasets:
     test:
     dev:
     text:
+  rev16:
+    test:
 
 checkpoint:
   lcasr:

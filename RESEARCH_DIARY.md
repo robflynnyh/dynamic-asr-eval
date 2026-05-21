@@ -13,6 +13,16 @@
   Regenerated `summary.csv` and `OUTCOME.md`; final WERs are `0.86331` for
   CHiME-6 test and `0.19109` for Rev16 test. The callback posted completion
   evidence to ROB-97, notified ROB-96, and set ROB-96 back to Todo.
+- ROB-103: Added a time-mask-only scaled RMM eval scaffold under
+  `lcasr/results/rmm_eval/ctc_seq16384_time_only_scaled_time_masks/`. The run
+  uses the ROB-68 scaled time-mask count (`96` masks at `seq_len=16384`) but
+  forces `rmm_branch='time'`, avoiding the frequency-only and time+frequency
+  RMM branches.
+- ROB-103: The first queued launch failed before evaluation because this fresh
+  workspace's ignored `paths.yaml` lacked `datasets.rev16.test`. Made
+  `lcasr/rev16/run.py` tolerate missing Rev16 config at import time, added the
+  Rev16 key to `paths_template.yaml`, and populated the local ignored
+  `paths.yaml` with the Mimas dataset paths for the rerun.
 
 ## 2026-05-19
 
@@ -43,6 +53,10 @@
   `lcasr/results/enc_dec/README.md`. `enc_dec_v2` has matching TED-LIUM and
   Earnings22 rows only; CHIME-6 and Rev16 remain available for `old_seed` and
   `rl_step_30000`, not the historical checkpoint.
+
+## 2026-05-21
+
+- ROB-103: The time-mask-only scaled RMM follow-up completed under `lcasr/results/rmm_eval/ctc_seq16384_time_only_scaled_time_masks/` with 42 PKLs and regenerated `summary.csv`, `summary_by_setting.csv`, and `summary.md`. Each dataset/split/epoch group has `N=3`; test mean WERs are TEDLIUM 5.84%/5.82%, Earnings22 15.62%/15.37%, CHiME-6 79.79%/92.94%, and Rev16 14.13%/14.07% for epochs 1/5 respectively. Dev mean WERs are TEDLIUM 6.72%/6.59%, Earnings22 19.96%/19.79%, and CHiME-6 84.70%/84.45%.
 
 ## 2026-05-20
 

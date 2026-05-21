@@ -11,16 +11,24 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))) # for importing from parent dir
 import lib
 from lib import dynamic_eval
+from omegaconf import OmegaConf
 normalize = EnglishTextNormalizer()
 
-DATA_PATH = lib.paths.datasets.rev16.test
-TEST_IDS = os.path.join(DATA_PATH, 'test.txt')
+DATA_PATH = OmegaConf.select(lib.paths, "datasets.rev16.test")
+
+
+def get_data_path() -> str:
+    if not DATA_PATH:
+        raise RuntimeError("Missing datasets.rev16.test in paths.yaml")
+    return DATA_PATH
 
 def open_txt(path:str):
     with open(path, 'r') as f:
         return f.read().strip()
 
-def fetch_data(data_path:str = DATA_PATH, ids:str = TEST_IDS):
+def fetch_data(data_path:str | None = None, ids:str | None = None):
+    data_path = data_path or get_data_path()
+    ids = ids or os.path.join(data_path, 'test.txt')
     with open(ids, 'r') as f:
         IDS = f.read().strip().split(" ")
         IDS = [el.strip() for el in IDS if el.strip() != '']
@@ -45,7 +53,8 @@ def process_text_and_audio_fn(rec_dict): return processing_chain(rec_dict['audio
 
 def get_text_and_audio(split):
     assert split in ['test'], 'Split must be test'
-    audio_files, text_files = fetch_data(data_path = DATA_PATH, ids = TEST_IDS)
+    data_path = get_data_path()
+    audio_files, text_files = fetch_data(data_path=data_path, ids=os.path.join(data_path, 'test.txt'))
     return_data = []
     for rec in range(len(audio_files)):
         return_data.append({
