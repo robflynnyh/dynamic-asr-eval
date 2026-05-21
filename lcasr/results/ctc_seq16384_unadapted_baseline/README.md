@@ -35,6 +35,19 @@ python lcasr/results/ctc_seq16384_unadapted_baseline/aggregate.py
 python lcasr/results/ctc_seq16384_unadapted_baseline/compare_context_baselines.py
 ```
 
+Checkpoint repeat follow-up:
+
+```bash
+screen -L -Logfile lcasr/results/ctc_seq16384_unadapted_baseline_repeats/logs/rob110_ctc_seq16384_unadapted_repeats23.screen.log \
+  -dmS rob110_ctc_seq16384_unadapted_repeats23 \
+  bash -lc 'cd /exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-110 && /store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob110_ctc_seq16384_unadapted_repeats_queued.sh'
+```
+
+The repeat wrapper writes `rp_2` and `rp_3` artifacts under
+`lcasr/results/ctc_seq16384_unadapted_baseline_repeats/` and regenerates
+`checkpoint_repeat_comparison.csv` / `checkpoint_repeat_comparison.md` against
+the committed `rp_1` summary.
+
 Narrow smoke-test shape before the full run:
 
 ```bash
