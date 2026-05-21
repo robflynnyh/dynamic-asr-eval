@@ -12,7 +12,7 @@ DRY_RUN=${DRY_RUN:-0}
 RUN_CODEX_ANALYSIS=${RUN_CODEX_ANALYSIS:-0}
 export MPLCONFIGDIR=${MPLCONFIGDIR:-/tmp/matplotlib}
 
-RESULTS_DIR="./results/enc_dec_beam_tedlium_dev"
+RESULTS_DIR="./results/enc_dec/enc_dec_v2/enc_dec_beam_tedlium_dev"
 LOG_DIR="${RESULTS_DIR}/logs"
 mkdir -p "$RESULTS_DIR" "$LOG_DIR" "$MPLCONFIGDIR"
 
