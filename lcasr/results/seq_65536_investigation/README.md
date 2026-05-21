@@ -24,3 +24,19 @@ python lcasr/results/seq_65536_investigation/aggregate_adapted.py \
 python lcasr/results/seq_65536_investigation/aggregate_adapted.py \
   --root lcasr/results/seq_65536_investigation/self_training_stride2048
 ```
+
+## Unadapted Baseline Investigation
+
+The before-adaptation 65536-context rows were checked for reporting and
+configuration mismatches in `UNADAPTED_BASELINE_INVESTIGATION.md`.
+
+```bash
+python lcasr/results/seq_65536_investigation/investigate_unadapted_baseline.py
+```
+
+The investigation writes
+`unadapted_baseline/investigation.csv`. The short read is that the committed
+65536 no-adapt artifacts satisfy the expected run contract, use the same
+reference record sets as the committed 2048 no-adapt baseline, and mainly look
+surprising because the unadapted 65536 checkpoint is close to shorter-context
+baselines before self-training. CHiME-6 is the main degraded row.
