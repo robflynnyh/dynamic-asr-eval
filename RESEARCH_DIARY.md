@@ -1,5 +1,9 @@
 # Research Diary
 
+## 2026-05-21
+
+- ROB-67: Synced and aggregated the completed stride-2048 65536-context CTC self-training follow-up from Stanage. The final result set has all four expected PKLs under `lcasr/results/ctc_seq65536_self_training_stride2048/`; the CHiME-6-only recovery job `10239452_0` completed with `MaxRSS=71739268K` under the higher `80G` CPU-memory request, and finalizer `10239453` verified `adapted_count=4/4`. Regenerated `summary.csv`, `summary_by_setting.csv`, and `summary.md` locally from the synced artifacts.
+
 ## 2026-05-20
 
 - ROB-67: Diagnosed stride-2048 Stanage array `10235542` after its callback returned the issue to `Todo`. Earnings22, TEDLIUM, and Rev16 completed, but CHiME-6 task `10235542_2` hit Slurm `OUT_OF_MEMORY` at the 60G request with `MaxRSS=62914604K`; added a CHiME-6-only recovery launcher that preserves the existing three PKLs, requests higher CPU memory, and runs the finalizer expecting all four stride-2048 adapted outputs.

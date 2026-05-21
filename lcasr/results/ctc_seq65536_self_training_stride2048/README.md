@@ -41,3 +41,27 @@ Aggregate after completion:
 python lcasr/results/ctc_seq65536_self_training_eval/aggregate.py \
   --root lcasr/results/ctc_seq65536_self_training_stride2048
 ```
+
+## Final Results
+
+Stanage array `10235542` completed the `earnings22`, `tedlium`, and `rev16`
+cells, but `chime6` exceeded the original `60G` CPU-memory request. Recovery
+job `10239452_0` reran only the `chime6` cell with an `80G` request and
+completed in `01:45:19` with `MaxRSS=71739268K`; finalizer `10239453` then
+verified all four expected PKLs and refreshed the summaries.
+
+Local final aggregation command:
+
+```bash
+python3 lcasr/results/ctc_seq65536_self_training_eval/aggregate.py \
+  --root lcasr/results/ctc_seq65536_self_training_stride2048
+```
+
+Summary rows:
+
+| Dataset | WER | Ins | Del | Sub |
+|---|---:|---:|---:|---:|
+| tedlium | 5.75% | 0.81% | 1.64% | 3.30% |
+| earnings22 | 14.83% | 2.44% | 3.34% | 9.05% |
+| chime6 | 75.54% | 0.82% | 64.66% | 10.06% |
+| rev16 | 14.13% | 2.61% | 4.83% | 6.69% |
