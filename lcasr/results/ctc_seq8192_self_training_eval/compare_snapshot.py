@@ -14,7 +14,9 @@ OUT_MD = ROOT / "comparison_snapshot.md"
 SOURCES = [
     ("2048 no-adapt", REPO_ROOT / "lcasr/results/ctc_seq2048_unadapted_baseline/summary.csv", "summary"),
     ("2048 adapted", REPO_ROOT / "lcasr/results/ctc_seq2048_self_training_eval/summary_by_setting.csv", "grouped"),
+    ("8192 no-adapt", REPO_ROOT / "lcasr/results/ctc_seq8192_unadapted_baseline/summary.csv", "summary"),
     ("8192 adapted", ROOT / "summary_by_setting.csv", "grouped"),
+    ("16384 no-adapt", REPO_ROOT / "lcasr/results/ctc_seq16384_unadapted_baseline/summary.csv", "summary"),
     ("16384 adapted RMM", REPO_ROOT / "lcasr/results/rmm_eval/ctc_seq16384/summary_by_setting.csv", "grouped"),
     ("65536 no-adapt", REPO_ROOT / "lcasr/results/seq_65536_investigation/unadapted_baseline/summary.csv", "summary"),
     ("65536 adapted stride2048", REPO_ROOT / "lcasr/results/seq_65536_investigation/self_training_stride2048/summary_by_setting.csv", "grouped"),
@@ -72,8 +74,6 @@ def main() -> None:
             "## Missing Snapshot Inputs",
             "",
             *missing,
-            "- 8192 no-adapt baseline: no committed summary artifact matching seq_len `8192` was found in this checkout.",
-            "- 16384 no-adapt baseline: no exact all-dataset committed CTC no-adapt summary was found in this checkout.",
         ])
 
     OUT_MD.write_text("\n".join(lines) + "\n")

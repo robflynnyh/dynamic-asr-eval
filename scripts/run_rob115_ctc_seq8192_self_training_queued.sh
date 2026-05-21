@@ -17,6 +17,8 @@ QUEUED_COMMAND=${QUEUED_COMMAND:-"/store/store5/software/simple-gpu-schedule/wit
 GIT_BRANCH=${GIT_BRANCH:-$(cd "$REPO_ROOT" && git rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'unknown')}
 GIT_COMMIT=${GIT_COMMIT:-$(cd "$REPO_ROOT" && git rev-parse HEAD 2>/dev/null || printf 'unknown')}
 CALLBACK_TARGET_STATE=${CALLBACK_TARGET_STATE:-Todo}
+RUN_LR=${LR:-9e-5}
+RUN_NOTE=${RUN_NOTE:-"ROB-115 8192-context CTC adapted freq-masking eval. Expected final outputs are 4 PKLs for earnings22, tedlium, chime6, and rev16 at seq_len=${SEQ:-8192} overlap=${OVERLAP:-7168} epochs=${EPOCHS:-5} lr=${RUN_LR}, plus regenerated summaries under lcasr/results/ctc_seq8192_self_training_eval."}
 
 SCRATCH_ROOT=${SCRATCH_ROOT:-"${REPO_ROOT}/symphony/.scratch/ROB-115"}
 mkdir -p "${SCRATCH_ROOT}/tmp" "${SCRATCH_ROOT}/mpl" "${SCRATCH_ROOT}/hf" "${SCRATCH_ROOT}/xdg"
@@ -46,7 +48,7 @@ on_exit() {
     --target-state "${CALLBACK_TARGET_STATE}"
     --max-log-chars "${CALLBACK_MAX_LOG_CHARS:-20000}"
     --max-comment-chars "${CALLBACK_MAX_COMMENT_CHARS:-60000}"
-    --note "ROB-115 8192-context CTC adapted freq-masking eval. Expected final outputs are 4 PKLs for earnings22, tedlium, chime6, and rev16 at seq_len=8192 overlap=7168 epochs=5 lr=9e-5, plus regenerated summaries under lcasr/results/ctc_seq8192_self_training_eval."
+    --note "${RUN_NOTE}"
   )
 
   if [ "${CALLBACK_DRY_RUN:-0}" = "1" ]; then
@@ -86,7 +88,7 @@ cd "$REPO_ROOT"
   echo "seq=${SEQ:-8192}"
   echo "overlap=${OVERLAP:-7168}"
   echo "epochs=${EPOCHS:-5}"
-  echo "lr=${LR:-9e-5}"
+  echo "lr=${RUN_LR}"
   echo "datasets=${DATASETS:-earnings22 tedlium chime6 rev16}"
 } | tee -a "$LOG_PATH"
 
@@ -104,7 +106,7 @@ EPOCHS=${EPOCHS:-"5"} \
 REPEATS=${REPEATS:-1} \
 SEQ=${SEQ:-8192} \
 OVERLAP=${OVERLAP:-7168} \
-LR=${LR:-9e-5} \
+LR=${RUN_LR} \
 bash launch_scripts/run_ctc_seq8192_self_training_eval.sh 2>&1 | tee -a "$LOG_PATH"
 
 cd "$REPO_ROOT"

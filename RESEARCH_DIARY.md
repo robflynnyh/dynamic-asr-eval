@@ -89,6 +89,7 @@
 
 ## 2026-05-21
 
+- ROB-115: The 8192-context CTC frequency-masking self-training run completed for `earnings22`, `tedlium`, `chime6`, and `rev16` at `seq_len=8192`, `overlap=7168`, `epochs=5`, `lr=9e-5`, using checkpoint `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_8192_rp_1/step_105360.pt`. Regenerated `lcasr/results/ctc_seq8192_self_training_eval/summary.csv`, `summary_by_setting.csv`, and `summary.md`; imported the already generated ROB-110 8192/16384 no-adapt result folders for snapshot comparison inputs; queued the matched `lr=6e-5` follow-up requested after completion.
 - ROB-103: The time-mask-only scaled RMM follow-up completed under `lcasr/results/rmm_eval/ctc_seq16384_time_only_scaled_time_masks/` with 42 PKLs and regenerated `summary.csv`, `summary_by_setting.csv`, and `summary.md`. Each dataset/split/epoch group has `N=3`; test mean WERs are TEDLIUM 5.84%/5.82%, Earnings22 15.62%/15.37%, CHiME-6 79.79%/92.94%, and Rev16 14.13%/14.07% for epochs 1/5 respectively. Dev mean WERs are TEDLIUM 6.72%/6.59%, Earnings22 19.96%/19.79%, and CHiME-6 84.70%/84.45%.
 
 ## 2026-05-20

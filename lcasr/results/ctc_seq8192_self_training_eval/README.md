@@ -12,7 +12,7 @@ the 8192 no-adapt baseline is not duplicated here.
 - Datasets: `earnings22`, `tedlium`, `chime6`, `rev16`
 - Split: `test`
 - Adaptation epochs: `5`
-- LR: `9e-5`
+- LR: `9e-5`; follow-up comparison run queued with `6e-5`
 - Augmentation: `spec_augment_n_freq_masks=6`, `spec_augment_freq_mask_param=34`, `spec_augment_n_time_masks=0`
 - Repeats: `1`
 
@@ -24,6 +24,15 @@ From the repo root, the callback-backed Mimas launch is:
 screen -L -Logfile lcasr/results/ctc_seq8192_self_training_eval/logs/rob115_ctc_seq8192_self_training.screen.log \
   -dmS rob115_ctc_seq8192_self_training \
   bash -lc '/store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob115_ctc_seq8192_self_training_queued.sh'
+```
+
+The matched `6e-5` follow-up uses the same wrapper with `LR=6e-5`, a distinct
+screen name, and the same result directory:
+
+```bash
+screen -L -Logfile lcasr/results/ctc_seq8192_self_training_eval/logs/rob115_ctc_seq8192_self_training_lr6em5.screen.log \
+  -dmS rob115_ctc_seq8192_self_training_lr6em5 \
+  bash -lc 'cd /exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-115 && LR=6e-5 SCREEN_NAME=rob115_ctc_seq8192_self_training_lr6em5 LOG_PATH=/exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-115/lcasr/results/ctc_seq8192_self_training_eval/logs/rob115_ctc_seq8192_self_training_lr6em5.log QUEUED_COMMAND="LR=6e-5 /store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob115_ctc_seq8192_self_training_queued.sh" /store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob115_ctc_seq8192_self_training_queued.sh'
 ```
 
 The wrapper sets `TMPDIR`, `TEMP`, `TMP`, `MPLCONFIGDIR`, `HF_HOME`, and
@@ -41,8 +50,12 @@ DRY_RUN=1 DATASETS=tedlium EPOCHS=5 MAX_RECORDS=1 \
 Each completed cell writes:
 
 ```text
-<dataset>-test-ctc-seq8192-overlap7168-epoch-5-lr-9em5_<repeat>.pkl
+<dataset>-test-ctc-seq8192-overlap7168-epoch-5-lr-<lr>_<repeat>.pkl
 ```
+
+The comparison snapshot reads the 8192 and 16384 no-adapt summaries imported
+from the already generated ROB-110 result branch; those baselines were not
+rerun for ROB-115.
 
 Regenerate summaries from artifacts:
 
