@@ -1,6 +1,6 @@
 # CTC 16384-Context Unadapted Baseline
 
-ROB-110 no-adapt baseline for the 16384-context CTC checkpoint. This fills the missing 2.7 minute comparison row between the committed ROB-66 2048-context baseline and ROB-67 65536-context baseline.
+ROB-110 no-adapt baseline for the 16384-context CTC checkpoint. This fills the missing 2.7 minute comparison row between the committed ROB-66 2048-context baseline and ROB-67 65536-context baseline. A later human follow-up added the 8192-context repeat-1 no-adapt baseline under `lcasr/results/ctc_seq8192_unadapted_baseline/`.
 
 - Checkpoint: `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_16384_rp_1/step_105360.pt`
 - Datasets: `earnings22`, `tedlium`, `chime6`, `rev16`
@@ -25,7 +25,7 @@ The wrapper runs the eval and then regenerates:
 
 - `summary.csv`: dataset-level WER table generated from local PKL artifacts.
 - `summary.md`: compact Markdown WER table generated from local PKL artifacts.
-- `context_baseline_comparison.csv`: regenerated comparison against the existing 2048 and 65536 no-adapt baseline summaries.
+- `context_baseline_comparison.csv`: regenerated comparison against the existing 2048, 8192, and 65536 no-adapt baseline summaries when the 8192 summary exists.
 - `context_baseline_comparison.md`: compact thesis-facing comparison table.
 
 Manual aggregation after completion:

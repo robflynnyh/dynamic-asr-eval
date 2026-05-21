@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare no-adapt CTC baseline summaries for 2048, 16384, and 65536 context."""
+"""Compare no-adapt CTC baseline summaries across context lengths."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parent
 REPO_ROOT = ROOT.parents[2]
 DEFAULT_SOURCES = {
     "2048": REPO_ROOT / "lcasr/results/ctc_seq2048_unadapted_baseline/summary.csv",
+    "8192": REPO_ROOT / "lcasr/results/ctc_seq8192_unadapted_baseline/summary.csv",
     "16384": ROOT / "summary.csv",
     "65536": REPO_ROOT / "lcasr/results/seq_65536_investigation/unadapted_baseline/summary.csv",
 }
@@ -71,18 +72,18 @@ def write_markdown(path: Path, rows: list[dict[str, str]]) -> None:
     lines = [
         "# CTC No-Adapt Context Baseline Comparison",
         "",
-        "Generated from summary CSVs for the 2048, 16384, and 65536 no-adapt CTC baselines.",
+        "Generated from summary CSVs for the available no-adapt CTC baselines.",
         "",
-        "| Dataset | 2048 WER | 16384 WER | 65536 WER |",
-        "|---|---:|---:|---:|",
+        "| Dataset | 2048 WER | 8192 WER | 16384 WER | 65536 WER |",
+        "|---|---:|---:|---:|---:|",
     ]
     for dataset in datasets:
         values: list[str] = []
-        for label in ("2048", "16384", "65536"):
+        for label in ("2048", "8192", "16384", "65536"):
             row = by_key.get((dataset, label), {})
             wer = row.get("wer_mean", "")
             values.append(f"{100 * float(wer):.2f}%" if wer != "" else "")
-        lines.append(f"| {dataset} | {values[0]} | {values[1]} | {values[2]} |")
+        lines.append(f"| {dataset} | {values[0]} | {values[1]} | {values[2]} | {values[3]} |")
     path.write_text("\n".join(lines) + "\n")
 
 
