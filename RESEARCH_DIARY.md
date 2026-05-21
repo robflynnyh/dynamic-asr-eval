@@ -2,6 +2,7 @@
 
 ## 2026-05-21
 
+- ROB-110: Added the 16384-context no-adapt CTC baseline scaffold requested as a follow-up to ROB-67. The setup mirrors ROB-66/ROB-67 over `earnings22`, `tedlium`, `chime6`, and `rev16` test splits with checkpoint `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_16384_rp_1/step_105360.pt`, `seq_len=16384`, `overlap=14336`, `epochs=0`, and a callback-backed Mimas wrapper under `scripts/run_rob110_ctc_seq16384_unadapted_baseline_queued.sh`.
 - ROB-67: Consolidated the completed 65536-context CTC result artifacts under one investigation root, `lcasr/results/seq_65536_investigation/`, after review feedback that the PR should not add several top-level result folders. The existing unadapted, `lr=1e-5`, higher-LR, longer-epoch, and stride-2048 artifacts were moved into subdirectories and the launch/finalizer defaults were updated to write to the new layout.
 - ROB-67: Synced and aggregated the completed stride-2048 65536-context CTC self-training follow-up from Stanage. The final result set has all four expected PKLs under `lcasr/results/seq_65536_investigation/self_training_stride2048/`; the CHiME-6-only recovery job `10239452_0` completed with `MaxRSS=71739268K` under the higher `80G` CPU-memory request, and finalizer `10239453` verified `adapted_count=4/4`. Regenerated `summary.csv`, `summary_by_setting.csv`, and `summary.md` locally from the synced artifacts.
 
