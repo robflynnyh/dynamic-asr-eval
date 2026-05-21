@@ -54,6 +54,10 @@
   Earnings22 rows only; CHIME-6 and Rev16 remain available for `old_seed` and
   `rl_step_30000`, not the historical checkpoint.
 
+## 2026-05-21
+
+- ROB-103: The time-mask-only scaled RMM follow-up completed under `lcasr/results/rmm_eval/ctc_seq16384_time_only_scaled_time_masks/` with 42 PKLs and regenerated `summary.csv`, `summary_by_setting.csv`, and `summary.md`. Each dataset/split/epoch group has `N=3`; test mean WERs are TEDLIUM 5.84%/5.82%, Earnings22 15.62%/15.37%, CHiME-6 79.79%/92.94%, and Rev16 14.13%/14.07% for epochs 1/5 respectively. Dev mean WERs are TEDLIUM 6.72%/6.59%, Earnings22 19.96%/19.79%, and CHiME-6 84.70%/84.45%.
+
 ## 2026-05-20
 
 - ROB-68: The scaled-time-mask 16384-context RMM dev follow-up completed for TEDLIUM, Earnings22, and CHiME-6 with 3 repeats per dataset/epoch setting. Regenerated `lcasr/results/rmm_eval/ctc_seq16384_scaled_time_masks/summary.csv`, `summary_by_setting.csv`, and `summary.md` from 42 PKLs total; dev mean WERs are TEDLIUM 6.63%/6.47%, Earnings22 19.98%/18.85%, and CHiME-6 59.07%/57.90% for epochs 1/5 respectively.
