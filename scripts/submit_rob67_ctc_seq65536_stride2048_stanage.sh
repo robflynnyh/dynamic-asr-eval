@@ -8,7 +8,7 @@ EPOCHS=${EPOCHS:-"5"}
 LRS=${LRS:-"9e-5"}
 SEQ=${SEQ:-65536}
 OVERLAP=${OVERLAP:-63488}
-ADAPTED_RESULTS=${ADAPTED_RESULTS:-"${REPO_ROOT}/lcasr/results/ctc_seq65536_self_training_stride2048"}
+ADAPTED_RESULTS=${ADAPTED_RESULTS:-"${REPO_ROOT}/lcasr/results/seq_65536_investigation/self_training_stride2048"}
 
 mkdir -p "$ARTIFACT_DIR"
 cd "$REPO_ROOT"

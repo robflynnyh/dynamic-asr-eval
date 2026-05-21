@@ -12,7 +12,8 @@ from collections import defaultdict
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parent
+INVESTIGATION_ROOT = Path(__file__).resolve().parent
+ROOT = INVESTIGATION_ROOT / "self_training_lr1e5"
 OUT_CSV = ROOT / "summary.csv"
 OUT_GROUPED_CSV = ROOT / "summary_by_setting.csv"
 OUT_MD = ROOT / "summary.md"

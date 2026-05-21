@@ -11,7 +11,7 @@ set -uo pipefail
 REPO_ROOT=${REPO_ROOT:-"/mnt/parscratch/users/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-67"}
 LINEAR_ENV_FILE=${LINEAR_ENV_FILE:-"$HOME/.config/dynamic-asr-eval/linear.env"}
 LOG_PATH=${LOG_PATH:-"/mnt/parscratch/users/acp21rjf/symphony-job-artifacts/ROB-67/cpu-smoke-${SLURM_JOB_ID:-manual}.log"}
-RESULTS_PATH=${RESULTS_PATH:-"${REPO_ROOT}/lcasr/results/ctc_seq65536_cpu_smoke"}
+RESULTS_PATH=${RESULTS_PATH:-"${REPO_ROOT}/lcasr/results/seq_65536_investigation/cpu_smoke"}
 PYTHON_BIN=${PYTHON_BIN:-"/mnt/parscratch/users/acp21rjf/conda/main/bin/python"}
 CHECKPOINT=${CHECKPOINT:-"/mnt/parscratch/users/acp21rjf/spotify/checkpoints_seq_scheduler_rb/n_seq_sched_65536_rp_1/step_105360.pt"}
 CALLBACK_DRY_RUN=${CALLBACK_DRY_RUN:-1}

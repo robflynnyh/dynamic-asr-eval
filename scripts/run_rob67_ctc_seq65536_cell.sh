@@ -13,8 +13,8 @@ OVERLAP=${OVERLAP:-57344}
 SPLIT=${SPLIT:-test}
 REPEATS=${REPEATS:-1}
 MAX_RECORDS=${MAX_RECORDS:-}
-UNADAPTED_RESULTS_DIR=${UNADAPTED_RESULTS_DIR:-"./results/ctc_seq65536_unadapted_baseline"}
-ADAPTED_RESULTS_DIR=${ADAPTED_RESULTS_DIR:-"./results/ctc_seq65536_self_training_eval"}
+UNADAPTED_RESULTS_DIR=${UNADAPTED_RESULTS_DIR:-"./results/seq_65536_investigation/unadapted_baseline"}
+ADAPTED_RESULTS_DIR=${ADAPTED_RESULTS_DIR:-"./results/seq_65536_investigation/self_training_lr1e5"}
 
 write_stanage_paths_yaml() {
   cat > "${REPO_ROOT}/paths.yaml" <<'YAML'

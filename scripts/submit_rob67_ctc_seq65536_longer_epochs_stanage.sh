@@ -6,7 +6,7 @@ ARTIFACT_DIR=${ARTIFACT_DIR:-"/mnt/parscratch/users/acp21rjf/symphony-job-artifa
 DATASETS=${DATASETS:-"earnings22 tedlium chime6 rev16"}
 EPOCHS=${EPOCHS:-"10 20"}
 LRS=${LRS:-"9e-5 3e-4"}
-ADAPTED_RESULTS=${ADAPTED_RESULTS:-"${REPO_ROOT}/lcasr/results/ctc_seq65536_self_training_longer_epochs"}
+ADAPTED_RESULTS=${ADAPTED_RESULTS:-"${REPO_ROOT}/lcasr/results/seq_65536_investigation/self_training_longer_epochs"}
 QUEUED_COMMAND=${QUEUED_COMMAND:-"bash scripts/submit_rob67_ctc_seq65536_longer_epochs_stanage.sh"}
 CALLBACK_NOTE=${CALLBACK_NOTE:-"ROB-67 follow-up requested after PR #18 result review: 10 and 20 adaptation epochs at LRs 9e-5 and 3e-4 for the 65536-context CTC adapted eval. Expected outputs: 16 adapted PKLs for 4 datasets x epochs {10,20} x LRs {9e-5,3e-4}, plus refreshed summary tables."}
 

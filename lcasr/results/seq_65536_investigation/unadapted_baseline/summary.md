@@ -1,6 +1,6 @@
 # CTC 65536-Context Unadapted Baseline Summary
 
-Generated from `/exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-67/lcasr/results/ctc_seq65536_unadapted_baseline`.
+Generated from `/exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-67/lcasr/results/seq_65536_investigation/unadapted_baseline`.
 
 | Dataset | Split | WER | Ins | Del | Sub | Words |
 |---|---|---:|---:|---:|---:|---:|

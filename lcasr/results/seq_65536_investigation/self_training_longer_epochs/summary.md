@@ -1,6 +1,6 @@
 # CTC 65536-Context Self-Training Summary
 
-Generated from `/exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-67/lcasr/results/ctc_seq65536_self_training_longer_epochs`.
+Generated from `/exp/exp4/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-67/lcasr/results/seq_65536_investigation/self_training_longer_epochs`.
 
 Per-repeat rows: `16`.
 

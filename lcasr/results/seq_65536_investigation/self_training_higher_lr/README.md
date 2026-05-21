@@ -21,8 +21,8 @@ bash scripts/submit_rob67_ctc_seq65536_higher_lr_stanage.sh
 Aggregate after completion:
 
 ```bash
-python lcasr/results/ctc_seq65536_self_training_eval/aggregate.py \
-  --root lcasr/results/ctc_seq65536_self_training_higher_lr
+python lcasr/results/seq_65536_investigation/aggregate_adapted.py \
+  --root lcasr/results/seq_65536_investigation/self_training_higher_lr
 ```
 
 ## Completed Stanage Run
@@ -30,7 +30,7 @@ python lcasr/results/ctc_seq65536_self_training_eval/aggregate.py \
 - Array job: `10169175`
 - Finalizer job: `10169176`
 - Finalizer log: `/mnt/parscratch/users/acp21rjf/symphony-job-artifacts/ROB-67/higher-lr-finalize-10169176.log`
-- Stanage result root: `/mnt/parscratch/users/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-67/lcasr/results/ctc_seq65536_self_training_higher_lr`
+- Stanage result root: `/mnt/parscratch/users/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-67/lcasr/results/seq_65536_investigation/self_training_higher_lr`
 - Completion status: all `16/16` expected PKLs present, with regenerated `summary.csv`, `summary_by_setting.csv`, and `summary.md`.
 
 Best higher-LR WER by dataset:

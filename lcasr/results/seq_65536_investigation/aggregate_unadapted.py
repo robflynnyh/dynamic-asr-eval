@@ -11,7 +11,8 @@ import statistics
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parent
+INVESTIGATION_ROOT = Path(__file__).resolve().parent
+ROOT = INVESTIGATION_ROOT / "unadapted_baseline"
 
 RESULT_RE = re.compile(
     r"(?P<dataset>.+)-(?P<split>dev|test)-ctc-seq(?P<seq>\d+)"

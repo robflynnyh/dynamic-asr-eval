@@ -38,8 +38,8 @@ values.
 Aggregate after completion:
 
 ```bash
-python lcasr/results/ctc_seq65536_self_training_eval/aggregate.py \
-  --root lcasr/results/ctc_seq65536_self_training_stride2048
+python lcasr/results/seq_65536_investigation/aggregate_adapted.py \
+  --root lcasr/results/seq_65536_investigation/self_training_stride2048
 ```
 
 ## Final Results
@@ -53,8 +53,8 @@ verified all four expected PKLs and refreshed the summaries.
 Local final aggregation command:
 
 ```bash
-python3 lcasr/results/ctc_seq65536_self_training_eval/aggregate.py \
-  --root lcasr/results/ctc_seq65536_self_training_stride2048
+python3 lcasr/results/seq_65536_investigation/aggregate_adapted.py \
+  --root lcasr/results/seq_65536_investigation/self_training_stride2048
 ```
 
 Summary rows:

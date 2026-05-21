@@ -25,5 +25,5 @@ ROB-67 is intended to run on Stanage because Mimas is unlikely to have enough GP
 Aggregate after completion:
 
 ```bash
-python lcasr/results/ctc_seq65536_self_training_eval/aggregate.py
+python lcasr/results/seq_65536_investigation/aggregate_adapted.py
 ```

@@ -13,7 +13,7 @@ LINEAR_ENV_FILE=${LINEAR_ENV_FILE:-"$HOME/.config/dynamic-asr-eval/linear.env"}
 ARRAY_JOB_ID=${ARRAY_JOB_ID:-unknown}
 LOG_PREFIX=${LOG_PREFIX:-higher-lr-finalize}
 LOG_PATH=${LOG_PATH:-"/mnt/parscratch/users/acp21rjf/symphony-job-artifacts/ROB-67/${LOG_PREFIX}-${SLURM_JOB_ID:-manual}.log"}
-ADAPTED_RESULTS=${ADAPTED_RESULTS:-"${REPO_ROOT}/lcasr/results/ctc_seq65536_self_training_higher_lr"}
+ADAPTED_RESULTS=${ADAPTED_RESULTS:-"${REPO_ROOT}/lcasr/results/seq_65536_investigation/self_training_higher_lr"}
 CALLBACK_TARGET_STATE=${CALLBACK_TARGET_STATE:-Todo}
 PYTHON_BIN=${PYTHON_BIN:-"/mnt/parscratch/users/acp21rjf/conda/main/bin/python"}
 EXPECTED_ADAPTED_COUNT=${EXPECTED_ADAPTED_COUNT:-16}
@@ -85,7 +85,7 @@ if [ "${CALLBACK_SMOKE_ONLY:-0}" = "1" ]; then
   exit 0
 fi
 
-"$PYTHON_BIN" lcasr/results/ctc_seq65536_self_training_eval/aggregate.py --root "$ADAPTED_RESULTS"
+"$PYTHON_BIN" lcasr/results/seq_65536_investigation/aggregate_adapted.py --root "$ADAPTED_RESULTS"
 
 adapted_count=$(find "$ADAPTED_RESULTS" -maxdepth 1 -name '*-epoch-*-lr-*.pkl' | wc -l)
 echo "adapted_count=${adapted_count}/${EXPECTED_ADAPTED_COUNT}"

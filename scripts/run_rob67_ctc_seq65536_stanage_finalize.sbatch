@@ -12,8 +12,8 @@ REPO_ROOT=${REPO_ROOT:-"/mnt/parscratch/users/acp21rjf/symphony-workspaces-dynam
 LINEAR_ENV_FILE=${LINEAR_ENV_FILE:-"$HOME/.config/dynamic-asr-eval/linear.env"}
 ARRAY_JOB_ID=${ARRAY_JOB_ID:-unknown}
 LOG_PATH=${LOG_PATH:-"/mnt/parscratch/users/acp21rjf/symphony-job-artifacts/ROB-67/finalize-${SLURM_JOB_ID:-manual}.log"}
-UNADAPTED_RESULTS=${UNADAPTED_RESULTS:-"${REPO_ROOT}/lcasr/results/ctc_seq65536_unadapted_baseline"}
-ADAPTED_RESULTS=${ADAPTED_RESULTS:-"${REPO_ROOT}/lcasr/results/ctc_seq65536_self_training_eval"}
+UNADAPTED_RESULTS=${UNADAPTED_RESULTS:-"${REPO_ROOT}/lcasr/results/seq_65536_investigation/unadapted_baseline"}
+ADAPTED_RESULTS=${ADAPTED_RESULTS:-"${REPO_ROOT}/lcasr/results/seq_65536_investigation/self_training_lr1e5"}
 CALLBACK_TARGET_STATE=${CALLBACK_TARGET_STATE:-Todo}
 PYTHON_BIN=${PYTHON_BIN:-"/mnt/parscratch/users/acp21rjf/conda/main/bin/python"}
 
@@ -62,8 +62,8 @@ echo "array_job_id=${ARRAY_JOB_ID}"
 echo "branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || printf unknown)"
 echo "commit=$(git rev-parse HEAD 2>/dev/null || printf unknown)"
 
-"$PYTHON_BIN" lcasr/results/ctc_seq65536_unadapted_baseline/aggregate.py --root "$UNADAPTED_RESULTS"
-"$PYTHON_BIN" lcasr/results/ctc_seq65536_self_training_eval/aggregate.py --root "$ADAPTED_RESULTS"
+"$PYTHON_BIN" lcasr/results/seq_65536_investigation/aggregate_unadapted.py --root "$UNADAPTED_RESULTS"
+"$PYTHON_BIN" lcasr/results/seq_65536_investigation/aggregate_adapted.py --root "$ADAPTED_RESULTS"
 
 unadapted_count=$(find "$UNADAPTED_RESULTS" -maxdepth 1 -name '*-no_adapt_*.pkl' | wc -l)
 adapted_count=$(find "$ADAPTED_RESULTS" -maxdepth 1 -name '*-epoch-*-lr-*.pkl' | wc -l)

@@ -6,7 +6,7 @@ ARTIFACT_DIR=${ARTIFACT_DIR:-"/mnt/parscratch/users/acp21rjf/symphony-job-artifa
 DATASETS=${DATASETS:-"earnings22 tedlium chime6 rev16"}
 EPOCHS=${EPOCHS:-"1 5"}
 LRS=${LRS:-"9e-5 3e-4"}
-ADAPTED_RESULTS=${ADAPTED_RESULTS:-"${REPO_ROOT}/lcasr/results/ctc_seq65536_self_training_higher_lr"}
+ADAPTED_RESULTS=${ADAPTED_RESULTS:-"${REPO_ROOT}/lcasr/results/seq_65536_investigation/self_training_higher_lr"}
 
 mkdir -p "$ARTIFACT_DIR"
 cd "$REPO_ROOT"

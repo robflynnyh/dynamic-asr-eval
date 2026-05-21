@@ -37,6 +37,6 @@ bash scripts/submit_rob67_ctc_seq65536_longer_epochs_stanage.sh
 Aggregate after completion:
 
 ```bash
-python lcasr/results/ctc_seq65536_self_training_eval/aggregate.py \
-  --root lcasr/results/ctc_seq65536_self_training_longer_epochs
+python lcasr/results/seq_65536_investigation/aggregate_adapted.py \
+  --root lcasr/results/seq_65536_investigation/self_training_longer_epochs
 ```

@@ -14,7 +14,7 @@ set -euo pipefail
 REPO_ROOT=${REPO_ROOT:-"/mnt/parscratch/users/acp21rjf/symphony-workspaces-dynamic-asr-eval/ROB-67"}
 PYTHON_BIN=${PYTHON_BIN:-"/mnt/parscratch/users/acp21rjf/conda/main/bin/python"}
 CHECKPOINT=${CHECKPOINT:-"/mnt/parscratch/users/acp21rjf/spotify/checkpoints_seq_scheduler_rb/n_seq_sched_65536_rp_1/step_105360.pt"}
-ADAPTED_RESULTS_DIR=${ADAPTED_RESULTS_DIR:-"./results/ctc_seq65536_self_training_higher_lr"}
+ADAPTED_RESULTS_DIR=${ADAPTED_RESULTS_DIR:-"./results/seq_65536_investigation/self_training_higher_lr"}
 DATASETS_STR=${DATASETS:-"earnings22 tedlium chime6 rev16"}
 EPOCHS_STR=${EPOCHS:-"1 5"}
 LRS_STR=${LRS:-"9e-5 3e-4"}

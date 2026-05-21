@@ -22,5 +22,5 @@ DATASETS="earnings22 tedlium chime6 rev16" REPEATS=1 \
 Aggregate after completion:
 
 ```bash
-python lcasr/results/ctc_seq65536_unadapted_baseline/aggregate.py
+python lcasr/results/seq_65536_investigation/aggregate_unadapted.py
 ```
