@@ -24,3 +24,12 @@ Aggregate after completion:
 ```bash
 python lcasr/results/seq_65536_investigation/aggregate_unadapted.py
 ```
+
+Investigate against shorter exact no-adapt baselines:
+
+```bash
+python lcasr/results/seq_65536_investigation/investigate_unadapted_baseline.py
+```
+
+The investigation report is
+`lcasr/results/seq_65536_investigation/UNADAPTED_BASELINE_INVESTIGATION.md`.
