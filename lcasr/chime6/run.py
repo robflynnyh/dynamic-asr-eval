@@ -22,10 +22,10 @@ import lib
 from lib import dynamic_eval
 
 basedir = "/store/store4/data/chime6"
-TEST_AUDIO = f'{basedir}/audio/eval'
-DEV_AUDIO = f'{basedir}/audio/dev'
-TEST_TEXT = f'{basedir}/transcriptions/eval'
-DEV_TEXT = f'{basedir}/transcriptions/dev'
+TEST_AUDIO = lib.OmegaConf.select(lib.paths, "datasets.chime6.audio.test", default=f"{basedir}/audio/eval")
+DEV_AUDIO = lib.OmegaConf.select(lib.paths, "datasets.chime6.audio.dev", default=f"{basedir}/audio/dev")
+TEST_TEXT = lib.OmegaConf.select(lib.paths, "datasets.chime6.text.test", default=f"{basedir}/transcriptions/eval")
+DEV_TEXT = lib.OmegaConf.select(lib.paths, "datasets.chime6.text.dev", default=f"{basedir}/transcriptions/dev")
 
 DATA = {
     'test': {

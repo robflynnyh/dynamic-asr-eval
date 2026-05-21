@@ -26,7 +26,10 @@ from lming.utils import general
 import lcasr
 from functools import partial
 from matplotlib import pyplot as plt
-from torch_ema import ExponentialMovingAverage
+try:
+    from torch_ema import ExponentialMovingAverage
+except ImportError:
+    ExponentialMovingAverage = None
 from torch.nn import functional as F
 from lcasr.utils.lm_tools import add_eos, token_lens_to_mask, mark_padding
 try:
@@ -486,6 +489,8 @@ def AWMC(
     ):
     
     assert beam_search_fn is None, 'Beam search function not implemented for AWMC'
+    if ExponentialMovingAverage is None:
+        raise ImportError("AWMC requires torch_ema; install torch_ema or run without -awmc")
     spec_augment_config = get_specaugment_config_from_args(args)
     lr_args = get_lr_args_from_args(args)
     frame_shuffle_args = get_frame_shuffle_config_from_args(args)

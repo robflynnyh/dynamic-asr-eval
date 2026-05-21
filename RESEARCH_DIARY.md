@@ -1,5 +1,36 @@
 # Research Diary
 
+## 2026-05-21
+
+- ROB-67: Consolidated the completed 65536-context CTC result artifacts under one investigation root, `lcasr/results/seq_65536_investigation/`, after review feedback that the PR should not add several top-level result folders. The existing unadapted, `lr=1e-5`, higher-LR, longer-epoch, and stride-2048 artifacts were moved into subdirectories and the launch/finalizer defaults were updated to write to the new layout.
+- ROB-67: Synced and aggregated the completed stride-2048 65536-context CTC self-training follow-up from Stanage. The final result set has all four expected PKLs under `lcasr/results/seq_65536_investigation/self_training_stride2048/`; the CHiME-6-only recovery job `10239452_0` completed with `MaxRSS=71739268K` under the higher `80G` CPU-memory request, and finalizer `10239453` verified `adapted_count=4/4`. Regenerated `summary.csv`, `summary_by_setting.csv`, and `summary.md` locally from the synced artifacts.
+
+## 2026-05-20
+
+- ROB-67: Diagnosed stride-2048 Stanage array `10235542` after its callback returned the issue to `Todo`. Earnings22, TEDLIUM, and Rev16 completed, but CHiME-6 task `10235542_2` hit Slurm `OUT_OF_MEMORY` at the 60G request with `MaxRSS=62914604K`; added a CHiME-6-only recovery launcher that preserves the existing three PKLs, requests higher CPU memory, and runs the finalizer expecting all four stride-2048 adapted outputs.
+
+## 2026-05-18
+
+- ROB-67: Inspected the completed stride-2048 CPU smoke `10227206`, which succeeded with WER `0.05072220356063151` but failed its Linear callback because the target state was malformed as `Todo scripts/run_rob67_ctc_seq65536_cpu_smoke.sbatch`. Patched the stride-2048 Stanage finalizer path to avoid exporting long callback strings through `sbatch --export`, added a finalizer callback-only smoke mode, and validated the stride-specific callback text locally before queueing the GPU array.
+
+## 2026-05-16
+
+- ROB-67: Added a callback-backed Stanage follow-up launcher for the requested final 65536-context CTC adapted eval using the 16384-style stride. The run writes to `lcasr/results/seq_65536_investigation/self_training_stride2048/` with `seq_len=65536`, `overlap=63488` (stride `2048`), adaptation epochs `5`, `lr=9e-5`, four test datasets, and a dependent Linear callback finalizer.
+- ROB-67: Synced and aggregated the completed longer-epoch 65536-context CTC self-training follow-up from Stanage array `10220452` / finalizer `10220453`. The run produced all 16 expected adapted PKLs under `lcasr/results/seq_65536_investigation/self_training_longer_epochs/` for datasets `earnings22`, `tedlium`, `chime6`, and `rev16`, adaptation epochs `10` and `20`, and LRs `9e-5` and `3e-4`. Longer adaptation gives small best-row gains on TEDLIUM, Earnings22, and Rev16; CHiME-6 remains best with the earlier 5-epoch `lr=1e-5` row, and the CHiME-6 20-epoch `lr=3e-4` cell collapsed to 99.99% WER from near-total deletions.
+
+## 2026-05-15
+
+- ROB-67: Added a callback-backed Stanage follow-up launcher for the requested 10- and 20-epoch, `lr in {9e-5,3e-4}` 65536-context CTC adapted evaluation. The run writes to `lcasr/results/seq_65536_investigation/self_training_longer_epochs/` as a separate result family from the completed 1/5-epoch higher-LR sweep and reuses the validated ROB-67 cell runner plus finalizer callback path.
+- ROB-67: Synced the completed Stanage higher-LR follow-up for the 65536-context CTC self-training eval from array `10169175` / finalizer `10169176`. The run produced all 16 expected PKLs under `lcasr/results/seq_65536_investigation/self_training_higher_lr/` for datasets `earnings22`, `tedlium`, `chime6`, and `rev16`, adaptation epochs `1` and `5`, and LRs `9e-5` and `3e-4`. Regenerated `summary.csv`, `summary_by_setting.csv`, and `summary.md` from the synced PKLs. Relative to the earlier `lr=1e-5` adapted run, the higher-LR epoch-5 rows improve TEDLIUM, Earnings22, and Rev16, while CHiME-6 remains best with `lr=1e-5`.
+
+## 2026-05-12
+
+- ROB-67: Inspected the completed Stanage finalizer output for the 65536-context CTC eval. The final run used `lr=1e-5` for adapted `epochs=1` and `epochs=5`, produced 4 unadapted PKLs and 8 adapted PKLs, and regenerated summaries under `lcasr/results/seq_65536_investigation/unadapted_baseline/` and `lcasr/results/seq_65536_investigation/self_training_lr1e5/`. Added a separate callback-backed Stanage follow-up sweep for higher LRs `9e-5` and `3e-4`, writing to `lcasr/results/seq_65536_investigation/self_training_higher_lr/` so those rows do not overwrite the completed `lr=1e-5` result set.
+
+## 2026-05-11
+
+- ROB-67: Prepared callback-backed Stanage scaffolding for the 65536-context CTC checkpoint. The setup uses `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_65536_rp_1/step_105360.pt` on Mimas and `/mnt/parscratch/users/acp21rjf/spotify/checkpoints_seq_scheduler_rb/n_seq_sched_65536_rp_1/step_105360.pt` on Stanage, with `seq_len=65536`, `overlap=57344`, no-adapt plus self-training epochs `1` and `5`, and `lr=1e-5`. Added a CPU-only Stanage smoke job and a 12-cell Stanage GPU array with an `afterany` finalizer callback.
+
 ## 2026-05-20
 
 - ROB-97: Added a callback-backed queue scaffold for the missing `enc_dec_v2`
