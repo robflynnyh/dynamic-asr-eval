@@ -48,6 +48,28 @@ The repeat wrapper writes `rp_2` and `rp_3` artifacts under
 `checkpoint_repeat_comparison.csv` / `checkpoint_repeat_comparison.md` against
 the committed `rp_1` summary.
 
+Completed checkpoint-repeat comparison:
+
+- `rp_1`: `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_16384_rp_1/step_105360.pt`
+- `rp_2`: `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_16384_rp_2/step_105360.pt`
+- `rp_3`: `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_16384_rp_3/step_105360.pt`
+- Repeat result root: `lcasr/results/ctc_seq16384_unadapted_baseline_repeats/`
+
+| Dataset | rp_1 WER | rp_2 WER | rp_3 WER |
+|---|---:|---:|---:|
+| chime6 | 86.52% | 83.80% | 85.14% |
+| earnings22 | 18.29% | 18.69% | 18.35% |
+| rev16 | 15.22% | 15.19% | 15.26% |
+| tedlium | 6.23% | 6.51% | 6.36% |
+
+The comparison table is regenerated from the three summary CSVs with:
+
+```bash
+python lcasr/results/ctc_seq16384_unadapted_baseline/aggregate.py --root lcasr/results/ctc_seq16384_unadapted_baseline_repeats/rp_2
+python lcasr/results/ctc_seq16384_unadapted_baseline/aggregate.py --root lcasr/results/ctc_seq16384_unadapted_baseline_repeats/rp_3
+python lcasr/results/ctc_seq16384_unadapted_baseline/compare_checkpoint_repeats.py
+```
+
 Narrow smoke-test shape before the full run:
 
 ```bash

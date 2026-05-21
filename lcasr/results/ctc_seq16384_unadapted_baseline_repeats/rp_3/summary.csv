@@ -1,0 +1,5 @@
+dataset,split,seq_len,overlap,mode,epochs,n,wer_mean,wer_std,ins_rate_mean,del_rate_mean,sub_rate_mean,words,repeats,paths
+chime6,test,16384,14336,no_adapt,0,1,0.8513570673,,0.0011455763,0.8233168840,0.0268946070,56740,1,chime6-test-ctc-seq16384-overlap14336-no_adapt_1.pkl
+earnings22,test,16384,14336,no_adapt,0,1,0.1835059126,,0.0206278210,0.0524477667,0.1104303249,48963,1,earnings22-test-ctc-seq16384-overlap14336-no_adapt_1.pkl
+rev16,test,16384,14336,no_adapt,0,1,0.1526096215,,0.0167642839,0.0716528879,0.0641924497,195833,1,rev16-test-ctc-seq16384-overlap14336-no_adapt_1.pkl
+tedlium,test,16384,14336,no_adapt,0,1,0.0636186426,,0.0077972710,0.0206273259,0.0351940457,28215,1,tedlium-test-ctc-seq16384-overlap14336-no_adapt_1.pkl
