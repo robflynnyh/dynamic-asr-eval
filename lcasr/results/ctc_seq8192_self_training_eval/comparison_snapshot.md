@@ -8,11 +8,9 @@ Policy notes:
 - The 2048, 8192, and 65536 adapted rows use the standard frequency-mask
   self-training policy (`spec_augment_n_freq_masks=6`,
   `spec_augment_freq_mask_param=34`, `spec_augment_n_time_masks=0`).
-- The 16384 adapted freq-mask partial rows are exact standard
-  frequency-mask rows from the entropy-ablation artifacts, but only
-  TEDLIUM and Earnings22 have committed exact-context rows in that
-  source, so they are not a full four-dataset replacement for the RMM
-  block.
+- The 16384 adapted freq-mask rows are exact standard frequency-mask
+  test rows from `lcasr/results/paper/freq_mask`, grouped across the
+  three committed repeats for TEDLIUM, Earnings22, CHiME-6, and Rev16.
 - The 16384 adapted rows are explicitly labeled `16384 adapted RMM` because
   they come from the RMM random mixed-mask result family, not the
   frequency-mask-only policy.
@@ -54,8 +52,10 @@ Policy notes:
 | 16384 adapted RMM | rev16 | test | 16384 | 14336 | 5 | 9em5 | 3 | 14.04% | `lcasr/results/rmm_eval/ctc_seq16384/summary_by_setting.csv` |
 | 16384 adapted RMM | tedlium | test | 16384 | 14336 | 1 | 9em5 | 3 | 5.97% | `lcasr/results/rmm_eval/ctc_seq16384/summary_by_setting.csv` |
 | 16384 adapted RMM | tedlium | test | 16384 | 14336 | 5 | 9em5 | 3 | 5.79% | `lcasr/results/rmm_eval/ctc_seq16384/summary_by_setting.csv` |
-| 16384 adapted freq-mask partial | earnings22 | test | 16384 | 14336 | 5 | 9em5 | 1 | 15.01% | `lcasr/results/entropy_ablation/pkl/earnings22-test-epoch-5-freq_mask_1.pkl` |
-| 16384 adapted freq-mask partial | tedlium | test | 16384 | 14336 | 5 | 9em5 | 1 | 5.79% | `lcasr/results/entropy_ablation/pkl/tedlium-test-epoch-5-freq_mask_1.pkl` |
+| 16384 adapted freq-mask | chime6 | test | 16384 | 14336 | 5 | 9em5 | 3 | 59.35% | `lcasr/results/paper/freq_mask` |
+| 16384 adapted freq-mask | earnings22 | test | 16384 | 14336 | 5 | 9em5 | 3 | 14.86% | `lcasr/results/paper/freq_mask` |
+| 16384 adapted freq-mask | rev16 | test | 16384 | 14336 | 5 | 9em5 | 3 | 14.18% | `lcasr/results/paper/freq_mask` |
+| 16384 adapted freq-mask | tedlium | test | 16384 | 14336 | 5 | 9em5 | 3 | 5.78% | `lcasr/results/paper/freq_mask` |
 | 16384 no-adapt | chime6 | test | 16384 | 14336 | 0 |  | 1 | 86.52% | `lcasr/results/ctc_seq16384_unadapted_baseline/summary.csv` |
 | 16384 no-adapt | earnings22 | test | 16384 | 14336 | 0 |  | 1 | 18.29% | `lcasr/results/ctc_seq16384_unadapted_baseline/summary.csv` |
 | 16384 no-adapt | rev16 | test | 16384 | 14336 | 0 |  | 1 | 15.22% | `lcasr/results/ctc_seq16384_unadapted_baseline/summary.csv` |
