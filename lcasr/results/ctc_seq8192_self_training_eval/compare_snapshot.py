@@ -20,7 +20,6 @@ SOURCES = [
     ("8192 no-adapt", REPO_ROOT / "lcasr/results/ctc_seq8192_unadapted_baseline/summary.csv", "summary"),
     ("8192 adapted", ROOT / "summary_by_setting.csv", "grouped"),
     ("16384 no-adapt", REPO_ROOT / "lcasr/results/ctc_seq16384_unadapted_baseline/summary.csv", "summary"),
-    ("16384 adapted RMM", REPO_ROOT / "lcasr/results/rmm_eval/ctc_seq16384/summary_by_setting.csv", "grouped"),
     ("65536 no-adapt", REPO_ROOT / "lcasr/results/seq_65536_investigation/unadapted_baseline/summary.csv", "summary"),
     ("65536 adapted stride2048", REPO_ROOT / "lcasr/results/seq_65536_investigation/self_training_stride2048/summary_by_setting.csv", "grouped"),
 ]
@@ -120,9 +119,6 @@ def main() -> None:
         "- The 16384 adapted freq-mask rows are exact standard frequency-mask",
         "  test rows from `lcasr/results/paper/freq_mask`, grouped across the",
         "  three committed repeats for TEDLIUM, Earnings22, CHiME-6, and Rev16.",
-        "- The 16384 adapted rows are explicitly labeled `16384 adapted RMM` because",
-        "  they come from the RMM random mixed-mask result family, not the",
-        "  frequency-mask-only policy.",
         "- The 65536 adapted row uses the stride-2048 follow-up overlap, so its",
         "  adapted/no-adapt pair is useful context but not a perfectly matched",
         "  stride comparison.",
