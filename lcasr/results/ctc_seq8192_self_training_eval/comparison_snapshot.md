@@ -17,9 +17,13 @@ from committed summary artifacts available in this checkout.
 | 2048 no-adapt | earnings22 | test | 2048 | 1792 | 0 |  | 1 | 19.54% | `lcasr/results/ctc_seq2048_unadapted_baseline/summary.csv` |
 | 2048 no-adapt | rev16 | test | 2048 | 1792 | 0 |  | 1 | 15.27% | `lcasr/results/ctc_seq2048_unadapted_baseline/summary.csv` |
 | 2048 no-adapt | tedlium | test | 2048 | 1792 | 0 |  | 1 | 6.54% | `lcasr/results/ctc_seq2048_unadapted_baseline/summary.csv` |
+| 8192 adapted | chime6 | test | 8192 | 7168 | 5 | 6em5 | 1 | 60.08% | `lcasr/results/ctc_seq8192_self_training_eval/summary_by_setting.csv` |
 | 8192 adapted | chime6 | test | 8192 | 7168 | 5 | 9em5 | 1 | 59.52% | `lcasr/results/ctc_seq8192_self_training_eval/summary_by_setting.csv` |
+| 8192 adapted | earnings22 | test | 8192 | 7168 | 5 | 6em5 | 1 | 15.18% | `lcasr/results/ctc_seq8192_self_training_eval/summary_by_setting.csv` |
 | 8192 adapted | earnings22 | test | 8192 | 7168 | 5 | 9em5 | 1 | 15.23% | `lcasr/results/ctc_seq8192_self_training_eval/summary_by_setting.csv` |
+| 8192 adapted | rev16 | test | 8192 | 7168 | 5 | 6em5 | 1 | 14.32% | `lcasr/results/ctc_seq8192_self_training_eval/summary_by_setting.csv` |
 | 8192 adapted | rev16 | test | 8192 | 7168 | 5 | 9em5 | 1 | 14.49% | `lcasr/results/ctc_seq8192_self_training_eval/summary_by_setting.csv` |
+| 8192 adapted | tedlium | test | 8192 | 7168 | 5 | 6em5 | 1 | 5.76% | `lcasr/results/ctc_seq8192_self_training_eval/summary_by_setting.csv` |
 | 8192 adapted | tedlium | test | 8192 | 7168 | 5 | 9em5 | 1 | 5.85% | `lcasr/results/ctc_seq8192_self_training_eval/summary_by_setting.csv` |
 | 8192 no-adapt | chime6 | test | 8192 | 7168 | 0 |  | 1 | 84.34% | `lcasr/results/ctc_seq8192_unadapted_baseline/summary.csv` |
 | 8192 no-adapt | earnings22 | test | 8192 | 7168 | 0 |  | 1 | 18.68% | `lcasr/results/ctc_seq8192_unadapted_baseline/summary.csv` |

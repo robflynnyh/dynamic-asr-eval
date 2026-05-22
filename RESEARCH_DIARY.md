@@ -87,6 +87,10 @@
   Earnings22 rows only; CHIME-6 and Rev16 remain available for `old_seed` and
   `rl_step_30000`, not the historical checkpoint.
 
+## 2026-05-22
+
+- ROB-115: The matched `lr=6e-5` 8192-context CTC frequency-masking self-training follow-up completed for `earnings22`, `tedlium`, `chime6`, and `rev16` at `seq_len=8192`, `overlap=7168`, and `epochs=5`. Regenerated the result summaries and comparison snapshot from eight PKLs total; grouped WERs for `6e-5` are TEDLIUM 5.76%, Earnings22 15.18%, CHiME-6 60.08%, and Rev16 14.32%.
+
 ## 2026-05-21
 
 - ROB-115: The 8192-context CTC frequency-masking self-training run completed for `earnings22`, `tedlium`, `chime6`, and `rev16` at `seq_len=8192`, `overlap=7168`, `epochs=5`, `lr=9e-5`, using checkpoint `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_8192_rp_1/step_105360.pt`. Regenerated `lcasr/results/ctc_seq8192_self_training_eval/summary.csv`, `summary_by_setting.csv`, and `summary.md`; imported the already generated ROB-110 8192/16384 no-adapt result folders for snapshot comparison inputs; queued the matched `lr=6e-5` follow-up requested after completion.

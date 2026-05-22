@@ -12,7 +12,7 @@ the 8192 no-adapt baseline is not duplicated here.
 - Datasets: `earnings22`, `tedlium`, `chime6`, `rev16`
 - Split: `test`
 - Adaptation epochs: `5`
-- LR: `9e-5`; follow-up comparison run queued with `6e-5`
+- LRs: `9e-5` and matched follow-up `6e-5`
 - Augmentation: `spec_augment_n_freq_masks=6`, `spec_augment_freq_mask_param=34`, `spec_augment_n_time_masks=0`
 - Repeats: `1`
 
@@ -26,7 +26,7 @@ screen -L -Logfile lcasr/results/ctc_seq8192_self_training_eval/logs/rob115_ctc_
   bash -lc '/store/store5/software/simple-gpu-schedule/with-gpu 1,2 -- bash scripts/run_rob115_ctc_seq8192_self_training_queued.sh'
 ```
 
-The matched `6e-5` follow-up uses the same wrapper with `LR=6e-5`, a distinct
+The matched `6e-5` follow-up used the same wrapper with `LR=6e-5`, a distinct
 screen name, and the same result directory:
 
 ```bash
@@ -55,7 +55,9 @@ Each completed cell writes:
 
 The comparison snapshot reads the 8192 and 16384 no-adapt summaries imported
 from the already generated ROB-110 result branch; those baselines were not
-rerun for ROB-115.
+rerun for ROB-115. The snapshot includes both completed 8192 adapted learning
+rates plus the committed 2048, 16384, and 65536 comparison rows available in
+this checkout.
 
 Regenerate summaries from artifacts:
 
@@ -64,5 +66,6 @@ python lcasr/results/ctc_seq8192_self_training_eval/aggregate.py
 python lcasr/results/ctc_seq8192_self_training_eval/compare_snapshot.py
 ```
 
-`comparison_snapshot.md` is a snapshot until the 8192 adapted PKLs and a
-committed or indexed 8192 no-adapt baseline are both available in this checkout.
+`comparison_snapshot.md` remains labeled as a snapshot because it combines
+single-repeat rows from multiple committed result families and, for some
+long-context adapted comparisons, different adaptation policies.
