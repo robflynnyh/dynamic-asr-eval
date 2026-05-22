@@ -1,7 +1,14 @@
 # Research Diary
 
+## 2026-05-22
+
+- ROB-115: Added the existing ROB-110 8192-context no-adapt baseline rows from `lcasr/results/ctc_seq8192_unadapted_baseline/summary.csv` to the generated ROB-115 `summary.md`, including adapted-minus-baseline WER deltas for both completed `lr=6e-5` and `lr=9e-5` frequency-mask settings.
+
 ## 2026-05-21
 
+- ROB-115: Removed the separate mixed-mask 16384 block from the context comparison snapshot so the ROB-115 summary focuses on no-adapt baselines and standard frequency-mask adapted rows.
+- ROB-115: Updated the context comparison snapshot to use the exact three-repeat 16384-context standard frequency-mask rows available from `lcasr/results/paper/freq_mask` for TEDLIUM, Earnings22, CHiME-6, and Rev16. These rows use `seq_len=16384`, `overlap=14336`, `epochs=5`, `lr=9e-5`, and frequency masks only (`6` masks, width `34`, no time masks).
+- ROB-115: Added 8192-context CTC adapted freq-masking eval scaffolding for the missing follow-up from ROB-67. The setup uses `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_8192_rp_1/step_105360.pt`, `seq_len=8192`, `overlap=7168`, test split, `epochs=5`, `lr=9e-5`, frequency masks only (`6` masks, width `34`, no time masks), and a callback-backed Mimas wrapper that writes summaries under `lcasr/results/ctc_seq8192_self_training_eval/`.
 - ROB-110: The queued 8192-context no-adapt follow-up completed successfully. Regenerated `lcasr/results/ctc_seq8192_unadapted_baseline/summary.csv` / `.md` from the four PKLs and refreshed the no-adapt context comparison table to include 2048, 8192, 16384, and 65536 rows; 8192 WERs are CHiME-6 84.34%, Earnings22 18.68%, Rev16 15.17%, and TEDLIUM 6.31%.
 - ROB-110: A newer human comment requested the 8192-context unadapted baseline for repeat 1. Added matching 8192 no-adapt scaffolding with checkpoint `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_8192_rp_1/step_105360.pt`, `seq_len=8192`, `overlap=7168`, test split, `epochs=0`, a callback-backed Mimas wrapper, and comparison-script support for a 2048/8192/16384/65536 no-adapt table.
 - ROB-110: Inspected the completed rp2/rp3 no-adapt 16384-context CTC repeat follow-up from the callback. Regenerated rp2/rp3 summaries and the checkpoint-repeat comparison from PKLs under `lcasr/results/ctc_seq16384_unadapted_baseline_repeats/`; WERs are CHiME-6 83.80%/85.14%, Earnings22 18.69%/18.35%, Rev16 15.19%/15.26%, and TEDLIUM 6.51%/6.36% for rp2/rp3 respectively. The committed rp1 row remains CHiME-6 86.52%, Earnings22 18.29%, Rev16 15.22%, and TEDLIUM 6.23%.
@@ -92,8 +99,14 @@
   Earnings22 rows only; CHIME-6 and Rev16 remain available for `old_seed` and
   `rl_step_30000`, not the historical checkpoint.
 
+## 2026-05-22
+
+- ROB-115: The matched `lr=6e-5` 8192-context CTC frequency-masking self-training follow-up completed for `earnings22`, `tedlium`, `chime6`, and `rev16` at `seq_len=8192`, `overlap=7168`, and `epochs=5`. Regenerated the result summaries and comparison snapshot from eight PKLs total; grouped WERs for `6e-5` are TEDLIUM 5.76%, Earnings22 15.18%, CHiME-6 60.08%, and Rev16 14.32%.
+- ROB-115: Clarified the comparison snapshot policy note after review. The 2048, 8192, and 65536 adapted rows are standard frequency-mask self-training rows; only the explicitly labeled 16384 adapted RMM rows use a different random mixed-mask adaptation policy.
+
 ## 2026-05-21
 
+- ROB-115: The 8192-context CTC frequency-masking self-training run completed for `earnings22`, `tedlium`, `chime6`, and `rev16` at `seq_len=8192`, `overlap=7168`, `epochs=5`, `lr=9e-5`, using checkpoint `/store/store5/data/acp21rjf_checkpoints/SAP_LCASR/n_seq_sched_8192_rp_1/step_105360.pt`. Regenerated `lcasr/results/ctc_seq8192_self_training_eval/summary.csv`, `summary_by_setting.csv`, and `summary.md`; imported the already generated ROB-110 8192/16384 no-adapt result folders for snapshot comparison inputs; queued the matched `lr=6e-5` follow-up requested after completion.
 - ROB-103: The time-mask-only scaled RMM follow-up completed under `lcasr/results/rmm_eval/ctc_seq16384_time_only_scaled_time_masks/` with 42 PKLs and regenerated `summary.csv`, `summary_by_setting.csv`, and `summary.md`. Each dataset/split/epoch group has `N=3`; test mean WERs are TEDLIUM 5.84%/5.82%, Earnings22 15.62%/15.37%, CHiME-6 79.79%/92.94%, and Rev16 14.13%/14.07% for epochs 1/5 respectively. Dev mean WERs are TEDLIUM 6.72%/6.59%, Earnings22 19.96%/19.79%, and CHiME-6 84.70%/84.45%.
 
 ## 2026-05-20
