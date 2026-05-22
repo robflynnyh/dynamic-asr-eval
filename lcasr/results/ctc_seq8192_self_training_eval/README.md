@@ -67,5 +67,7 @@ python lcasr/results/ctc_seq8192_self_training_eval/compare_snapshot.py
 ```
 
 `comparison_snapshot.md` remains labeled as a snapshot because it combines
-single-repeat rows from multiple committed result families and, for some
-long-context adapted comparisons, different adaptation policies.
+single-repeat rows from multiple committed result families. The 2048, 8192,
+and 65536 adapted rows use the standard frequency-mask policy; the 16384
+adapted rows are explicitly labeled as the separate RMM random mixed-mask
+result family.

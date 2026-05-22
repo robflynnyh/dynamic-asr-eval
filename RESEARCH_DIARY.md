@@ -90,6 +90,7 @@
 ## 2026-05-22
 
 - ROB-115: The matched `lr=6e-5` 8192-context CTC frequency-masking self-training follow-up completed for `earnings22`, `tedlium`, `chime6`, and `rev16` at `seq_len=8192`, `overlap=7168`, and `epochs=5`. Regenerated the result summaries and comparison snapshot from eight PKLs total; grouped WERs for `6e-5` are TEDLIUM 5.76%, Earnings22 15.18%, CHiME-6 60.08%, and Rev16 14.32%.
+- ROB-115: Clarified the comparison snapshot policy note after review. The 2048, 8192, and 65536 adapted rows are standard frequency-mask self-training rows; only the explicitly labeled 16384 adapted RMM rows use a different random mixed-mask adaptation policy.
 
 ## 2026-05-21
 
