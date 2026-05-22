@@ -13,6 +13,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
+BASELINE_SUMMARY = ROOT.parent / "ctc_seq8192_unadapted_baseline" / "summary.csv"
 RESULT_RE = re.compile(
     r"(?P<dataset>.+)-(?P<split>dev|test)-ctc-seq(?P<seq>\d+)"
     r"-overlap(?P<overlap>\d+)-epoch-(?P<epoch>\d+)"
@@ -123,8 +124,34 @@ def write_csv(path: Path, rows: list[dict[str, object]], fields: list[str]) -> N
             writer.writerow({field: row.get(field, "") for field in fields})
 
 
-def write_markdown(path: Path, rows: list[dict[str, object]], source: Path) -> None:
+def read_baseline_rows(path: Path) -> list[dict[str, str]]:
+    if not path.exists():
+        return []
+    with path.open(newline="") as f:
+        return list(csv.DictReader(f))
+
+
+def pct_value(value: object) -> str:
+    if value in ("", None):
+        return ""
+    return f"{100 * float(value):.2f}%"
+
+
+def signed_pct_value(value: float) -> str:
+    return f"{100 * value:+.2f}%"
+
+
+def write_markdown(
+    path: Path,
+    rows: list[dict[str, object]],
+    source: Path,
+    baseline_summary: Path = BASELINE_SUMMARY,
+) -> None:
     grouped_rows = summarize(rows)
+    baseline_rows = read_baseline_rows(baseline_summary)
+    baseline_by_dataset = {
+        row["dataset"]: row for row in baseline_rows if row.get("split") == "test"
+    }
     lines = [
         "# CTC 8192-Context Self-Training Summary",
         "",
@@ -137,16 +164,57 @@ def write_markdown(path: Path, rows: list[dict[str, object]], source: Path) -> N
         "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in grouped_rows:
-        def pct(field: str) -> str:
-            value = row.get(field, "")
-            return f"{100 * float(value):.2f}%" if value != "" else ""
-
         lines.append(
             f"| {row.get('dataset', '')} | {row.get('epochs', '')} | {row.get('lr', '')} | "
-            f"{row.get('n', '')} | {pct('wer_mean')} | {pct('wer_std')} | "
-            f"{pct('ins_rate_mean')} | {pct('del_rate_mean')} | "
-            f"{pct('sub_rate_mean')} | {row.get('words', '')} |"
+            f"{row.get('n', '')} | {pct_value(row.get('wer_mean', ''))} | "
+            f"{pct_value(row.get('wer_std', ''))} | "
+            f"{pct_value(row.get('ins_rate_mean', ''))} | "
+            f"{pct_value(row.get('del_rate_mean', ''))} | "
+            f"{pct_value(row.get('sub_rate_mean', ''))} | {row.get('words', '')} |"
         )
+    lines.extend([
+        "",
+        "## ROB-110 8192 No-Adapt Baseline",
+        "",
+    ])
+    if baseline_rows:
+        lines.extend([
+            f"Imported from `{baseline_summary.resolve()}`.",
+            "",
+            "| Dataset | Split | Epochs | N | WER Mean | Ins | Del | Sub | Words |",
+            "|---|---|---:|---:|---:|---:|---:|---:|---:|",
+        ])
+        for row in sorted(baseline_rows, key=lambda item: item.get("dataset", "")):
+            lines.append(
+                f"| {row.get('dataset', '')} | {row.get('split', '')} | "
+                f"{row.get('epochs', '')} | {row.get('n', '')} | "
+                f"{pct_value(row.get('wer_mean', ''))} | "
+                f"{pct_value(row.get('ins_rate_mean', ''))} | "
+                f"{pct_value(row.get('del_rate_mean', ''))} | "
+                f"{pct_value(row.get('sub_rate_mean', ''))} | {row.get('words', '')} |"
+            )
+        lines.extend([
+            "",
+            "## Adapted Delta From 8192 No-Adapt",
+            "",
+            "| Dataset | LR | Adapted WER | No-Adapt WER | Absolute Delta | Relative Delta |",
+            "|---|---:|---:|---:|---:|---:|",
+        ])
+        for row in grouped_rows:
+            baseline = baseline_by_dataset.get(str(row.get("dataset", "")))
+            if not baseline:
+                continue
+            adapted_wer = float(row.get("wer_mean", ""))
+            baseline_wer = float(baseline.get("wer_mean", ""))
+            absolute_delta = adapted_wer - baseline_wer
+            relative_delta = absolute_delta / baseline_wer if baseline_wer else 0.0
+            lines.append(
+                f"| {row.get('dataset', '')} | {row.get('lr', '')} | "
+                f"{pct_value(adapted_wer)} | {pct_value(baseline_wer)} | "
+                f"{signed_pct_value(absolute_delta)} | {signed_pct_value(relative_delta)} |"
+            )
+    else:
+        lines.append(f"Missing baseline summary: `{baseline_summary.resolve()}`.")
     path.write_text("\n".join(lines) + "\n")
 
 

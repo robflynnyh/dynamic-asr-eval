@@ -68,6 +68,10 @@ python lcasr/results/ctc_seq8192_self_training_eval/aggregate.py
 python lcasr/results/ctc_seq8192_self_training_eval/compare_snapshot.py
 ```
 
+`summary.md` includes the imported ROB-110 8192 no-adapt baseline rows from
+`lcasr/results/ctc_seq8192_unadapted_baseline/summary.csv` and the
+adapted-minus-baseline WER deltas for both completed ROB-115 learning rates.
+
 `comparison_snapshot.md` remains labeled as a snapshot because it combines
 rows from multiple committed result families, repeat counts, and stride
 settings. The 2048, 8192, 16384, and 65536 adapted rows shown in the snapshot
