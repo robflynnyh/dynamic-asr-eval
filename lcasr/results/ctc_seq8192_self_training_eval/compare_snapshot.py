@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import csv
+import pickle
 from pathlib import Path
 
 
@@ -22,9 +23,20 @@ SOURCES = [
     ("65536 adapted stride2048", REPO_ROOT / "lcasr/results/seq_65536_investigation/self_training_stride2048/summary_by_setting.csv", "grouped"),
 ]
 
+PARTIAL_PKL_SOURCES = [
+    ("16384 adapted freq-mask partial", REPO_ROOT / "lcasr/results/entropy_ablation/pkl/tedlium-test-epoch-5-freq_mask_1.pkl"),
+    ("16384 adapted freq-mask partial", REPO_ROOT / "lcasr/results/entropy_ablation/pkl/earnings22-test-epoch-5-freq_mask_1.pkl"),
+]
+
 
 def pct(value: str) -> str:
     return f"{100 * float(value):.2f}%" if value else ""
+
+
+def lr_label(value: object) -> str:
+    if value in ("", None):
+        return ""
+    return f"{float(value):.0e}".replace("e-0", "em").replace("e-", "em").replace("e+0", "e")
 
 
 def read_rows(label: str, path: Path) -> list[dict[str, str]]:
@@ -33,6 +45,26 @@ def read_rows(label: str, path: Path) -> list[dict[str, str]]:
     with path.open(newline="") as f:
         reader = csv.DictReader(f)
         return [{**row, "source": label, "summary_path": str(path.relative_to(REPO_ROOT))} for row in reader]
+
+
+def read_pkl_row(label: str, path: Path) -> dict[str, str] | None:
+    if not path.exists():
+        return None
+    with path.open("rb") as f:
+        result = pickle.load(f)
+    args = result.get("args_dict", {})
+    return {
+        "source": label,
+        "dataset": str(args.get("dataset", "")),
+        "split": str(args.get("split", "")),
+        "seq_len": str(args.get("seq_len", "")),
+        "overlap": str(args.get("overlap", "")),
+        "epochs": str(args.get("epochs", "")),
+        "lr": lr_label(args.get("optim_lr", "")),
+        "n": "1",
+        "wer_mean": str(result.get("wer", "")),
+        "summary_path": str(path.relative_to(REPO_ROOT)),
+    }
 
 
 def main() -> None:
@@ -44,18 +76,29 @@ def main() -> None:
             missing.append(f"- {label}: `{path.relative_to(REPO_ROOT)}`")
             continue
         rows.extend(source_rows)
+    for label, path in PARTIAL_PKL_SOURCES:
+        row = read_pkl_row(label, path)
+        if row is None:
+            missing.append(f"- {label}: `{path.relative_to(REPO_ROOT)}`")
+            continue
+        rows.append(row)
 
     lines = [
         "# ROB-115 CTC Context Comparison Snapshot",
         "",
         "This is a snapshot, not a final thesis-ready comparison. It is generated",
-        "from committed summary artifacts available in this checkout.",
+        "from committed summary and result artifacts available in this checkout.",
         "",
         "Policy notes:",
         "",
         "- The 2048, 8192, and 65536 adapted rows use the standard frequency-mask",
         "  self-training policy (`spec_augment_n_freq_masks=6`,",
         "  `spec_augment_freq_mask_param=34`, `spec_augment_n_time_masks=0`).",
+        "- The 16384 adapted freq-mask partial rows are exact standard",
+        "  frequency-mask rows from the entropy-ablation artifacts, but only",
+        "  TEDLIUM and Earnings22 have committed exact-context rows in that",
+        "  source, so they are not a full four-dataset replacement for the RMM",
+        "  block.",
         "- The 16384 adapted rows are explicitly labeled `16384 adapted RMM` because",
         "  they come from the RMM random mixed-mask result family, not the",
         "  frequency-mask-only policy.",
@@ -63,7 +106,7 @@ def main() -> None:
         "  adapted/no-adapt pair is useful context but not a perfectly matched",
         "  stride comparison.",
         "",
-        "| Source | Dataset | Split | Seq Len | Overlap | Epochs | LR | N | WER | Summary |",
+        "| Source | Dataset | Split | Seq Len | Overlap | Epochs | LR | N | WER | Artifact |",
         "|---|---|---|---:|---:|---:|---:|---:|---:|---|",
     ]
     for row in sorted(rows, key=lambda item: (

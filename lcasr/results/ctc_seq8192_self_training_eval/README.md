@@ -57,7 +57,10 @@ The comparison snapshot reads the 8192 and 16384 no-adapt summaries imported
 from the already generated ROB-110 result branch; those baselines were not
 rerun for ROB-115. The snapshot includes both completed 8192 adapted learning
 rates plus the committed 2048, 16384, and 65536 comparison rows available in
-this checkout.
+this checkout. It also includes the exact 16384-context frequency-mask rows
+available from the entropy-ablation artifacts for TEDLIUM and Earnings22 only;
+those rows are labelled partial because there is no matching committed
+four-dataset `summary_by_setting.csv` source in this checkout.
 
 Regenerate summaries from artifacts:
 
@@ -68,6 +71,7 @@ python lcasr/results/ctc_seq8192_self_training_eval/compare_snapshot.py
 
 `comparison_snapshot.md` remains labeled as a snapshot because it combines
 single-repeat rows from multiple committed result families. The 2048, 8192,
-and 65536 adapted rows use the standard frequency-mask policy; the 16384
-adapted rows are explicitly labeled as the separate RMM random mixed-mask
-result family.
+and 65536 adapted rows use the standard frequency-mask policy. The partial
+16384 frequency-mask rows also use that policy, while the full four-dataset
+16384 adapted block is explicitly labeled as the separate RMM random
+mixed-mask result family.
