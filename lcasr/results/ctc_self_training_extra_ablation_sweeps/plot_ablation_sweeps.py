@@ -60,15 +60,22 @@ LR_PRETTY = {
 }
 LR_TAG = {pretty: tag for tag, pretty in LR_PRETTY.items()}
 
+PRIMARY_COLOR = "#4C72B0"
+SECONDARY_COLOR = "#DD8452"
+TERTIARY_COLOR = "#55A868"
+BAR_WIDTH = 0.32
+BAR_EDGE_COLOR = "black"
+BAR_EDGE_WIDTH = 0.5
+
 COLORS = {
-    "9em4": "#4C72B0",
-    "9em5": "#DD8452",
-    "9em6": "#55A868",
+    "9em4": PRIMARY_COLOR,
+    "9em5": SECONDARY_COLOR,
+    "9em6": TERTIARY_COLOR,
 }
 
 COMPARISON_COLORS = {
-    "without_ctc": "#4C72B0",
-    "with_ctc": "#C44E52",
+    "without_ctc": PRIMARY_COLOR,
+    "with_ctc": SECONDARY_COLOR,
 }
 
 PROGRESSIVE_BOTTOM_CTC_COMPARISON = {
@@ -264,7 +271,7 @@ def plot_group(
         label_offset = max(0.015, value_range * 0.06)
 
         x = np.arange(len(settings))
-        width = min(0.72 / max(len(lrs), 1), 0.28)
+        width = min(BAR_WIDTH, 0.7 / len(lrs))
         offsets = (np.arange(len(lrs)) - (len(lrs) - 1) / 2.0) * width
 
         for idx, lr in enumerate(lrs):
@@ -278,9 +285,9 @@ def plot_group(
                 yerr=errors if any(error > 0 for error in errors) else None,
                 capsize=2 if any(error > 0 for error in errors) else 0,
                 label=f"lr={LR_PRETTY[lr]}",
-                color=COLORS[lr],
-                edgecolor="black",
-                linewidth=0.5,
+                color=PRIMARY_COLOR if len(lrs) == 1 else COLORS[lr],
+                edgecolor=BAR_EDGE_COLOR,
+                linewidth=BAR_EDGE_WIDTH,
             )
             for bar, height in zip(bars, heights):
                 if np.isnan(height):
@@ -420,7 +427,7 @@ def plot_progressive_bottom_ctc_comparison(
 
         x = np.arange(len(settings))
         variants = list(PROGRESSIVE_BOTTOM_CTC_COMPARISON)
-        width = 0.32
+        width = min(BAR_WIDTH, 0.7 / len(variants))
         offsets = (np.arange(len(variants)) - (len(variants) - 1) / 2.0) * width
 
         for idx, variant in enumerate(variants):
@@ -435,8 +442,8 @@ def plot_progressive_bottom_ctc_comparison(
                 capsize=2 if any(error > 0 for error in errors) else 0,
                 label=PROGRESSIVE_BOTTOM_CTC_COMPARISON[variant]["label"],
                 color=COMPARISON_COLORS[variant],
-                edgecolor="black",
-                linewidth=0.5,
+                edgecolor=BAR_EDGE_COLOR,
+                linewidth=BAR_EDGE_WIDTH,
             )
             for bar, height in zip(bars, heights):
                 if np.isnan(height):

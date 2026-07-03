@@ -25,6 +25,10 @@ from aggregate import aggregate
 SETTING_RE = re.compile(r"earnings22-test-whole-concat-epoch-(\d+)-lr-(\d+e[mp]?\d+)")
 LR_PRETTY = {"9em5": "9e-5", "9em6": "9e-6"}
 LR_TAG = {v: k for k, v in LR_PRETTY.items()}
+BAR_WIDTH = 0.32
+BAR_EDGE_COLOR = "black"
+BAR_EDGE_WIDTH = 0.5
+COLORS = ["#4C72B0", "#DD8452", "#55A868", "#C44E52"]
 
 
 def main():
@@ -57,9 +61,8 @@ def main():
 
     x = np.arange(len(epochs))
     n = len(selected_tags)
-    width = 0.7 / n
+    width = min(BAR_WIDTH, 0.7 / n)
     offsets = (np.arange(n) - (n - 1) / 2) * width
-    colors = ["#4C72B0", "#DD8452", "#55A868", "#C44E52"]
 
     fig, ax = plt.subplots(figsize=(6.0, 3.8))
     for i, lr_tag in enumerate(selected_tags):
@@ -74,8 +77,8 @@ def main():
         improvement = np.array(improvement)
         bars = ax.bar(x + offsets[i], improvement, width,
                       label=f"lr={LR_PRETTY[lr_tag]}",
-                      color=colors[i % len(colors)],
-                      edgecolor="black", linewidth=0.5)
+                      color=COLORS[i % len(COLORS)],
+                      edgecolor=BAR_EDGE_COLOR, linewidth=BAR_EDGE_WIDTH)
         for e, b, v in zip(epochs, bars, improvement):
             if np.isnan(v):
                 continue

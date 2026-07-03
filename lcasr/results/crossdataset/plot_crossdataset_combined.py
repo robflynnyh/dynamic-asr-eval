@@ -15,6 +15,12 @@ import numpy as np
 
 from aggregate import aggregate
 
+BAR_WIDTH = 0.32
+PRIMARY_COLOR = "#4C72B0"
+SECONDARY_COLOR = "#DD8452"
+BAR_EDGE_COLOR = "black"
+BAR_EDGE_WIDTH = 0.5
+
 
 def get_decrease(row, adapt_type, test_on):
     """
@@ -101,13 +107,13 @@ def main():
     ]
 
     x = np.arange(len(test_groups))
-    width = 0.35
-    colors = ["#4C72B0", "#DD8452"]
+    width = BAR_WIDTH
+    colors = [PRIMARY_COLOR, SECONDARY_COLOR]
 
-    fig, ax = plt.subplots(figsize=(7, 5))
+    fig, ax = plt.subplots(figsize=(6.0, 3.8))
     
-    rects1 = ax.bar(x - width/2, data[0], width, label=adapt_labels[0], color=colors[0], edgecolor="black", linewidth=0.5)
-    rects2 = ax.bar(x + width/2, data[1], width, label=adapt_labels[1], color=colors[1], edgecolor="black", linewidth=0.5)
+    rects1 = ax.bar(x - width/2, data[0], width, label=adapt_labels[0], color=colors[0], edgecolor=BAR_EDGE_COLOR, linewidth=BAR_EDGE_WIDTH)
+    rects2 = ax.bar(x + width/2, data[1], width, label=adapt_labels[1], color=colors[1], edgecolor=BAR_EDGE_COLOR, linewidth=BAR_EDGE_WIDTH)
 
     def autolabel(rects, absolute_wers):
         for rect, abs_wer in zip(rects, absolute_wers):

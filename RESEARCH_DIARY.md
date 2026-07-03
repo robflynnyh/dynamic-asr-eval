@@ -1,5 +1,9 @@
 # Research Diary
 
+## 2026-07-03
+
+- Refreshed the thesis-facing self-training bar chart generators so single-series ablation plots use the same primary blue styling, grouped comparisons use the same blue/orange pairing, and bar widths/edge styling are consistent across `crossdataset`, `whole_concat_eval`, and the CTC self-training extra ablation sweep figures.
+
 ## 2026-05-22
 
 - ROB-115: Added the existing ROB-110 8192-context no-adapt baseline rows from `lcasr/results/ctc_seq8192_unadapted_baseline/summary.csv` to the generated ROB-115 `summary.md`, including adapted-minus-baseline WER deltas for both completed `lr=6e-5` and `lr=9e-5` frequency-mask settings.
