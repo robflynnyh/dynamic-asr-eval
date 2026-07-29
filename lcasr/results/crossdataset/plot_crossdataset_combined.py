@@ -82,9 +82,9 @@ def main():
 
     test_groups = [
         f"Test on {d1.capitalize()}\n(Baseline: {base1:.1f}%)",
-        f"Test on Earnings\n(Baseline: {base2:.1f}%)"
+        f"Test on Earnings-22\n(Baseline: {base2:.1f}%)"
     ]
-    adapt_labels = [f"Adapt on {d1.capitalize()}", "Adapt on Earnings"]
+    adapt_labels = [f"Adapt on {d1.capitalize()}", "Adapt on Earnings-22"]
 
     # Data for plotting
     # Rows: Adapt on d1, Adapt on d2

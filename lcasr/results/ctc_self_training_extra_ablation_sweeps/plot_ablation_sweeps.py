@@ -49,8 +49,8 @@ GROUP_TITLES = {
 }
 
 DATASET_TITLES = {
-    "earnings22": "Earnings22",
-    "tedlium": "TED-LIUM",
+    "earnings22": "Earnings-22",
+    "tedlium": "Tedlium",
 }
 
 LR_PRETTY = {
